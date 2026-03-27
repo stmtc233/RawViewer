@@ -38,10 +38,14 @@ migrate_working_dir/
 
 # iOS related
 **/ios/.generated/
+**/ios/.symlinks/
 **/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/ephemeral/
 **/ios/Flutter/flutter_export_environment.sh
-**/ios/podfile.lock
+**/ios/Podfile.lock
 **/ios/Pods/
+**/ios/Runner.xcodeproj/xcuserdata/
+**/ios/Runner.xcworkspace/xcuserdata/
 
 # Windows related
 windows/flutter/ephemeral/
@@ -72,3 +76,12 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 android/build/
+
+# macOS/Xcode related
+**/macos/.symlinks/
+**/macos/Flutter/ephemeral/
+**/macos/Pods/
+**/macos/Runner.xcodeproj/xcuserdata/
+**/macos/Runner.xcworkspace/xcuserdata/
+DerivedData/
+*.xcuserstate
