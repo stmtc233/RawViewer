@@ -40,10 +40,13 @@ migrate_working_dir/
 **/ios/.generated/
 **/ios/.symlinks/
 **/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/Flutter.podspec
 **/ios/Flutter/ephemeral/
 **/ios/Flutter/flutter_export_environment.sh
 **/ios/Podfile.lock
 **/ios/Pods/
+**/ios/Runner/GeneratedPluginRegistrant.h
+**/ios/Runner/GeneratedPluginRegistrant.m
 **/ios/Runner.xcodeproj/xcuserdata/
 **/ios/Runner.xcworkspace/xcuserdata/
 
@@ -81,6 +84,7 @@ android/build/
 **/macos/.symlinks/
 **/macos/Flutter/ephemeral/
 **/macos/Pods/
+**/macos/Podfile.lock
 **/macos/Runner.xcodeproj/xcuserdata/
 **/macos/Runner.xcworkspace/xcuserdata/
 DerivedData/
