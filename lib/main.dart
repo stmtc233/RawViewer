@@ -23,6 +23,29 @@ const List<String> _rawExtensions = [
   '.srw',
 ];
 
+const List<String> _bitmapExtensions = [
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
+];
+
+const List<String> _supportedExtensions = [
+  ..._rawExtensions,
+  ..._bitmapExtensions,
+];
+
+enum _MediaKind { raw, bitmap }
+
+class _MediaFile {
+  final String path;
+  final _MediaKind kind;
+
+  const _MediaFile({required this.path, required this.kind});
+
+  bool get isRaw => kind == _MediaKind.raw;
+}
+
 const MethodChannel _desktopOpenChannel = MethodChannel('rawviewer/open_paths');
 
 enum _OpenedSourceKind { none, folder, files }
@@ -58,10 +81,10 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   String? _currentSourceLabel;
-  List<String> _files = [];
+  List<_MediaFile> _files = [];
   _OpenedSourceKind _openedSourceKind = _OpenedSourceKind.none;
   // Use LRU Cache to limit memory usage.
-  late LruCache<String, LibRawImage> _imageCache;
+  late LruCache<String, ViewerImage> _imageCache;
   ViewerSettings _settings = const ViewerSettings();
 
   @override
@@ -104,7 +127,7 @@ class _HomePageState extends State<HomePage> {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
-      allowedExtensions: _rawExtensions
+      allowedExtensions: _supportedExtensions
           .map((extension) => extension.replaceFirst('.', ''))
           .toList(),
     );
@@ -149,15 +172,16 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _handleIncomingPaths(List<String> incomingPaths) async {
-    final normalizedPaths = _deduplicatePaths(
-      incomingPaths.where((filePath) => filePath.trim().isNotEmpty),
-    );
+    final normalizedPaths = incomingPaths
+        .where((filePath) => filePath.trim().isNotEmpty)
+        .map((filePath) => path.normalize(path.absolute(filePath)))
+        .toList();
     if (normalizedPaths.isEmpty) {
       return;
     }
 
     final directories = <String>[];
-    final files = <String>[];
+    final files = <_MediaFile>[];
 
     for (final openPath in normalizedPaths) {
       final entityType = FileSystemEntity.typeSync(openPath);
@@ -165,14 +189,17 @@ class _HomePageState extends State<HomePage> {
         directories.add(openPath);
         continue;
       }
-      if (entityType == FileSystemEntityType.file && _isRawFilePath(openPath)) {
-        files.add(openPath);
+      if (entityType == FileSystemEntityType.file) {
+        final mediaFile = _mediaFileFromPath(openPath);
+        if (mediaFile != null) {
+          files.add(mediaFile);
+        }
       }
     }
 
     if (directories.isNotEmpty) {
       final directoryFiles = directories.expand(_listRawFilesInDirectory);
-      final nextFiles = _deduplicatePaths([...directoryFiles, ...files]);
+      final nextFiles = _deduplicateMediaFiles([...directoryFiles, ...files]);
       _applyOpenedFiles(
         files: nextFiles,
         sourceKind: _OpenedSourceKind.folder,
@@ -188,7 +215,7 @@ class _HomePageState extends State<HomePage> {
 
     final shouldReplaceCurrent = _openedSourceKind != _OpenedSourceKind.files;
     final nextFiles =
-        shouldReplaceCurrent ? files : _deduplicatePaths([..._files, ...files]);
+        shouldReplaceCurrent ? files : _deduplicateMediaFiles([..._files, ...files]);
 
     _applyOpenedFiles(
       files: nextFiles,
@@ -199,7 +226,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _applyOpenedFiles({
-    required List<String> files,
+    required List<_MediaFile> files,
     required _OpenedSourceKind sourceKind,
     required String title,
     required bool clearCache,
@@ -219,33 +246,41 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  List<String> _listRawFilesInDirectory(String directoryPath) {
+  List<_MediaFile> _listRawFilesInDirectory(String directoryPath) {
     final files = Directory(directoryPath)
         .listSync()
         .whereType<File>()
-        .map((file) => path.normalize(path.absolute(file.path)))
-        .where(_isRawFilePath)
+        .map((file) => _mediaFileFromPath(file.path))
+        .whereType<_MediaFile>()
         .toList()
-      ..sort();
+      ..sort((a, b) => a.path.compareTo(b.path));
     return files;
   }
 
-  List<String> _deduplicatePaths(Iterable<String> paths) {
+  List<_MediaFile> _deduplicateMediaFiles(Iterable<_MediaFile> files) {
     final seen = <String>{};
-    final result = <String>[];
+    final result = <_MediaFile>[];
 
-    for (final filePath in paths) {
-      final normalizedPath = path.normalize(path.absolute(filePath));
+    for (final mediaFile in files) {
+      final normalizedPath = path.normalize(path.absolute(mediaFile.path));
       if (seen.add(normalizedPath)) {
-        result.add(normalizedPath);
+        result.add(_MediaFile(path: normalizedPath, kind: mediaFile.kind));
       }
     }
 
     return result;
   }
 
-  bool _isRawFilePath(String filePath) {
-    return _rawExtensions.contains(path.extension(filePath).toLowerCase());
+  _MediaFile? _mediaFileFromPath(String filePath) {
+    final normalizedPath = path.normalize(path.absolute(filePath));
+    final extension = path.extension(normalizedPath).toLowerCase();
+    if (_rawExtensions.contains(extension)) {
+      return _MediaFile(path: normalizedPath, kind: _MediaKind.raw);
+    }
+    if (_bitmapExtensions.contains(extension)) {
+      return _MediaFile(path: normalizedPath, kind: _MediaKind.bitmap);
+    }
+    return null;
   }
 
   String _folderSelectionTitle(List<String> directories) {
@@ -326,7 +361,7 @@ class _HomePageState extends State<HomePage> {
         body: ExcludeSemantics(
           child: _files.isEmpty
               ? const Center(
-                  child: Text('Open or drop RAW files and folders'),
+                  child: Text('Open or drop RAW and image files/folders'),
                 )
               : GridView.builder(
                   // Add cacheExtent to keep a few items off-screen alive
@@ -340,12 +375,13 @@ class _HomePageState extends State<HomePage> {
                   ),
                   itemCount: _files.length,
                   itemBuilder: (context, index) {
-                    final filePath = _files[index];
+                    final mediaFile = _files[index];
+                    final filePath = mediaFile.path;
                     // Use distinct key for thumbnail
                     final cacheKey = '$filePath:thumb';
                     return RawThumbnail(
                       key: ValueKey(filePath), // Important for recycling
-                      filePath: filePath,
+                      mediaFile: mediaFile,
                       cachedImage: _imageCache.get(cacheKey),
                       onCacheUpdate: (image) {
                         // Update cache asynchronously
@@ -383,18 +419,20 @@ class _HomePageState extends State<HomePage> {
 }
 
 class RawThumbnail extends StatefulWidget {
-  final String filePath;
-  final LibRawImage? cachedImage;
-  final Function(LibRawImage) onCacheUpdate;
+  final _MediaFile mediaFile;
+  final ViewerImage? cachedImage;
+  final Function(ViewerImage) onCacheUpdate;
   final VoidCallback onTap;
 
   const RawThumbnail({
     super.key,
-    required this.filePath,
+    required this.mediaFile,
     this.cachedImage,
     required this.onCacheUpdate,
     required this.onTap,
   });
+
+  String get filePath => mediaFile.path;
 
   @override
   State<RawThumbnail> createState() => _RawThumbnailState();
@@ -402,7 +440,7 @@ class RawThumbnail extends StatefulWidget {
 
 class _RawThumbnailState extends State<RawThumbnail> {
   WorkerTask<LibRawImage?>? _thumbTask;
-  Future<LibRawImage?>? _thumbFuture;
+  Future<ViewerImage?>? _thumbFuture;
 
   @override
   void initState() {
@@ -435,14 +473,28 @@ class _RawThumbnailState extends State<RawThumbnail> {
   }
 
   void _loadThumbnail() {
+    if (!widget.mediaFile.isRaw) {
+      _thumbFuture = Future<ViewerImage?>(() async {
+        final bytes = await File(widget.filePath).readAsBytes();
+        final image = ViewerImage.fromEncodedBytes(bytes);
+        if (mounted) {
+          widget.onCacheUpdate(image);
+        }
+        return image;
+      });
+      return;
+    }
+
     final task = WorkerService().requestThumbnail(widget.filePath);
     _thumbTask = task;
     _thumbFuture = task.result.then((image) {
-      if (!mounted) return null; // Discard result if widget is disposed
-      if (image != null) {
-        widget.onCacheUpdate(image);
+      if (!mounted) return null;
+      if (image == null) {
+        return null;
       }
-      return image;
+      final viewerImage = ViewerImage.fromRaw(image);
+      widget.onCacheUpdate(viewerImage);
+      return viewerImage;
     });
   }
 
@@ -461,7 +513,36 @@ class _RawThumbnailState extends State<RawThumbnail> {
               title: Text(path.basename(widget.filePath),
                   style: const TextStyle(fontSize: 10)),
             ),
-            child: _buildContent(),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                _buildContent(),
+                if (widget.mediaFile.isRaw)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.28),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text(
+                        'RAW',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -471,14 +552,14 @@ class _RawThumbnailState extends State<RawThumbnail> {
   Widget _buildContent() {
     if (widget.cachedImage != null) {
       return RawImageWidget(
-        rawImage: widget.cachedImage!,
+        image: widget.cachedImage!,
         fit: BoxFit.cover,
         memCacheWidth: 100,
         heroTag: widget.filePath,
       );
     }
 
-    return FutureBuilder<LibRawImage?>(
+    return FutureBuilder<ViewerImage?>(
       future: _thumbFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -499,7 +580,7 @@ class _RawThumbnailState extends State<RawThumbnail> {
         }
 
         return RawImageWidget(
-          rawImage: snapshot.data!,
+          image: snapshot.data!,
           fit: BoxFit.cover,
           memCacheWidth: 100,
           heroTag: widget.filePath,
@@ -510,9 +591,9 @@ class _RawThumbnailState extends State<RawThumbnail> {
 }
 
 class ImagePreviewPage extends StatefulWidget {
-  final List<String> files;
+  final List<_MediaFile> files;
   final int initialIndex;
-  final LruCache<String, LibRawImage> imageCache;
+  final LruCache<String, ViewerImage> imageCache;
   final ViewerSettings settings;
   final VoidCallback onClose;
 
@@ -575,17 +656,24 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
 
   void _preloadIndex(int index) {
     if (index >= 0 && index < widget.files.length) {
-      final String filePath = widget.files[index];
+      final mediaFile = widget.files[index];
+      final String filePath = mediaFile.path;
       final thumbKey = '$filePath:thumb';
       if (widget.imageCache.get(thumbKey) == null) {
-        WorkerService()
-            .requestThumbnail(filePath, priority: TaskPriority.low)
-            .result
-            .then((thumb) {
-          if (thumb != null) {
-            widget.imageCache.put(thumbKey, thumb);
-          }
-        });
+        if (mediaFile.isRaw) {
+          WorkerService()
+              .requestThumbnail(filePath, priority: TaskPriority.low)
+              .result
+              .then((thumb) {
+            if (thumb != null) {
+              widget.imageCache.put(thumbKey, ViewerImage.fromRaw(thumb));
+            }
+          });
+        } else {
+          File(filePath).readAsBytes().then((bytes) {
+            widget.imageCache.put(thumbKey, ViewerImage.fromEncodedBytes(bytes));
+          });
+        }
       }
     }
   }
@@ -652,7 +740,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    final currentFilePath = widget.files[_currentIndex];
+    final currentFilePath = widget.files[_currentIndex].path;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -667,10 +755,11 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
             itemCount: widget.files.length,
             onPageChanged: _onPageChanged,
             itemBuilder: (context, index) {
-              final filePath = widget.files[index];
+              final mediaFile = widget.files[index];
+              final filePath = mediaFile.path;
               return SingleImagePreview(
                 key: ValueKey(filePath),
-                filePath: filePath,
+                mediaFile: mediaFile,
                 thumbnail: widget.imageCache.get('$filePath:thumb'),
                 imageCache: widget.imageCache,
                 settings: widget.settings,
@@ -708,9 +797,9 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
 }
 
 class SingleImagePreview extends StatefulWidget {
-  final String filePath;
-  final LibRawImage? thumbnail;
-  final LruCache<String, LibRawImage> imageCache;
+  final _MediaFile mediaFile;
+  final ViewerImage? thumbnail;
+  final LruCache<String, ViewerImage> imageCache;
   final ViewerSettings settings;
   final Function(int) onSwitchRequest;
   final bool isActive;
@@ -719,7 +808,7 @@ class SingleImagePreview extends StatefulWidget {
 
   const SingleImagePreview({
     super.key,
-    required this.filePath,
+    required this.mediaFile,
     this.thumbnail,
     required this.imageCache,
     required this.settings,
@@ -729,13 +818,16 @@ class SingleImagePreview extends StatefulWidget {
     this.onScaleStateChanged,
   });
 
+  String get filePath => mediaFile.path;
+  bool get isRaw => mediaFile.isRaw;
+
   @override
   State<SingleImagePreview> createState() => _SingleImagePreviewState();
 }
 
 class _SingleImagePreviewState extends State<SingleImagePreview> {
-  LibRawImage? _thumbnail;
-  LibRawImage? _preview;
+  ViewerImage? _thumbnail;
+  ViewerImage? _preview;
   bool _isLoadingPreview = false;
   late bool _useEmbeddedPreview;
   late int _halfSize;
@@ -828,18 +920,27 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
         final thumbPriority = (!widget.isActive || widget.isFastScrolling)
             ? TaskPriority.low
             : TaskPriority.high;
-        final task = WorkerService()
-            .requestThumbnail(widget.filePath, priority: thumbPriority);
-        _currentTask = task;
-        final thumb = await task.result;
-        _currentTask = null;
+        ViewerImage? thumb;
+        if (widget.isRaw) {
+          final task = WorkerService()
+              .requestThumbnail(widget.filePath, priority: thumbPriority);
+          _currentTask = task;
+          final rawThumb = await task.result;
+          _currentTask = null;
+          if (rawThumb != null) {
+            thumb = ViewerImage.fromRaw(rawThumb);
+          }
+        } else {
+          final bytes = await File(widget.filePath).readAsBytes();
+          thumb = ViewerImage.fromEncodedBytes(bytes);
+        }
 
         if (mounted && thumb != null) {
           setState(() {
             _thumbnail = thumb;
           });
           // Cache it for fast subsequent switches
-          Future(() => widget.imageCache.put(thumbKey, thumb));
+          Future(() => widget.imageCache.put(thumbKey, thumb!));
         }
       }
     }
@@ -859,7 +960,7 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
       return;
     }
 
-    if (_useEmbeddedPreview) return;
+    if (!widget.isRaw || _useEmbeddedPreview) return;
     if (_preview != null) return;
 
     // Check cache for preview
@@ -882,8 +983,9 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
     final task = WorkerService().requestPreview(widget.filePath,
         halfSize: _halfSize, priority: priority);
     _currentTask = task;
-    final preview = await task.result;
+    final rawPreview = await task.result;
     _currentTask = null;
+    final preview = rawPreview == null ? null : ViewerImage.fromRaw(rawPreview);
 
     if (mounted && widget.isActive) {
       setState(() {
@@ -1009,7 +1111,7 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
                   if (_thumbnail != null)
                     // Low-res placeholder (matches grid cache)
                     RawImageWidget(
-                      rawImage: _thumbnail!,
+                      image: _thumbnail!,
                       fit: BoxFit.contain,
                       memCacheWidth: 100, // Match grid cache width
                       heroTag: widget.isActive ? widget.filePath : null,
@@ -1017,11 +1119,11 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
                   if (_thumbnail != null)
                     // High-res version (loads on top)
                     RawImageWidget(
-                      rawImage: _thumbnail!,
+                      image: _thumbnail!,
                       fit: BoxFit.contain,
                     ),
                   if (_preview != null && !_useEmbeddedPreview)
-                    RawImageWidget(rawImage: _preview!, fit: BoxFit.contain),
+                    RawImageWidget(image: _preview!, fit: BoxFit.contain),
                   if (_thumbnail == null &&
                       (_preview == null || _useEmbeddedPreview))
                     const Center(
@@ -1050,7 +1152,7 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
             onPressed: _togglePreviewMode,
             style: TextButton.styleFrom(backgroundColor: Colors.black54),
             child: Text(
-              _useEmbeddedPreview ? 'JPG' : 'RAW',
+              widget.isRaw ? (_useEmbeddedPreview ? 'JPG' : 'RAW') : 'IMG',
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -1064,14 +1166,14 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
 }
 
 class RawImageWidget extends StatelessWidget {
-  final LibRawImage rawImage;
+  final ViewerImage image;
   final BoxFit? fit;
   final int? memCacheWidth;
   final String? heroTag;
 
   const RawImageWidget({
     super.key,
-    required this.rawImage,
+    required this.image,
     this.fit,
     this.memCacheWidth,
     this.heroTag,
@@ -1080,7 +1182,7 @@ class RawImageWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget image = Image.memory(
-      rawImage.data,
+      this.image.data,
       fit: fit,
       cacheWidth: memCacheWidth,
       gaplessPlayback: true,

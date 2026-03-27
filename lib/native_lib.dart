@@ -88,6 +88,39 @@ class LibRawImage {
   LibRawImage(this.data, this.width, this.height, this.format);
 }
 
+class ViewerImage {
+  final Uint8List data;
+  final int? width;
+  final int? height;
+  final int? format;
+  final bool isRaw;
+
+  const ViewerImage({
+    required this.data,
+    required this.isRaw,
+    this.width,
+    this.height,
+    this.format,
+  });
+
+  factory ViewerImage.fromRaw(LibRawImage image) {
+    return ViewerImage(
+      data: image.data,
+      width: image.width,
+      height: image.height,
+      format: image.format,
+      isRaw: true,
+    );
+  }
+
+  factory ViewerImage.fromEncodedBytes(Uint8List data) {
+    return ViewerImage(
+      data: data,
+      isRaw: false,
+    );
+  }
+}
+
 // BMP Header Generator
 Uint8List _addBmpHeader(Uint8List rgbData, int width, int height) {
   final int dataSize = rgbData.length;
