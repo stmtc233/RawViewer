@@ -11,6 +11,22 @@ import 'settings_page.dart';
 import 'lru_cache.dart';
 import 'worker_service.dart';
 
+const List<String> _rawExtensions = [
+  '.arw',
+  '.cr2',
+  '.cr3',
+  '.dng',
+  '.nef',
+  '.orf',
+  '.raf',
+  '.rw2',
+  '.srw',
+];
+
+const MethodChannel _desktopOpenChannel = MethodChannel('rawviewer/open_paths');
+
+enum _OpenedSourceKind { none, folder, files }
+
 void main() {
   runApp(const MyApp());
 }
@@ -41,8 +57,9 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  String? _currentDir;
+  String? _currentSourceLabel;
   List<String> _files = [];
+  _OpenedSourceKind _openedSourceKind = _OpenedSourceKind.none;
   // Use LRU Cache to limit memory usage.
   late LruCache<String, LibRawImage> _imageCache;
   ViewerSettings _settings = const ViewerSettings();
@@ -51,6 +68,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _initCache();
+    unawaited(_listenForDesktopOpenRequests());
   }
 
   void _initCache() {
@@ -78,45 +96,174 @@ class _HomePageState extends State<HomePage> {
     String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
 
     if (selectedDirectory != null) {
-      final dir = Directory(selectedDirectory);
-      final List<String> rawExtensions = [
-        '.arw',
-        '.cr2',
-        '.cr3',
-        '.dng',
-        '.nef',
-        '.orf',
-        '.raf',
-        '.rw2',
-        '.srw'
-      ];
-
-      final files = dir
-          .listSync()
-          .where((entity) {
-            if (entity is File) {
-              final ext = path.extension(entity.path).toLowerCase();
-              return rawExtensions.contains(ext);
-            }
-            return false;
-          })
-          .map((e) => e.path)
-          .toList();
-
-      setState(() {
-        _currentDir = selectedDirectory;
-        _files = files;
-        // Clear cache when changing folders
-        _imageCache.clear();
-      });
+      await _handleIncomingPaths([selectedDirectory]);
     }
+  }
+
+  Future<void> _openFiles() async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: _rawExtensions
+          .map((extension) => extension.replaceFirst('.', ''))
+          .toList(),
+    );
+
+    final selectedFiles = result?.paths.whereType<String>().toList();
+    if (selectedFiles == null || selectedFiles.isEmpty) {
+      return;
+    }
+
+    await _handleIncomingPaths(selectedFiles);
+  }
+
+  Future<void> _listenForDesktopOpenRequests() async {
+    if (!Platform.isMacOS && !Platform.isWindows) {
+      return;
+    }
+
+    _desktopOpenChannel.setMethodCallHandler((call) async {
+      if (call.method != 'openPaths') {
+        throw MissingPluginException('Unsupported method: ${call.method}');
+      }
+
+      final arguments = call.arguments;
+      if (arguments is! List) {
+        return;
+      }
+
+      await _handleIncomingPaths(arguments.whereType<String>().toList());
+    });
+
+    try {
+      final initialPaths =
+          await _desktopOpenChannel.invokeListMethod<String>('getInitialPaths');
+      if (initialPaths != null && initialPaths.isNotEmpty) {
+        await _handleIncomingPaths(initialPaths);
+      }
+    } on MissingPluginException {
+      // Ignore when the current platform does not expose desktop open events.
+    } on PlatformException {
+      // Ignore malformed payloads from the host platform.
+    }
+  }
+
+  Future<void> _handleIncomingPaths(List<String> incomingPaths) async {
+    final normalizedPaths = _deduplicatePaths(
+      incomingPaths.where((filePath) => filePath.trim().isNotEmpty),
+    );
+    if (normalizedPaths.isEmpty) {
+      return;
+    }
+
+    final directories = <String>[];
+    final files = <String>[];
+
+    for (final openPath in normalizedPaths) {
+      final entityType = FileSystemEntity.typeSync(openPath);
+      if (entityType == FileSystemEntityType.directory) {
+        directories.add(openPath);
+        continue;
+      }
+      if (entityType == FileSystemEntityType.file && _isRawFilePath(openPath)) {
+        files.add(openPath);
+      }
+    }
+
+    if (directories.isNotEmpty) {
+      final directoryFiles = directories.expand(_listRawFilesInDirectory);
+      final nextFiles = _deduplicatePaths([...directoryFiles, ...files]);
+      _applyOpenedFiles(
+        files: nextFiles,
+        sourceKind: _OpenedSourceKind.folder,
+        title: _folderSelectionTitle(directories),
+        clearCache: true,
+      );
+      return;
+    }
+
+    if (files.isEmpty) {
+      return;
+    }
+
+    final shouldReplaceCurrent = _openedSourceKind != _OpenedSourceKind.files;
+    final nextFiles =
+        shouldReplaceCurrent ? files : _deduplicatePaths([..._files, ...files]);
+
+    _applyOpenedFiles(
+      files: nextFiles,
+      sourceKind: _OpenedSourceKind.files,
+      title: _fileSelectionTitle(nextFiles.length),
+      clearCache: shouldReplaceCurrent,
+    );
+  }
+
+  void _applyOpenedFiles({
+    required List<String> files,
+    required _OpenedSourceKind sourceKind,
+    required String title,
+    required bool clearCache,
+  }) {
+    if (!mounted) {
+      return;
+    }
+
+    if (clearCache) {
+      _imageCache.clear();
+    }
+
+    setState(() {
+      _openedSourceKind = sourceKind;
+      _currentSourceLabel = title;
+      _files = files;
+    });
+  }
+
+  List<String> _listRawFilesInDirectory(String directoryPath) {
+    final files = Directory(directoryPath)
+        .listSync()
+        .whereType<File>()
+        .map((file) => path.normalize(path.absolute(file.path)))
+        .where(_isRawFilePath)
+        .toList()
+      ..sort();
+    return files;
+  }
+
+  List<String> _deduplicatePaths(Iterable<String> paths) {
+    final seen = <String>{};
+    final result = <String>[];
+
+    for (final filePath in paths) {
+      final normalizedPath = path.normalize(path.absolute(filePath));
+      if (seen.add(normalizedPath)) {
+        result.add(normalizedPath);
+      }
+    }
+
+    return result;
+  }
+
+  bool _isRawFilePath(String filePath) {
+    return _rawExtensions.contains(path.extension(filePath).toLowerCase());
+  }
+
+  String _folderSelectionTitle(List<String> directories) {
+    if (directories.length == 1) {
+      return directories.first;
+    }
+    return '${directories.length} folders';
+  }
+
+  String _fileSelectionTitle(int count) {
+    return count == 1 ? '1 file' : '$count files';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
-          title: Text(_currentDir ?? 'Raw Viewer'),
+          title: Text(_currentSourceLabel ?? 'Raw Viewer'),
           actions: [
             IconButton(
               icon: const Icon(Icons.settings),
@@ -167,6 +314,10 @@ class _HomePageState extends State<HomePage> {
               },
             ),
             IconButton(
+              icon: const Icon(Icons.file_open),
+              onPressed: _openFiles,
+            ),
+            IconButton(
               icon: const Icon(Icons.folder_open),
               onPressed: _openFolder,
             ),
@@ -174,7 +325,9 @@ class _HomePageState extends State<HomePage> {
         ),
         body: ExcludeSemantics(
           child: _files.isEmpty
-              ? const Center(child: Text('Open a folder with RAW images'))
+              ? const Center(
+                  child: Text('Open or drop RAW files and folders'),
+                )
               : GridView.builder(
                   // Add cacheExtent to keep a few items off-screen alive
                   cacheExtent: 200,
