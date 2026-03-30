@@ -30,22 +30,47 @@ jobs:
       - name: Build Windows
         run: flutter build windows --release
 
-      - name: Zip Windows build
+      - name: Prepare Windows package directory
+        shell: pwsh
         run: |
+          $packageDir = "build\windows\packaged"
+          Remove-Item $packageDir -Recurse -Force -ErrorAction SilentlyContinue
+
           if (Test-Path "build\windows\x64\runner\Release") {
-            Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "rawviewer-windows-${{ github.event.inputs.version }}.zip"
+            $sourceDir = "build\windows\x64\runner\Release"
           } elseif (Test-Path "build\windows\runner\Release") {
-            Compress-Archive -Path "build\windows\runner\Release\*" -DestinationPath "rawviewer-windows-${{ github.event.inputs.version }}.zip"
+            $sourceDir = "build\windows\runner\Release"
           } else {
             Write-Error "Could not find Windows build output directory"
             exit 1
           }
+
+          New-Item -ItemType Directory -Path $packageDir | Out-Null
+          Copy-Item -Path "$sourceDir\*" -Destination $packageDir -Recurse
+
+      - name: Zip Windows build
+        shell: pwsh
+        run: Compress-Archive -Path "build\windows\packaged\*" -DestinationPath "rawviewer-windows-${{ github.event.inputs.version }}.zip"
+
+      - name: Build Windows Setup
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.5
+        with:
+          path: innosetup/rawviewer.iss
+          options: >-
+            /DMyAppVersion=${{ github.event.inputs.version }}
+            /DMyOutputBaseFilename=rawviewer-windows-${{ github.event.inputs.version }}-setup
 
       - name: Upload Windows Build
         uses: actions/upload-artifact@v4
         with:
           name: windows-build
           path: rawviewer-windows-${{ github.event.inputs.version }}.zip
+
+      - name: Upload Windows Setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-setup
+          path: rawviewer-windows-${{ github.event.inputs.version }}-setup.exe
 
   build-macos:
     name: Build macOS Universal
@@ -149,6 +174,11 @@ jobs:
         with:
           name: windows-build
 
+      - name: Download Windows Setup
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-setup
+
       - name: Download macOS Build
         uses: actions/download-artifact@v4
         with:
@@ -166,6 +196,7 @@ jobs:
           name: Release ${{ github.event.inputs.version }}
           files: |
             rawviewer-windows-${{ github.event.inputs.version }}.zip
+            rawviewer-windows-${{ github.event.inputs.version }}-setup.exe
             rawviewer-macos-${{ github.event.inputs.version }}.zip
             rawviewer-android-${{ github.event.inputs.version }}.apk
         env:
