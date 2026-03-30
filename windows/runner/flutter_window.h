@@ -34,6 +34,7 @@ class FlutterWindow : public Win32Window {
                                                 DWORD_PTR ref_data);
 
   void ConfigureOpenPathChannel();
+  void ConfigureShellIntegrationChannel();
   void HandleDropFiles(HDROP drop);
   void HandleOpenPaths(const std::vector<std::string>& paths);
   std::vector<std::string> ConsumePendingOpenPaths();
@@ -48,6 +49,8 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       open_path_channel_;
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      shell_integration_channel_;
   HWND flutter_content_window_ = nullptr;
 };
 

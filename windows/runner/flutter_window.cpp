@@ -8,11 +8,13 @@
 #include "flutter/generated_plugin_registrant.h"
 #include <flutter/standard_method_codec.h>
 
+#include "shell_integration.h"
 #include "utils.h"
 
 namespace {
 
 constexpr char kOpenPathChannelName[] = "rawviewer/open_paths";
+constexpr char kShellIntegrationChannelName[] = "rawviewer/windows_shell";
 constexpr UINT_PTR kFlutterContentWindowSubclassId = 1;
 
 flutter::EncodableList EncodePaths(const std::vector<std::string>& paths) {
@@ -86,6 +88,7 @@ bool FlutterWindow::OnCreate() {
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
   ConfigureOpenPathChannel();
+  ConfigureShellIntegrationChannel();
 
   DragAcceptFiles(GetHandle(), TRUE);
   flutter_content_window_ = flutter_controller_->view()->GetNativeWindow();
@@ -119,6 +122,7 @@ void FlutterWindow::OnDestroy() {
     DragAcceptFiles(GetHandle(), FALSE);
   }
   open_path_channel_ = nullptr;
+  shell_integration_channel_ = nullptr;
   open_path_listener_ready_ = false;
 
   if (flutter_controller_) {
@@ -181,6 +185,46 @@ void FlutterWindow::ConfigureOpenPathChannel() {
           open_path_listener_ready_ = true;
           result->Success(
               flutter::EncodableValue(EncodePaths(ConsumePendingOpenPaths())));
+          return;
+        }
+
+        result->NotImplemented();
+      });
+}
+
+void FlutterWindow::ConfigureShellIntegrationChannel() {
+  shell_integration_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(),
+          kShellIntegrationChannelName,
+          &flutter::StandardMethodCodec::GetInstance());
+
+  shell_integration_channel_->SetMethodCallHandler(
+      [](const flutter::MethodCall<flutter::EncodableValue>& call,
+         std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
+             result) {
+        if (call.method_name() == "getContextMenuState") {
+          result->Success(
+              flutter::EncodableValue(GetWindowsContextMenuState()));
+          return;
+        }
+
+        if (call.method_name() == "setContextMenuEnabled") {
+          const auto* enabled = std::get_if<bool>(call.arguments());
+          if (enabled == nullptr) {
+            result->Error("invalid_arguments",
+                          "Expected a boolean enabled flag.");
+            return;
+          }
+
+          std::string error_message;
+          if (!SetWindowsContextMenuEnabled(*enabled, &error_message)) {
+            result->Error("shell_integration_error", error_message);
+            return;
+          }
+
+          result->Success(
+              flutter::EncodableValue(GetWindowsContextMenuState()));
           return;
         }
 

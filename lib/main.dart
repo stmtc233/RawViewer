@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:exif/exif.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -78,7 +77,8 @@ class _TimestampRepository {
   final Map<String, Future<_MediaTimestampInfo>> _futureCache = {};
 
   Future<_MediaTimestampInfo> load(String filePath) {
-    return _futureCache.putIfAbsent(filePath, () => _readTimestampInfo(filePath));
+    return _futureCache.putIfAbsent(
+        filePath, () => _readTimestampInfo(filePath));
   }
 
   void clear() {
@@ -136,6 +136,8 @@ DateTime? _parseExifDateTime(String value) {
 }
 
 const MethodChannel _desktopOpenChannel = MethodChannel('rawviewer/open_paths');
+const MethodChannel _windowsShellChannel =
+    MethodChannel('rawviewer/windows_shell');
 
 enum _OpenedSourceKind { none, folder, files }
 
@@ -182,6 +184,7 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _initCache();
     unawaited(_listenForDesktopOpenRequests());
+    unawaited(_refreshWindowsContextMenuState());
   }
 
   void _initCache() {
@@ -191,6 +194,61 @@ class _HomePageState extends State<HomePage> {
       maxBytes,
       sizeOf: (image) => image.data.length,
     );
+  }
+
+  Future<void> _refreshWindowsContextMenuState() async {
+    if (!Platform.isWindows) {
+      return;
+    }
+
+    try {
+      final contextMenuSettings = await _getWindowsContextMenuSettings();
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _settings = _settings.copyWith(
+          windowsContextMenu: contextMenuSettings,
+        );
+      });
+    } on MissingPluginException {
+      // Ignore when shell integration is not implemented on this platform.
+    } on PlatformException {
+      // Ignore transient Windows shell integration failures at startup.
+    }
+  }
+
+  Future<WindowsContextMenuSettings> _getWindowsContextMenuSettings() async {
+    final values = await _windowsShellChannel.invokeMapMethod<String, dynamic>(
+      'getContextMenuState',
+    );
+    return WindowsContextMenuSettings.fromPlatformMap(values);
+  }
+
+  Future<WindowsContextMenuSettings> _setWindowsContextMenuEnabled(
+    bool enabled,
+  ) async {
+    try {
+      final values =
+          await _windowsShellChannel.invokeMapMethod<String, dynamic>(
+        'setContextMenuEnabled',
+        enabled,
+      );
+      final nextState = WindowsContextMenuSettings.fromPlatformMap(values);
+
+      if (mounted) {
+        setState(() {
+          _settings = _settings.copyWith(windowsContextMenu: nextState);
+        });
+      }
+
+      return nextState;
+    } on PlatformException catch (error) {
+      throw Exception(error.message ?? 'Unknown platform error');
+    } on MissingPluginException {
+      throw Exception('当前 Windows 构建不支持资源管理器右键菜单');
+    }
   }
 
   Future<void> _openFolder() async {
@@ -304,8 +362,9 @@ class _HomePageState extends State<HomePage> {
     }
 
     final shouldReplaceCurrent = _openedSourceKind != _OpenedSourceKind.files;
-    final nextFiles =
-        shouldReplaceCurrent ? files : _deduplicateMediaFiles([..._files, ...files]);
+    final nextFiles = shouldReplaceCurrent
+        ? files
+        : _deduplicateMediaFiles([..._files, ...files]);
 
     _applyOpenedFiles(
       files: nextFiles,
@@ -394,6 +453,11 @@ class _HomePageState extends State<HomePage> {
             IconButton(
               icon: const Icon(Icons.settings),
               onPressed: () async {
+                await _refreshWindowsContextMenuState();
+                if (!mounted || !context.mounted) {
+                  return;
+                }
+
                 final result = await Navigator.push<ViewerSettings>(
                   context,
                   PageRouteBuilder(
@@ -416,6 +480,10 @@ class _HomePageState extends State<HomePage> {
                                 ),
                                 child: SettingsPage(
                                   settings: _settings,
+                                  onWindowsContextMenuChanged:
+                                      Platform.isWindows
+                                          ? _setWindowsContextMenuEnabled
+                                          : null,
                                   onClose: (res) {
                                     Navigator.pop(context, res);
                                   },
@@ -816,7 +884,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
           });
         } else {
           File(filePath).readAsBytes().then((bytes) {
-            widget.imageCache.put(thumbKey, ViewerImage.fromEncodedBytes(bytes));
+            widget.imageCache
+                .put(thumbKey, ViewerImage.fromEncodedBytes(bytes));
           });
         }
       }

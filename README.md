@@ -18,6 +18,7 @@ Raw Viewer allows photographers and enthusiasts to seamlessly view, browse, and 
 - **Smart Caching:** Built-in LRU cache to manage memory efficiency while keeping viewed images ready.
 - **EXIF Metadata:** Reads and displays true image capture timestamps directly from EXIF data.
 - **Smooth Interaction:** Fast page scroll, smooth pinch-to-zoom (touch), and scroll-to-zoom (mouse) functionality.
+- **Windows Context Menu:** Lets you install an “Open in RawView” Explorer entry for the current user, supporting files, multi-file selection, folders, and folder background opening.
 - **Cross-Platform:** Built for desktop (Windows, macOS) and mobile (Android) natively.
 
 ## Screenshots
