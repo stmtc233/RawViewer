@@ -147,6 +147,36 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case WM_COPYDATA: {
+      COPYDATASTRUCT* cds = reinterpret_cast<COPYDATASTRUCT*>(lparam);
+      if (cds->dwData == 1) {
+        const char* data = static_cast<const char*>(cds->lpData);
+        std::string paths_str(data, cds->cbData - 1);
+        std::vector<std::string> paths;
+        size_t start = 0;
+        size_t end = paths_str.find('\n');
+        while (end != std::string::npos) {
+          std::string path = paths_str.substr(start, end - start);
+          if (!path.empty()) {
+            paths.push_back(path);
+          }
+          start = end + 1;
+          end = paths_str.find('\n', start);
+        }
+        if (start < paths_str.size()) {
+          std::string path = paths_str.substr(start);
+          if (!path.empty()) {
+            paths.push_back(path);
+          }
+        }
+        if (!paths.empty()) {
+          HandleOpenPaths(paths);
+        }
+        return TRUE;
+      }
+      break;
+    }
+
     case WM_DROPFILES:
       HandleDropFiles(reinterpret_cast<HDROP>(wparam));
       return 0;
