@@ -88,7 +88,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Windows ARM64
-        run: flutter build windows --release
+        run: flutter build windows --release --target-platform=windows-arm64
 
       - name: Prepare Windows package directory
         shell: pwsh
@@ -265,10 +265,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
+      - name: Setup Flutter (Linux ARM64 Workaround)
+        run: |
+          git clone https://github.com/flutter/flutter.git -b stable ${{ runner.temp }}/flutter
+          echo "${{ runner.temp }}/flutter/bin" >> $GITHUB_PATH
 
       - name: Install Linux dependencies
         run: |
