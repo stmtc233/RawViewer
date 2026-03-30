@@ -74,8 +74,22 @@ apply_standard_settings(${BINARY_NAME})
 set(NATIVE_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/native_lib")
 set(LIBRAW_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../windows/native_lib/libraw")
 
-# Add native_lib library
-file(GLOB LIBRAW_SOURCES "${LIBRAW_DIR}/src/*.cpp")
+# Collect LibRaw source files from all subdirectories
+file(GLOB_RECURSE LIBRAW_SOURCES
+  "${LIBRAW_DIR}/src/libraw_c_api.cpp"
+  "${LIBRAW_DIR}/src/libraw_datastream.cpp"
+  "${LIBRAW_DIR}/src/decoders/*.cpp"
+  "${LIBRAW_DIR}/src/decompressors/*.cpp"
+  "${LIBRAW_DIR}/src/demosaic/*.cpp"
+  "${LIBRAW_DIR}/src/integration/*.cpp"
+  "${LIBRAW_DIR}/src/metadata/*.cpp"
+  "${LIBRAW_DIR}/src/postprocessing/*.cpp"
+  "${LIBRAW_DIR}/src/preprocessing/*.cpp"
+  "${LIBRAW_DIR}/src/tables/*.cpp"
+  "${LIBRAW_DIR}/src/utils/*.cpp"
+  "${LIBRAW_DIR}/src/write/*.cpp"
+  "${LIBRAW_DIR}/src/x3f/*.cpp"
+)
 list(FILTER LIBRAW_SOURCES EXCLUDE REGEX ".*_ph\\.cpp$")
 
 add_library(native_lib SHARED
@@ -84,7 +98,8 @@ add_library(native_lib SHARED
 )
 
 target_include_directories(native_lib PRIVATE "${LIBRAW_DIR}")
-target_compile_options(native_lib PRIVATE -DLIBRAW_NODLL -fvisibility=hidden -O3)
+target_compile_definitions(native_lib PRIVATE LIBRAW_NODLL)
+target_compile_options(native_lib PRIVATE -fvisibility=hidden -O3)
 set_target_properties(native_lib PROPERTIES CXX_STANDARD 14)
 
 # Add dependency libraries. Add any application-specific dependencies here.

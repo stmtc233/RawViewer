@@ -34,12 +34,17 @@ extern "C" {
         }
     }
 
-    EXPORT ThumbnailResult get_thumbnail(const wchar_t* file_path) {
-        ThumbnailResult result = {nullptr, 0, 0, 0, 0};
+    EXPORT void get_thumbnail(const wchar_t* file_path, ThumbnailResult* out) {
+        if (out == nullptr) return;
+
+        *out = {nullptr, 0, 0, 0, 0};
+
+        if (file_path == nullptr) return;
+
         LibRaw RawProcessor;
         
         if (RawProcessor.open_file(file_path) != LIBRAW_SUCCESS) {
-            return result;
+            return;
         }
 
         // Try to unpack thumbnail
@@ -49,35 +54,30 @@ extern "C" {
             
             if (thumb) {
                 // Copy data
-                result.size = thumb->data_size;
-                result.data = (uint8_t*)malloc(result.size);
-                if (result.data) {
-                    memcpy(result.data, thumb->data, result.size);
+                out->size = thumb->data_size;
+                out->data = (uint8_t*)malloc(out->size);
+                if (out->data) {
+                    memcpy(out->data, thumb->data, out->size);
                 }
                 
                 // Map LibRaw types to our format
-                // LIBRAW_IMAGE_JPEG = 1
-                // LIBRAW_IMAGE_BITMAP = 2
                 if (thumb->type == LIBRAW_IMAGE_JPEG) {
-                    result.format = 0; // JPEG
+                    out->format = 0; // JPEG
                 } else if (thumb->type == LIBRAW_IMAGE_BITMAP) {
-                    result.format = 1; // RGB Bitmap
-                    result.width = thumb->width;
-                    result.height = thumb->height;
+                    out->format = 1; // RGB Bitmap
+                    out->width = thumb->width;
+                    out->height = thumb->height;
                 }
                 
                 LibRaw::dcraw_clear_mem(thumb);
                 RawProcessor.recycle();
-                return result;
+                return;
             }
         }
         
-        // Fallback: If unpack_thumb fails (common with some DNGs), try to generate a preview
-        // This is slower but better than no thumbnail
-        
-        // Set parameters for fast processing
+        // Fallback: generate a preview from raw data
         RawProcessor.imgdata.params.use_camera_wb = 1;
-        RawProcessor.imgdata.params.half_size = 1; // Half size for speed
+        RawProcessor.imgdata.params.half_size = 1;
         RawProcessor.imgdata.params.output_bps = 8;
         
         if (RawProcessor.unpack() == LIBRAW_SUCCESS) {
@@ -85,21 +85,16 @@ extern "C" {
                 libraw_processed_image_t *image = RawProcessor.dcraw_make_mem_image();
                 
                 if (image) {
-                    result.format = 1; // RGB Bitmap
-                    result.width = image->width;
-                    result.height = image->height;
-                    result.size = image->data_size;
-                    result.data = (uint8_t*)malloc(result.size);
+                    out->format = 1;
+                    out->width = image->width;
+                    out->height = image->height;
+                    out->size = image->data_size;
+                    out->data = (uint8_t*)malloc(out->size);
                     
-                    if (result.data) {
-                        // Convert RGB to BGR for Windows BMP (if needed, or keep RGB and handle in Dart)
-                        // Our Dart code wraps it in BMP header. BMP standard is typically BGR?
-                        // Actually, Flutter's Image.memory with BMP header:
-                        // Most BMPs are BGR. Let's swap.
-                        
+                    if (out->data) {
                         uint8_t* src = image->data;
-                        uint8_t* dst = result.data;
-                        int total_pixels = result.width * result.height;
+                        uint8_t* dst = out->data;
+                        int total_pixels = out->width * out->height;
                         
                         for (int i = 0; i < total_pixels; ++i) {
                             dst[i * 3 + 0] = src[i * 3 + 2]; // B
@@ -113,49 +108,49 @@ extern "C" {
         }
 
         RawProcessor.recycle();
-        return result;
     }
 
     // Get preview image (fast decoding)
-    EXPORT ImageResult get_preview(const wchar_t* file_path, int half_size) {
-        ImageResult result = {nullptr, 0, 0, 0};
+    EXPORT void get_preview(const wchar_t* file_path, int half_size,
+                            ImageResult* out) {
+        if (out == nullptr) return;
+
+        *out = {nullptr, 0, 0, 0};
+
+        if (file_path == nullptr) return;
+
         LibRaw RawProcessor;
 
-        // Set parameters for speed, sacrificing some quality
         RawProcessor.imgdata.params.use_camera_wb = 1;
-        RawProcessor.imgdata.params.half_size = half_size; // 1: Half size, 0: Full size
-        RawProcessor.imgdata.params.output_bps = 8; // 8-bit output
-        RawProcessor.imgdata.params.output_color = 1; // sRGB
+        RawProcessor.imgdata.params.half_size = half_size;
+        RawProcessor.imgdata.params.output_bps = 8;
+        RawProcessor.imgdata.params.output_color = 1;
 
         if (RawProcessor.open_file(file_path) != LIBRAW_SUCCESS) {
-            return result;
+            return;
         }
 
         if (RawProcessor.unpack() != LIBRAW_SUCCESS) {
             RawProcessor.recycle();
-            return result;
+            return;
         }
         
-        // dcraw_process
         if (RawProcessor.dcraw_process() != LIBRAW_SUCCESS) {
             RawProcessor.recycle();
-            return result;
+            return;
         }
 
-        // Convert to memory image
         libraw_processed_image_t *image = RawProcessor.dcraw_make_mem_image();
         
         if (image) {
-            result.width = image->width;
-            result.height = image->height;
-            result.size = image->data_size;
-            result.data = (uint8_t*)malloc(result.size);
-            if (result.data) {
-                // Copy data and swap R/B channels for BMP (BGR)
-                // LibRaw outputs RGB, but Windows BMP expects BGR
+            out->width = image->width;
+            out->height = image->height;
+            out->size = image->data_size;
+            out->data = (uint8_t*)malloc(out->size);
+            if (out->data) {
                 uint8_t* src = image->data;
-                uint8_t* dst = result.data;
-                int total_pixels = result.width * result.height;
+                uint8_t* dst = out->data;
+                int total_pixels = out->width * out->height;
                 
                 for (int i = 0; i < total_pixels; ++i) {
                     dst[i * 3 + 0] = src[i * 3 + 2]; // B
@@ -167,6 +162,5 @@ extern "C" {
         }
 
         RawProcessor.recycle();
-        return result;
     }
 }

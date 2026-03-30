@@ -89,6 +89,11 @@ class _TimestampRepository {
     _futureCache.clear();
   }
 
+  // Read only the first portion of the file for EXIF parsing to avoid
+  // loading entire multi-MB RAW files into memory (which causes OOM crashes
+  // when many files are opened concurrently).
+  static const int _exifReadSize = 128 * 1024; // 128 KB
+
   Future<_MediaTimestampInfo> _readTimestampInfo(String filePath) async {
     final file = File(filePath);
     final stat = await file.stat();
@@ -96,8 +101,15 @@ class _TimestampRepository {
     DateTime? capturedAt;
 
     try {
-      final bytes = await file.readAsBytes();
-      capturedAt = await _parseCapturedAtFromBytes(bytes);
+      final raf = await file.open(mode: FileMode.read);
+      try {
+        final length = await raf.length();
+        final readLength = length < _exifReadSize ? length : _exifReadSize;
+        final bytes = await raf.read(readLength);
+        capturedAt = await _parseCapturedAtFromBytes(bytes);
+      } finally {
+        await raf.close();
+      }
     } catch (_) {
       capturedAt = null;
     }
@@ -264,6 +276,7 @@ class _MyAppState extends State<MyApp> with WindowListener {
         theme: ThemeData(
           brightness: Brightness.dark,
           primarySwatch: Colors.blue,
+          fontFamily: 'NotoSansSC',
         ),
         home: HomePage(onAppLanguageChanged: _handleAppLanguageChanged),
       ),

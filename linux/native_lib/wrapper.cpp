@@ -6,6 +6,8 @@
 
 #define EXPORT __attribute__((visibility("default"))) __attribute__((used))
 
+extern "C" {
+
 struct ThumbnailResult {
   uint8_t* data;
   int size;
@@ -20,6 +22,8 @@ struct ImageResult {
   int width;
   int height;
 };
+
+}  // extern "C"
 
 namespace {
 
@@ -131,68 +135,89 @@ EXPORT void free_buffer(uint8_t* buffer) {
   }
 }
 
-EXPORT ThumbnailResult get_thumbnail(const char* file_path) {
+EXPORT void get_thumbnail(const char* file_path, ThumbnailResult* out) {
+  if (out == nullptr) {
+    return;
+  }
+
   if (file_path == nullptr) {
-    return empty_thumbnail();
+    *out = empty_thumbnail();
+    return;
   }
 
   LibRaw raw_processor;
   if (raw_processor.open_file(file_path) != LIBRAW_SUCCESS) {
-    return empty_thumbnail();
+    *out = empty_thumbnail();
+    return;
   }
 
-  ThumbnailResult result = process_thumbnail(raw_processor);
+  *out = process_thumbnail(raw_processor);
   raw_processor.recycle();
-  return result;
 }
 
-EXPORT ThumbnailResult get_thumbnail_from_buffer(uint8_t* buffer, int size) {
+EXPORT void get_thumbnail_from_buffer(uint8_t* buffer, int size,
+                                      ThumbnailResult* out) {
+  if (out == nullptr) {
+    return;
+  }
+
   if (buffer == nullptr || size <= 0) {
-    return empty_thumbnail();
+    *out = empty_thumbnail();
+    return;
   }
 
   LibRaw raw_processor;
   if (raw_processor.open_buffer(buffer, static_cast<size_t>(size)) !=
       LIBRAW_SUCCESS) {
-    return empty_thumbnail();
+    *out = empty_thumbnail();
+    return;
   }
 
-  ThumbnailResult result = process_thumbnail(raw_processor);
+  *out = process_thumbnail(raw_processor);
   raw_processor.recycle();
-  return result;
 }
 
-EXPORT ImageResult get_preview(const char* file_path, int half_size) {
+EXPORT void get_preview(const char* file_path, int half_size,
+                        ImageResult* out) {
+  if (out == nullptr) {
+    return;
+  }
+
   if (file_path == nullptr) {
-    return empty_image();
+    *out = empty_image();
+    return;
   }
 
   LibRaw raw_processor;
   if (raw_processor.open_file(file_path) != LIBRAW_SUCCESS) {
-    return empty_image();
+    *out = empty_image();
+    return;
   }
 
-  ImageResult result = process_preview(raw_processor, half_size);
+  *out = process_preview(raw_processor, half_size);
   raw_processor.recycle();
-  return result;
 }
 
-EXPORT ImageResult get_preview_from_buffer(uint8_t* buffer,
-                                           int size,
-                                           int half_size) {
+EXPORT void get_preview_from_buffer(uint8_t* buffer, int size, int half_size,
+                                    ImageResult* out) {
+  if (out == nullptr) {
+    return;
+  }
+
   if (buffer == nullptr || size <= 0) {
-    return empty_image();
+    *out = empty_image();
+    return;
   }
 
   LibRaw raw_processor;
   if (raw_processor.open_buffer(buffer, static_cast<size_t>(size)) !=
       LIBRAW_SUCCESS) {
-    return empty_image();
+    *out = empty_image();
+    return;
   }
 
-  ImageResult result = process_preview(raw_processor, half_size);
+  *out = process_preview(raw_processor, half_size);
   raw_processor.recycle();
-  return result;
 }
 
 }  // extern "C"
