@@ -4,10 +4,12 @@ import 'package:exif/exif.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as path;
+import 'l10n/app_localizations.dart';
 import 'native_lib.dart';
 import 'settings_page.dart';
 import 'lru_cache.dart';
@@ -145,33 +147,64 @@ void main() {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  Locale? _locale;
+
+  void _handleAppLanguageChanged(AppLanguage language) {
+    setState(() {
+      _locale = language.locale;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return ExcludeSemantics(
       child: MaterialApp(
-        title: 'Raw Viewer',
+        onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
+        locale: _locale,
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('en'),
+          Locale('zh'),
+        ],
         theme: ThemeData(
           brightness: Brightness.dark,
           primarySwatch: Colors.blue,
         ),
-        home: const HomePage(),
+        home: HomePage(onAppLanguageChanged: _handleAppLanguageChanged),
       ),
     );
   }
 }
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final ValueChanged<AppLanguage> onAppLanguageChanged;
+
+  const HomePage({
+    super.key,
+    required this.onAppLanguageChanged,
+  });
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  String? _currentSourceLabel;
+  String? _currentDirectoryPath;
+  int? _openedDirectoryCount;
+  String? _lastSyncedWindowsContextMenuText;
   List<_MediaFile> _files = [];
   _OpenedSourceKind _openedSourceKind = _OpenedSourceKind.none;
   // Use LRU Cache to limit memory usage.
@@ -230,10 +263,16 @@ class _HomePageState extends State<HomePage> {
     bool enabled,
   ) async {
     try {
+      final menuText =
+          AppLocalizations.of(context)?.windowsContextMenuMenuText ??
+              'Open in RawView';
       final values =
           await _windowsShellChannel.invokeMapMethod<String, dynamic>(
         'setContextMenuEnabled',
-        enabled,
+        {
+          'enabled': enabled,
+          'menuText': menuText,
+        },
       );
       final nextState = WindowsContextMenuSettings.fromPlatformMap(values);
 
@@ -247,7 +286,35 @@ class _HomePageState extends State<HomePage> {
     } on PlatformException catch (error) {
       throw Exception(error.message ?? 'Unknown platform error');
     } on MissingPluginException {
-      throw Exception('当前 Windows 构建不支持资源管理器右键菜单');
+      throw Exception(
+          'Windows shell integration is not supported in this build');
+    }
+  }
+
+  Future<void> _syncWindowsContextMenuLanguage(String menuText) async {
+    if (!Platform.isWindows || !_settings.windowsContextMenu.enabled) {
+      _lastSyncedWindowsContextMenuText = null;
+      return;
+    }
+
+    if (_lastSyncedWindowsContextMenuText == menuText) {
+      return;
+    }
+
+    _lastSyncedWindowsContextMenuText = menuText;
+
+    try {
+      final nextState = await _setWindowsContextMenuEnabled(true);
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _settings = _settings.copyWith(windowsContextMenu: nextState);
+      });
+    } catch (_) {
+      _lastSyncedWindowsContextMenuText = null;
+      // Ignore language sync failures and keep current integration state.
     }
   }
 
@@ -351,8 +418,9 @@ class _HomePageState extends State<HomePage> {
       _applyOpenedFiles(
         files: nextFiles,
         sourceKind: _OpenedSourceKind.folder,
-        title: _folderSelectionTitle(directories),
         clearCache: true,
+        openedDirectoryPath: directories.length == 1 ? directories.first : null,
+        openedDirectoryCount: directories.length,
       );
       return;
     }
@@ -369,7 +437,6 @@ class _HomePageState extends State<HomePage> {
     _applyOpenedFiles(
       files: nextFiles,
       sourceKind: _OpenedSourceKind.files,
-      title: _fileSelectionTitle(nextFiles.length),
       clearCache: shouldReplaceCurrent,
     );
   }
@@ -377,8 +444,9 @@ class _HomePageState extends State<HomePage> {
   void _applyOpenedFiles({
     required List<_MediaFile> files,
     required _OpenedSourceKind sourceKind,
-    required String title,
     required bool clearCache,
+    String? openedDirectoryPath,
+    int? openedDirectoryCount,
   }) {
     if (!mounted) {
       return;
@@ -391,7 +459,8 @@ class _HomePageState extends State<HomePage> {
 
     setState(() {
       _openedSourceKind = sourceKind;
-      _currentSourceLabel = title;
+      _currentDirectoryPath = openedDirectoryPath;
+      _openedDirectoryCount = openedDirectoryCount;
       _files = files;
     });
   }
@@ -433,22 +502,36 @@ class _HomePageState extends State<HomePage> {
     return null;
   }
 
-  String _folderSelectionTitle(List<String> directories) {
-    if (directories.length == 1) {
-      return directories.first;
+  String _currentTitle(AppLocalizations l10n) {
+    if (_openedSourceKind == _OpenedSourceKind.folder) {
+      if (_openedDirectoryCount == 1 && _currentDirectoryPath != null) {
+        return _currentDirectoryPath!;
+      }
+      if ((_openedDirectoryCount ?? 0) > 1) {
+        return l10n.folderSelectionTitle(_openedDirectoryCount!);
+      }
     }
-    return '${directories.length} folders';
-  }
 
-  String _fileSelectionTitle(int count) {
-    return count == 1 ? '1 file' : '$count files';
+    if (_openedSourceKind == _OpenedSourceKind.files && _files.isNotEmpty) {
+      return l10n.fileSelectionTitle(_files.length);
+    }
+
+    return l10n.appTitle;
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_syncWindowsContextMenuLanguage(
+        l10n.windowsContextMenuMenuText,
+      ));
+    });
+
     return Scaffold(
         appBar: AppBar(
-          title: Text(_currentSourceLabel ?? 'Raw Viewer'),
+          title: Text(_currentTitle(l10n)),
           actions: [
             IconButton(
               icon: const Icon(Icons.settings),
@@ -496,6 +579,7 @@ class _HomePageState extends State<HomePage> {
                 );
 
                 if (result != null) {
+                  widget.onAppLanguageChanged(result.appLanguage);
                   setState(() {
                     if (_settings.maxCacheSize != result.maxCacheSize) {
                       _settings = result;
@@ -519,8 +603,8 @@ class _HomePageState extends State<HomePage> {
         ),
         body: ExcludeSemantics(
           child: _files.isEmpty
-              ? const Center(
-                  child: Text('Open or drop RAW and image files/folders'),
+              ? Center(
+                  child: Text(l10n.homeEmptyState),
                 )
               : GridView.builder(
                   // Add cacheExtent to keep a few items off-screen alive
@@ -736,8 +820,8 @@ class _RawThumbnailState extends State<RawThumbnail> {
                         color: Colors.black.withValues(alpha: 0.28),
                         borderRadius: BorderRadius.circular(999),
                       ),
-                      child: const Text(
-                        'RAW',
+                      child: Text(
+                        AppLocalizations.of(context)!.rawShortLabel,
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 10,
@@ -1325,6 +1409,8 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Stack(
       children: [
         Listener(
@@ -1387,7 +1473,11 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
             onPressed: _togglePreviewMode,
             style: TextButton.styleFrom(backgroundColor: Colors.black54),
             child: Text(
-              widget.isRaw ? (_useEmbeddedPreview ? 'JPG' : 'RAW') : 'IMG',
+              widget.isRaw
+                  ? (_useEmbeddedPreview
+                      ? l10n.embeddedJpegShortLabel
+                      : l10n.rawShortLabel)
+                  : l10n.imageShortLabel,
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,

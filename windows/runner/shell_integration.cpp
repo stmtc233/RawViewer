@@ -9,7 +9,6 @@
 
 namespace {
 
-constexpr wchar_t kMenuText[] = L"\x5728RawView\x4E2D\x6253\x5F00";
 constexpr wchar_t kSelectionVerbKey[] =
     L"Software\\Classes\\*\\shell\\RawViewOpen";
 constexpr wchar_t kDirectoryVerbKey[] =
@@ -122,17 +121,18 @@ bool ReadStringValue(HKEY root, const std::wstring& sub_key,
 }
 
 bool WriteVerb(const VerbDefinition& definition,
-               const std::wstring& executable_path) {
+               const std::wstring& executable_path,
+               const std::wstring& menu_text) {
   const std::wstring command =
       BuildCommand(executable_path, definition.background);
   const std::wstring icon_value = Quote(executable_path);
 
   if (!SetStringValue(HKEY_CURRENT_USER, definition.key_path, nullptr,
-                      kMenuText)) {
+                      menu_text)) {
     return false;
   }
   if (!SetStringValue(HKEY_CURRENT_USER, definition.key_path, L"MUIVerb",
-                      kMenuText)) {
+                      menu_text)) {
     return false;
   }
   if (!SetStringValue(HKEY_CURRENT_USER, definition.key_path, L"Icon",
@@ -152,17 +152,6 @@ bool WriteVerb(const VerbDefinition& definition,
 
 bool IsVerbInstalled(const VerbDefinition& definition,
                      const std::wstring& executable_path) {
-  std::wstring menu_text;
-  if (!ReadStringValue(HKEY_CURRENT_USER, definition.key_path, nullptr,
-                       &menu_text) ||
-      menu_text != kMenuText) {
-    if (!ReadStringValue(HKEY_CURRENT_USER, definition.key_path, L"MUIVerb",
-                         &menu_text) ||
-        menu_text != kMenuText) {
-      return false;
-    }
-  }
-
   if (definition.multi_select) {
     std::wstring multi_select_model;
     if (!ReadStringValue(HKEY_CURRENT_USER, definition.key_path,
@@ -215,7 +204,8 @@ flutter::EncodableMap GetWindowsContextMenuState() {
   };
 }
 
-bool SetWindowsContextMenuEnabled(bool enabled, std::string* error_message) {
+bool SetWindowsContextMenuEnabled(bool enabled, const std::wstring& menu_text,
+                                  std::string* error_message) {
   if (!enabled) {
     for (const auto& definition : kVerbDefinitions) {
       const LONG result =
@@ -240,7 +230,7 @@ bool SetWindowsContextMenuEnabled(bool enabled, std::string* error_message) {
   }
 
   for (const auto& definition : kVerbDefinitions) {
-    if (!WriteVerb(definition, executable_path)) {
+    if (!WriteVerb(definition, executable_path, menu_text)) {
       if (error_message != nullptr) {
         *error_message = "Failed to write Windows Explorer context menu registry entries.";
       }

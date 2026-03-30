@@ -1,8 +1,24 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'l10n/app_localizations.dart';
 
 enum TimeDisplaySource { capturedAt, modifiedAt }
+
+enum AppLanguage { system, zhHans, english }
+
+extension AppLanguageLocale on AppLanguage {
+  Locale? get locale {
+    switch (this) {
+      case AppLanguage.system:
+        return null;
+      case AppLanguage.zhHans:
+        return const Locale('zh');
+      case AppLanguage.english:
+        return const Locale('en');
+    }
+  }
+}
 
 class WindowsContextMenuSettings {
   final bool supported;
@@ -41,6 +57,7 @@ class ViewerSettings {
   final bool halfSize;
   final int maxCacheSize; // in MB
   final TimeDisplaySource timeDisplaySource;
+  final AppLanguage appLanguage;
   final WindowsContextMenuSettings windowsContextMenu;
 
   const ViewerSettings({
@@ -48,6 +65,7 @@ class ViewerSettings {
     this.halfSize = true,
     this.maxCacheSize = 512,
     this.timeDisplaySource = TimeDisplaySource.capturedAt,
+    this.appLanguage = AppLanguage.system,
     this.windowsContextMenu = const WindowsContextMenuSettings(),
   });
 
@@ -56,6 +74,7 @@ class ViewerSettings {
     bool? halfSize,
     int? maxCacheSize,
     TimeDisplaySource? timeDisplaySource,
+    AppLanguage? appLanguage,
     WindowsContextMenuSettings? windowsContextMenu,
   }) {
     return ViewerSettings(
@@ -63,6 +82,7 @@ class ViewerSettings {
       halfSize: halfSize ?? this.halfSize,
       maxCacheSize: maxCacheSize ?? this.maxCacheSize,
       timeDisplaySource: timeDisplaySource ?? this.timeDisplaySource,
+      appLanguage: appLanguage ?? this.appLanguage,
       windowsContextMenu: windowsContextMenu ?? this.windowsContextMenu,
     );
   }
@@ -72,12 +92,14 @@ class SettingsPage extends StatefulWidget {
   final ViewerSettings settings;
   final void Function(ViewerSettings?) onClose;
   final WindowsContextMenuToggleHandler? onWindowsContextMenuChanged;
+  final ValueChanged<AppLanguage>? onAppLanguageChanged;
 
   const SettingsPage(
       {super.key,
       required this.settings,
       required this.onClose,
-      this.onWindowsContextMenuChanged});
+      this.onWindowsContextMenuChanged,
+      this.onAppLanguageChanged});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -86,6 +108,17 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   late ViewerSettings _currentSettings;
   bool _isUpdatingWindowsContextMenu = false;
+
+  String _languageLabel(AppLanguage language, AppLocalizations l10n) {
+    switch (language) {
+      case AppLanguage.system:
+        return l10n.languageSystem;
+      case AppLanguage.zhHans:
+        return l10n.languageChineseSimplified;
+      case AppLanguage.english:
+        return l10n.languageEnglish;
+    }
+  }
 
   @override
   void initState() {
@@ -101,6 +134,8 @@ class _SettingsPageState extends State<SettingsPage> {
     if (onWindowsContextMenuChanged == null || _isUpdatingWindowsContextMenu) {
       return;
     }
+
+    final l10n = AppLocalizations.of(context)!;
 
     setState(() {
       _isUpdatingWindowsContextMenu = true;
@@ -121,7 +156,9 @@ class _SettingsPageState extends State<SettingsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            nextState.enabled ? '已启用“在RawView中打开”右键菜单' : '已移除“在RawView中打开”右键菜单',
+            nextState.enabled
+                ? l10n.windowsContextMenuEnabledMessage
+                : l10n.windowsContextMenuRemovedMessage,
           ),
         ),
       );
@@ -132,7 +169,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('更新 Windows 右键菜单失败：$error'),
+          content: Text(l10n.windowsContextMenuUpdateFailed('$error')),
         ),
       );
     } finally {
@@ -146,10 +183,12 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return ExcludeSemantics(
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Settings'),
+          title: Text(l10n.settingsTitle),
           leading: IconButton(
             icon: const Icon(Icons.close),
             onPressed: () {
@@ -159,17 +198,51 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         body: ListView(
           children: [
-            const Padding(
-              padding: EdgeInsets.all(16.0),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
               child: Text(
-                'Preview Mode',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                l10n.languageSectionTitle,
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            ExcludeSemantics(
+              child: Column(
+                children: AppLanguage.values
+                    .map(
+                      (language) => RadioListTile<AppLanguage>(
+                        title: Text(_languageLabel(language, l10n)),
+                        value: language,
+                        groupValue: _currentSettings.appLanguage,
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() {
+                            _currentSettings = _currentSettings.copyWith(
+                              appLanguage: value,
+                            );
+                          });
+                          widget.onAppLanguageChanged?.call(value);
+                        },
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                l10n.previewModeSectionTitle,
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
             ExcludeSemantics(
               child: RadioListTile<bool>(
-                title: const Text('Embedded JPEG'),
-                subtitle: const Text('Fast preview, lower quality'),
+                title: Text(l10n.embeddedJpegTitle),
+                subtitle: Text(l10n.embeddedJpegSubtitle),
                 value: true,
                 groupValue: _currentSettings.useEmbeddedPreview,
                 onChanged: (value) {
@@ -182,8 +255,8 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             ExcludeSemantics(
               child: RadioListTile<bool>(
-                title: const Text('Load RAW Image'),
-                subtitle: const Text('High quality, slower'),
+                title: Text(l10n.loadRawImageTitle),
+                subtitle: Text(l10n.loadRawImageSubtitle),
                 value: false,
                 groupValue: _currentSettings.useEmbeddedPreview,
                 onChanged: (value) {
@@ -195,18 +268,18 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             const Divider(),
-            const Padding(
-              padding: EdgeInsets.all(16.0),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
               child: Text(
-                'RAW Processing',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                l10n.rawProcessingSectionTitle,
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
             ExcludeSemantics(
               child: SwitchListTile(
-                title: const Text('Half Size Decoding'),
-                subtitle: const Text(
-                    'Faster decoding, 50% resolution. Disable for full resolution.'),
+                title: Text(l10n.halfSizeDecodingTitle),
+                subtitle: Text(l10n.halfSizeDecodingSubtitle),
                 value: _currentSettings.halfSize,
                 onChanged: (value) {
                   setState(() {
@@ -217,18 +290,18 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             const Divider(),
-            const Padding(
-              padding: EdgeInsets.all(16.0),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
               child: Text(
-                'Time Display',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                l10n.timeDisplaySectionTitle,
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
             ExcludeSemantics(
               child: RadioListTile<TimeDisplaySource>(
-                title: const Text('Capture Time'),
-                subtitle:
-                    const Text('Prefer EXIF or RAW metadata capture time'),
+                title: Text(l10n.captureTimeTitle),
+                subtitle: Text(l10n.captureTimeSubtitle),
                 value: TimeDisplaySource.capturedAt,
                 groupValue: _currentSettings.timeDisplaySource,
                 onChanged: (value) {
@@ -244,9 +317,8 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             ExcludeSemantics(
               child: RadioListTile<TimeDisplaySource>(
-                title: const Text('File Modified Time'),
-                subtitle:
-                    const Text('Use file system last modified time directly'),
+                title: Text(l10n.fileModifiedTimeTitle),
+                subtitle: Text(l10n.fileModifiedTimeSubtitle),
                 value: TimeDisplaySource.modifiedAt,
                 groupValue: _currentSettings.timeDisplaySource,
                 onChanged: (value) {
@@ -261,16 +333,17 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             const Divider(),
-            const Padding(
-              padding: EdgeInsets.all(16.0),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
               child: Text(
-                'Cache',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                l10n.cacheSectionTitle,
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
             ListTile(
-              title: const Text('Max Cache Size'),
-              subtitle: Text('${_currentSettings.maxCacheSize} MB'),
+              title: Text(l10n.maxCacheSizeTitle),
+              subtitle: Text(l10n.cacheSizeMb(_currentSettings.maxCacheSize)),
             ),
             ExcludeSemantics(
               child: Slider(
@@ -278,7 +351,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 min: 64,
                 max: 4096,
                 divisions: (4096 - 64) ~/ 64,
-                label: '${_currentSettings.maxCacheSize} MB',
+                label: l10n.cacheSizeMb(_currentSettings.maxCacheSize),
                 onChanged: (value) {
                   setState(() {
                     _currentSettings =
@@ -289,11 +362,12 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             if (_showWindowsContextMenuSection) ...[
               const Divider(),
-              const Padding(
-                padding: EdgeInsets.all(16.0),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
                 child: Text(
-                  'Windows Explorer',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  l10n.windowsExplorerSectionTitle,
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),
               ExcludeSemantics(
@@ -305,11 +379,11 @@ class _SettingsPageState extends State<SettingsPage> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.desktop_windows),
-                  title: const Text('显示“在RawView中打开”'),
+                  title: Text(l10n.windowsContextMenuToggleTitle),
                   subtitle: Text(
                     _currentSettings.windowsContextMenu.enabled
-                        ? '已安装到当前用户。支持文件、多个文件、文件夹，以及文件夹空白处右键打开。'
-                        : '启用后可在资源管理器中通过右键“在RawView中打开”直接打开文件、多个文件、文件夹或当前目录。',
+                        ? l10n.windowsContextMenuEnabledSubtitle
+                        : l10n.windowsContextMenuDisabledSubtitle,
                   ),
                   value: _currentSettings.windowsContextMenu.enabled,
                   onChanged: _isUpdatingWindowsContextMenu
@@ -318,11 +392,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               ListTile(
-                title: const Text('安装范围'),
+                title: Text(l10n.installScopeTitle),
                 subtitle: Text(
                   _currentSettings.windowsContextMenu.enabled
-                      ? '当前用户（HKCU）'
-                      : '未安装',
+                      ? l10n.installScopeCurrentUser
+                      : l10n.installScopeNotInstalled,
                 ),
               ),
             ],

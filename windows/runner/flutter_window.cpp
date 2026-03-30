@@ -210,15 +210,49 @@ void FlutterWindow::ConfigureShellIntegrationChannel() {
         }
 
         if (call.method_name() == "setContextMenuEnabled") {
-          const auto* enabled = std::get_if<bool>(call.arguments());
-          if (enabled == nullptr) {
+          const auto* arguments =
+              std::get_if<flutter::EncodableMap>(call.arguments());
+          if (arguments == nullptr) {
             result->Error("invalid_arguments",
-                          "Expected a boolean enabled flag.");
+                          "Expected a map containing enabled and menuText.");
             return;
           }
 
+          const auto enabled_it =
+              arguments->find(flutter::EncodableValue("enabled"));
+          const auto menu_text_it =
+              arguments->find(flutter::EncodableValue("menuText"));
+          if (enabled_it == arguments->end() || menu_text_it == arguments->end()) {
+            result->Error("invalid_arguments",
+                          "Expected enabled and menuText arguments.");
+            return;
+          }
+
+          const auto* enabled = std::get_if<bool>(&enabled_it->second);
+          const auto* menu_text_utf8 = std::get_if<std::string>(&menu_text_it->second);
+          if (enabled == nullptr || menu_text_utf8 == nullptr) {
+            result->Error("invalid_arguments",
+                          "Expected enabled as bool and menuText as string.");
+            return;
+          }
+
+          const int wide_length = ::MultiByteToWideChar(
+              CP_UTF8, 0, menu_text_utf8->c_str(), -1, nullptr, 0);
+          if (wide_length <= 0) {
+            result->Error("invalid_arguments",
+                          "Failed to decode menuText as UTF-8.");
+            return;
+          }
+          std::wstring menu_text(static_cast<size_t>(wide_length), L'\0');
+          ::MultiByteToWideChar(CP_UTF8, 0, menu_text_utf8->c_str(), -1,
+                                menu_text.data(), wide_length);
+          if (!menu_text.empty() && menu_text.back() == L'\0') {
+            menu_text.pop_back();
+          }
+
           std::string error_message;
-          if (!SetWindowsContextMenuEnabled(*enabled, &error_message)) {
+          if (!SetWindowsContextMenuEnabled(*enabled, menu_text,
+                                            &error_message)) {
             result->Error("shell_integration_error", error_message);
             return;
           }
