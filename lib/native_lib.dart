@@ -24,6 +24,16 @@ DynamicLibrary _openNativeLibrary() {
     return DynamicLibrary.open(path.normalize(libraryPath));
   }
 
+  if (Platform.isLinux) {
+    final executableDir = path.dirname(Platform.resolvedExecutable);
+    final libraryPath = path.join(
+      executableDir,
+      'lib',
+      'libnative_lib.so',
+    );
+    return DynamicLibrary.open(path.normalize(libraryPath));
+  }
+
   return DynamicLibrary.process();
 }
 

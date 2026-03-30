@@ -70,6 +70,23 @@ add_executable(${BINARY_NAME}
 # that need different build settings.
 apply_standard_settings(${BINARY_NAME})
 
+# Build libraw and native_lib
+set(NATIVE_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/native_lib")
+set(LIBRAW_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../windows/native_lib/libraw")
+
+# Add native_lib library
+file(GLOB LIBRAW_SOURCES "${LIBRAW_DIR}/src/*.cpp")
+list(FILTER LIBRAW_SOURCES EXCLUDE REGEX ".*_ph\\.cpp$")
+
+add_library(native_lib SHARED
+  "${NATIVE_LIB_DIR}/wrapper.cpp"
+  ${LIBRAW_SOURCES}
+)
+
+target_include_directories(native_lib PRIVATE "${LIBRAW_DIR}")
+target_compile_options(native_lib PRIVATE -DLIBRAW_NODLL -fvisibility=hidden -O3)
+set_target_properties(native_lib PROPERTIES CXX_STANDARD 14)
+
 # Add dependency libraries. Add any application-specific dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter)
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
@@ -115,6 +132,9 @@ install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}
   COMPONENT Runtime)
 
 install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
+
+install(TARGETS native_lib DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
 foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
