@@ -45,6 +45,8 @@ dependencies:
   path: ^1.9.1
   intl: ^0.20.2
   exif: ^3.3.0
+  shared_preferences: ^2.5.5
+  window_manager: ^0.5.1
 
 dev_dependencies:
   flutter_test:

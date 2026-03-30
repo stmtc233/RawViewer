@@ -9,6 +9,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as path;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:window_manager/window_manager.dart';
 import 'l10n/app_localizations.dart';
 import 'native_lib.dart';
 import 'settings_page.dart';
@@ -143,7 +145,37 @@ const MethodChannel _windowsShellChannel =
 
 enum _OpenedSourceKind { none, folder, files }
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+    await windowManager.ensureInitialized();
+
+    final prefs = await SharedPreferences.getInstance();
+    final width = prefs.getDouble('window_width') ?? 1024.0;
+    final height = prefs.getDouble('window_height') ?? 768.0;
+    final x = prefs.getDouble('window_x');
+    final y = prefs.getDouble('window_y');
+    final isMaximized = prefs.getBool('window_maximized') ?? false;
+
+    WindowOptions windowOptions = WindowOptions(
+      size: Size(width, height),
+      center: (x == null || y == null),
+      title: 'Raw Viewer',
+    );
+
+    await windowManager.waitUntilReadyToShow(windowOptions, () async {
+      if (x != null && y != null) {
+        await windowManager.setPosition(Offset(x, y));
+      }
+      if (isMaximized) {
+        await windowManager.maximize();
+      }
+      await windowManager.show();
+      await windowManager.focus();
+    });
+  }
+
   runApp(const MyApp());
 }
 
@@ -154,8 +186,58 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WindowListener {
   Locale? _locale;
+
+  @override
+  void initState() {
+    super.initState();
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      windowManager.addListener(this);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      windowManager.removeListener(this);
+    }
+    super.dispose();
+  }
+
+  @override
+  void onWindowResized() async {
+    final isMaximized = await windowManager.isMaximized();
+    if (isMaximized) return;
+
+    final size = await windowManager.getSize();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('window_width', size.width);
+    await prefs.setDouble('window_height', size.height);
+  }
+
+  @override
+  void onWindowMoved() async {
+    final isMaximized = await windowManager.isMaximized();
+    if (isMaximized) return;
+
+    final position = await windowManager.getPosition();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('window_x', position.dx);
+    await prefs.setDouble('window_y', position.dy);
+  }
+
+  @override
+  void onWindowMaximize() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('window_maximized', true);
+  }
+
+  @override
+  void onWindowUnmaximize() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('window_maximized', false);
+  }
 
   void _handleAppLanguageChanged(AppLanguage language) {
     setState(() {
@@ -211,13 +293,34 @@ class _HomePageState extends State<HomePage> {
   late LruCache<String, ViewerImage> _imageCache;
   final _TimestampRepository _timestampRepository = _TimestampRepository();
   ViewerSettings _settings = const ViewerSettings();
+  int _crossAxisCount = 4;
 
   @override
   void initState() {
     super.initState();
+    _loadPreferences();
     _initCache();
     unawaited(_listenForDesktopOpenRequests());
     unawaited(_refreshWindowsContextMenuState());
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _crossAxisCount = prefs.getInt('grid_cross_axis_count') ?? 4;
+    });
+  }
+
+  Future<void> _updateCrossAxisCount(int delta) async {
+    final newCount = (_crossAxisCount + delta).clamp(1, 10);
+    if (newCount == _crossAxisCount) return;
+
+    setState(() {
+      _crossAxisCount = newCount;
+    });
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('grid_cross_axis_count', newCount);
   }
 
   void _initCache() {
@@ -534,6 +637,18 @@ class _HomePageState extends State<HomePage> {
           title: Text(_currentTitle(l10n)),
           actions: [
             IconButton(
+              icon: const Icon(Icons.zoom_in),
+              tooltip: 'Zoom In',
+              onPressed:
+                  _crossAxisCount > 1 ? () => _updateCrossAxisCount(-1) : null,
+            ),
+            IconButton(
+              icon: const Icon(Icons.zoom_out),
+              tooltip: 'Zoom Out',
+              onPressed:
+                  _crossAxisCount < 10 ? () => _updateCrossAxisCount(1) : null,
+            ),
+            IconButton(
               icon: const Icon(Icons.settings),
               onPressed: () async {
                 await _refreshWindowsContextMenuState();
@@ -611,8 +726,8 @@ class _HomePageState extends State<HomePage> {
                   cacheExtent: 200,
                   padding: const EdgeInsets.all(8),
                   // ... rest of the gridview ...
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: _crossAxisCount,
                     crossAxisSpacing: 8,
                     mainAxisSpacing: 8,
                   ),
