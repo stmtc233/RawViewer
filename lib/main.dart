@@ -639,6 +639,13 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
 
+    // Calculate dynamic thumbnail resize width based on grid cell size
+    final dpr = MediaQuery.of(context).devicePixelRatio;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final totalPadding = 16.0 + (_crossAxisCount - 1) * 8.0;
+    final cellWidth = (screenWidth - totalPadding) / _crossAxisCount;
+    final thumbnailResizeWidth = (cellWidth * dpr).clamp(100.0, 800.0).toInt();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_syncWindowsContextMenuLanguage(
         l10n.windowsContextMenuMenuText,
@@ -735,10 +742,9 @@ class _HomePageState extends State<HomePage> {
                   child: Text(l10n.homeEmptyState),
                 )
               : GridView.builder(
-                  // Add cacheExtent to keep a few items off-screen alive
+                  addAutomaticKeepAlives: false,
                   cacheExtent: 200,
                   padding: const EdgeInsets.all(8),
-                  // ... rest of the gridview ...
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: _crossAxisCount,
                     crossAxisSpacing: 8,
@@ -748,17 +754,18 @@ class _HomePageState extends State<HomePage> {
                   itemBuilder: (context, index) {
                     final mediaFile = _files[index];
                     final filePath = mediaFile.path;
-                    // Use distinct key for thumbnail
                     final cacheKey = '$filePath:thumb';
                     return RawThumbnail(
-                      key: ValueKey(filePath), // Important for recycling
+                      key: ValueKey(filePath),
                       mediaFile: mediaFile,
                       settings: _settings,
                       timestampRepository: _timestampRepository,
-                      cachedImage: _imageCache.get(cacheKey),
+                      resizeWidth: thumbnailResizeWidth,
+                      cachedImage: mediaFile.isRaw ? _imageCache.get(cacheKey) : null,
                       onCacheUpdate: (image) {
-                        // Update cache asynchronously
-                        Future(() => _imageCache.put(cacheKey, image));
+                        if (mediaFile.isRaw) {
+                          Future(() => _imageCache.put(cacheKey, image));
+                        }
                       },
                       onTap: () {
                         Navigator.push(
@@ -796,6 +803,7 @@ class RawThumbnail extends StatefulWidget {
   final _MediaFile mediaFile;
   final ViewerSettings settings;
   final _TimestampRepository timestampRepository;
+  final int resizeWidth;
   final ViewerImage? cachedImage;
   final Function(ViewerImage) onCacheUpdate;
   final VoidCallback onTap;
@@ -805,6 +813,7 @@ class RawThumbnail extends StatefulWidget {
     required this.mediaFile,
     required this.settings,
     required this.timestampRepository,
+    required this.resizeWidth,
     this.cachedImage,
     required this.onCacheUpdate,
     required this.onTap,
@@ -824,8 +833,8 @@ class _RawThumbnailState extends State<RawThumbnail> {
   @override
   void initState() {
     super.initState();
-    // Start loading only if not cached
-    if (widget.cachedImage == null) {
+    // Start loading only if not cached (RAW files only; bitmaps use FileImage)
+    if (widget.mediaFile.isRaw && widget.cachedImage == null) {
       _loadThumbnail();
     }
     _timestampFuture = widget.timestampRepository.load(widget.filePath);
@@ -840,7 +849,7 @@ class _RawThumbnailState extends State<RawThumbnail> {
       _thumbFuture = null;
 
       // If the file path changes (recycling), we need to reload or check cache
-      if (widget.cachedImage == null) {
+      if (widget.mediaFile.isRaw && widget.cachedImage == null) {
         _loadThumbnail();
       }
       _timestampFuture = widget.timestampRepository.load(widget.filePath);
@@ -857,18 +866,7 @@ class _RawThumbnailState extends State<RawThumbnail> {
   }
 
   void _loadThumbnail() {
-    if (!widget.mediaFile.isRaw) {
-      _thumbFuture = Future<ViewerImage?>(() async {
-        final bytes = await File(widget.filePath).readAsBytes();
-        final image = ViewerImage.fromEncodedBytes(bytes);
-        if (mounted) {
-          widget.onCacheUpdate(image);
-        }
-        return image;
-      });
-      return;
-    }
-
+    // Only called for RAW files; bitmap files use FileImage directly
     final task = WorkerService().requestThumbnail(widget.filePath);
     _thumbTask = task;
     _thumbFuture = task.result.then((image) {
@@ -968,11 +966,17 @@ class _RawThumbnailState extends State<RawThumbnail> {
   }
 
   Widget _buildContent() {
+    // Bitmap files: use Flutter's built-in image pipeline with resize
+    if (!widget.mediaFile.isRaw) {
+      return _buildBitmapThumbnail();
+    }
+
+    // RAW files: use cache-based approach
     if (widget.cachedImage != null) {
       return RawImageWidget(
         image: widget.cachedImage!,
         fit: BoxFit.cover,
-        memCacheWidth: 100,
+        memCacheWidth: widget.resizeWidth,
         heroTag: widget.filePath,
       );
     }
@@ -1000,11 +1004,27 @@ class _RawThumbnailState extends State<RawThumbnail> {
         return RawImageWidget(
           image: snapshot.data!,
           fit: BoxFit.cover,
-          memCacheWidth: 100,
+          memCacheWidth: widget.resizeWidth,
           heroTag: widget.filePath,
         );
       },
     );
+  }
+
+  Widget _buildBitmapThumbnail() {
+    Widget image = Image(
+      image: ResizeImage(
+        FileImage(File(widget.filePath)),
+        width: widget.resizeWidth,
+      ),
+      fit: BoxFit.cover,
+      gaplessPlayback: true,
+      errorBuilder: (context, error, stackTrace) => Container(
+        color: Colors.grey[800],
+        child: const Center(child: Icon(Icons.broken_image, size: 20)),
+      ),
+    );
+    return Hero(tag: widget.filePath, child: image);
   }
 }
 
@@ -1084,21 +1104,22 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
       final mediaFile = widget.files[index];
       final String filePath = mediaFile.path;
       final thumbKey = '$filePath:thumb';
-      if (widget.imageCache.get(thumbKey) == null) {
-        if (mediaFile.isRaw) {
+      
+      if (mediaFile.isRaw) {
+        if (widget.imageCache.get(thumbKey) == null) {
           WorkerService()
               .requestThumbnail(filePath, priority: TaskPriority.low)
               .result
               .then((thumb) {
-            if (thumb != null) {
+            if (thumb != null && mounted) {
               widget.imageCache.put(thumbKey, ViewerImage.fromRaw(thumb));
             }
           });
-        } else {
-          File(filePath).readAsBytes().then((bytes) {
-            widget.imageCache
-                .put(thumbKey, ViewerImage.fromEncodedBytes(bytes));
-          });
+        }
+      } else {
+        // For bitmaps, defer to Flutter's native image cache pipeline
+        if (mounted) {
+          precacheImage(FileImage(File(filePath)), context);
         }
       }
     }
@@ -1351,6 +1372,9 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
   }
 
   Future<void> _loadImages() async {
+    // For non-RAW files, we rely entirely on Flutter's Image.file
+    if (!widget.isRaw) return;
+
     if (_thumbnail == null) {
       // Check if thumbnail is already in cache
       final thumbKey = '${widget.filePath}:thumb';
@@ -1377,9 +1401,6 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
           if (rawThumb != null) {
             thumb = ViewerImage.fromRaw(rawThumb);
           }
-        } else {
-          final bytes = await File(widget.filePath).readAsBytes();
-          thumb = ViewerImage.fromEncodedBytes(bytes);
         }
 
         if (mounted && thumb != null) {
@@ -1557,37 +1578,41 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (_thumbnail != null)
-                    // Low-res placeholder (matches grid cache)
-                    RawImageWidget(
-                      image: _thumbnail!,
-                      fit: BoxFit.contain,
-                      memCacheWidth: 100, // Match grid cache width
-                      heroTag: widget.isActive ? widget.filePath : null,
-                    ),
-                  if (_thumbnail != null)
-                    // High-res version (loads on top)
-                    RawImageWidget(
-                      image: _thumbnail!,
-                      fit: BoxFit.contain,
-                    ),
-                  if (_preview != null && !_useEmbeddedPreview)
-                    RawImageWidget(image: _preview!, fit: BoxFit.contain),
-                  if (_thumbnail == null &&
-                      (_preview == null || _useEmbeddedPreview))
-                    const Center(
-                        child: ExcludeSemantics(
-                            child: CircularProgressIndicator())),
-                  if (_isLoadingPreview &&
-                      _preview == null &&
-                      !_useEmbeddedPreview)
-                    const Center(
-                        child: ExcludeSemantics(
-                      child: CircularProgressIndicator(
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(Colors.white54),
+                  if (!widget.isRaw)
+                    _buildBitmapPreview()
+                  else ...[
+                    if (_thumbnail != null)
+                      // Low-res placeholder (matches grid cache)
+                      RawImageWidget(
+                        image: _thumbnail!,
+                        fit: BoxFit.contain,
+                        memCacheWidth: 100, // Match grid cache width
+                        heroTag: widget.isActive ? widget.filePath : null,
                       ),
-                    )),
+                    if (_thumbnail != null)
+                      // High-res version (loads on top)
+                      RawImageWidget(
+                        image: _thumbnail!,
+                        fit: BoxFit.contain,
+                      ),
+                    if (_preview != null && !_useEmbeddedPreview)
+                      RawImageWidget(image: _preview!, fit: BoxFit.contain),
+                    if (_thumbnail == null &&
+                        (_preview == null || _useEmbeddedPreview))
+                      const Center(
+                          child: ExcludeSemantics(
+                              child: CircularProgressIndicator())),
+                    if (_isLoadingPreview &&
+                        _preview == null &&
+                        !_useEmbeddedPreview)
+                      const Center(
+                          child: ExcludeSemantics(
+                        child: CircularProgressIndicator(
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white54),
+                        ),
+                      )),
+                  ],
                 ],
               ),
             ),
@@ -1615,6 +1640,23 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
         ),
       ],
     );
+  }
+
+  Widget _buildBitmapPreview() {
+    Widget image = Image.file(
+      File(widget.filePath),
+      fit: BoxFit.contain,
+      gaplessPlayback: true,
+      errorBuilder: (context, error, stackTrace) => const Center(
+        child: Icon(Icons.broken_image, color: Colors.white),
+      ),
+    );
+    
+    // Only wrap the active image in a Hero to prevent duplicate Hero tags in the PageView
+    if (widget.isActive) {
+      return Hero(tag: widget.filePath, child: image);
+    }
+    return image;
   }
 }
 
