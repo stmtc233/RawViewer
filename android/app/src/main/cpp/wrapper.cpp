@@ -105,30 +105,42 @@ extern "C" {
         return result;
     }
 
-    EXPORT ThumbnailResult get_thumbnail(const char* file_path) {
+    EXPORT void get_thumbnail(const char* file_path, ThumbnailResult* out) {
+        if (!out) return;
+        if (!file_path) {
+            *out = {nullptr, 0, 0, 0, 0};
+            return;
+        }
+
         LibRaw RawProcessor;
         int ret = RawProcessor.open_file(file_path);
         if (ret != LIBRAW_SUCCESS) {
             LOGE("open_file failed: %d for %s", ret, file_path);
-            return {nullptr, 0, 0, 0, 0};
+            *out = {nullptr, 0, 0, 0, 0};
+            return;
         }
         
-        ThumbnailResult result = process_thumbnail(RawProcessor);
+        *out = process_thumbnail(RawProcessor);
         RawProcessor.recycle();
-        return result;
     }
 
-    EXPORT ThumbnailResult get_thumbnail_from_buffer(uint8_t* buffer, size_t size) {
-        LibRaw RawProcessor;
-        int ret = RawProcessor.open_buffer(buffer, size);
-        if (ret != LIBRAW_SUCCESS) {
-             LOGE("open_buffer failed: %d", ret);
-             return {nullptr, 0, 0, 0, 0};
+    EXPORT void get_thumbnail_from_buffer(uint8_t* buffer, int size, ThumbnailResult* out) {
+        if (!out) return;
+        if (!buffer || size <= 0) {
+            *out = {nullptr, 0, 0, 0, 0};
+            return;
         }
 
-        ThumbnailResult result = process_thumbnail(RawProcessor);
+        LibRaw RawProcessor;
+        int ret = RawProcessor.open_buffer(buffer, (size_t)size);
+        if (ret != LIBRAW_SUCCESS) {
+             LOGE("open_buffer failed: %d", ret);
+             *out = {nullptr, 0, 0, 0, 0};
+             return;
+        }
+
+        *out = process_thumbnail(RawProcessor);
         RawProcessor.recycle();
-        return result;
     }
 
     ImageResult process_preview(LibRaw& RawProcessor, int half_size) {
@@ -176,29 +188,41 @@ extern "C" {
     }
 
     // Get preview image (fast decoding)
-    EXPORT ImageResult get_preview(const char* file_path, int half_size) {
+    EXPORT void get_preview(const char* file_path, int half_size, ImageResult* out) {
+        if (!out) return;
+        if (!file_path) {
+            *out = {nullptr, 0, 0, 0};
+            return;
+        }
+
         LibRaw RawProcessor;
         int ret = RawProcessor.open_file(file_path);
         if (ret != LIBRAW_SUCCESS) {
             LOGE("get_preview open_file failed: %d", ret);
-            return {nullptr, 0, 0, 0};
+            *out = {nullptr, 0, 0, 0};
+            return;
         }
 
-        ImageResult result = process_preview(RawProcessor, half_size);
+        *out = process_preview(RawProcessor, half_size);
         RawProcessor.recycle();
-        return result;
     }
 
-    EXPORT ImageResult get_preview_from_buffer(uint8_t* buffer, size_t size, int half_size) {
-        LibRaw RawProcessor;
-        int ret = RawProcessor.open_buffer(buffer, size);
-        if (ret != LIBRAW_SUCCESS) {
-            LOGE("get_preview open_buffer failed: %d", ret);
-            return {nullptr, 0, 0, 0};
+    EXPORT void get_preview_from_buffer(uint8_t* buffer, int size, int half_size, ImageResult* out) {
+        if (!out) return;
+        if (!buffer || size <= 0) {
+            *out = {nullptr, 0, 0, 0};
+            return;
         }
 
-        ImageResult result = process_preview(RawProcessor, half_size);
+        LibRaw RawProcessor;
+        int ret = RawProcessor.open_buffer(buffer, (size_t)size);
+        if (ret != LIBRAW_SUCCESS) {
+            LOGE("get_preview open_buffer failed: %d", ret);
+            *out = {nullptr, 0, 0, 0};
+            return;
+        }
+
+        *out = process_preview(RawProcessor, half_size);
         RawProcessor.recycle();
-        return result;
     }
 }
