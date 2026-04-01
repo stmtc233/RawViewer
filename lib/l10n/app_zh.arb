@@ -6,14 +6,14 @@
   "languageSystem": "跟随系统",
   "languageChineseSimplified": "简体中文",
   "languageEnglish": "English",
-  "previewModeSectionTitle": "预览模式",
-  "embeddedJpegTitle": "嵌入式 JPEG",
-  "embeddedJpegSubtitle": "预览更快，画质较低",
-  "loadRawImageTitle": "加载 RAW 图像",
-  "loadRawImageSubtitle": "画质更高，速度较慢",
+  "rawPreviewSourceSectionTitle": "RAW 预览来源",
+  "fastPreviewTitle": "快速预览",
+  "fastPreviewSubtitle": "先显示缓存的快速预览，再继续使用快速预览层。通常优先使用内嵌预览，缺失时回退到快速 RAW 处理。",
+  "decodedRawPreviewTitle": "RAW 解码图像",
+  "decodedRawPreviewSubtitle": "先显示缓存的快速预览，再解码 RAW 作为最终图像。",
   "rawProcessingSectionTitle": "RAW 处理",
-  "halfSizeDecodingTitle": "半尺寸解码",
-  "halfSizeDecodingSubtitle": "解码更快，分辨率为 50%。关闭后使用完整分辨率。",
+  "halfSizeRawDecodeTitle": "半尺寸 RAW 解码",
+  "halfSizeRawDecodeSubtitle": "将 RAW 最终图像按 50% 分辨率解码以提升速度。关闭后使用完整分辨率。",
   "timeDisplaySectionTitle": "时间显示",
   "captureTimeTitle": "拍摄时间",
   "captureTimeSubtitle": "优先使用 EXIF 或 RAW 元数据中的拍摄时间",
@@ -64,7 +64,7 @@
       }
     }
   },
-  "embeddedJpegShortLabel": "JPG",
+  "fastPreviewShortLabel": "FAST",
   "rawShortLabel": "RAW",
   "imageShortLabel": "IMG"
 }

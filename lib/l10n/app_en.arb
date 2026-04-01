@@ -6,14 +6,14 @@
   "languageSystem": "Follow system",
   "languageChineseSimplified": "简体中文",
   "languageEnglish": "English",
-  "previewModeSectionTitle": "Preview Mode",
-  "embeddedJpegTitle": "Embedded JPEG",
-  "embeddedJpegSubtitle": "Fast preview, lower quality",
-  "loadRawImageTitle": "Load RAW Image",
-  "loadRawImageSubtitle": "High quality, slower",
+  "rawPreviewSourceSectionTitle": "RAW Preview Source",
+  "fastPreviewTitle": "Fast Preview",
+  "fastPreviewSubtitle": "Show the cached fast preview first, then keep using the fast preview layer. This usually uses the embedded preview and falls back to fast RAW processing when unavailable.",
+  "decodedRawPreviewTitle": "Decoded RAW",
+  "decodedRawPreviewSubtitle": "Show the cached fast preview first, then decode RAW for the final image.",
   "rawProcessingSectionTitle": "RAW Processing",
-  "halfSizeDecodingTitle": "Half Size Decoding",
-  "halfSizeDecodingSubtitle": "Faster decoding, 50% resolution. Disable for full resolution.",
+  "halfSizeRawDecodeTitle": "Half-size RAW Decode",
+  "halfSizeRawDecodeSubtitle": "Decode the final RAW image at 50% resolution for better speed. Disable for full resolution.",
   "timeDisplaySectionTitle": "Time Display",
   "captureTimeTitle": "Capture Time",
   "captureTimeSubtitle": "Prefer EXIF or RAW metadata capture time",
@@ -64,7 +64,7 @@
       }
     }
   },
-  "embeddedJpegShortLabel": "JPG",
+  "fastPreviewShortLabel": "FAST",
   "rawShortLabel": "RAW",
   "imageShortLabel": "IMG"
 }

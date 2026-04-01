@@ -27,28 +27,28 @@ class AppLocalizationsZh extends AppLocalizations {
   String get languageEnglish => 'English';
 
   @override
-  String get previewModeSectionTitle => '预览模式';
+  String get rawPreviewSourceSectionTitle => 'RAW 预览来源';
 
   @override
-  String get embeddedJpegTitle => '嵌入式 JPEG';
+  String get fastPreviewTitle => '快速预览';
 
   @override
-  String get embeddedJpegSubtitle => '预览更快，画质较低';
+  String get fastPreviewSubtitle => '先显示缓存的快速预览，再继续使用快速预览层。通常优先使用内嵌预览，缺失时回退到快速 RAW 处理。';
 
   @override
-  String get loadRawImageTitle => '加载 RAW 图像';
+  String get decodedRawPreviewTitle => 'RAW 解码图像';
 
   @override
-  String get loadRawImageSubtitle => '画质更高，速度较慢';
+  String get decodedRawPreviewSubtitle => '先显示缓存的快速预览，再解码 RAW 作为最终图像。';
 
   @override
   String get rawProcessingSectionTitle => 'RAW 处理';
 
   @override
-  String get halfSizeDecodingTitle => '半尺寸解码';
+  String get halfSizeRawDecodeTitle => '半尺寸 RAW 解码';
 
   @override
-  String get halfSizeDecodingSubtitle => '解码更快，分辨率为 50%。关闭后使用完整分辨率。';
+  String get halfSizeRawDecodeSubtitle => '将 RAW 最终图像按 50% 分辨率解码以提升速度。关闭后使用完整分辨率。';
 
   @override
   String get timeDisplaySectionTitle => '时间显示';
@@ -86,10 +86,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get windowsContextMenuToggleTitle => '显示“在 RawView 中打开”';
 
   @override
-  String get windowsContextMenuEnabledSubtitle => '已安装到当前用户。支持文件、多个文件、文件夹，以及文件夹空白处右键打开。';
+  String get windowsContextMenuEnabledSubtitle =>
+      '已安装到当前用户。支持文件、多个文件、文件夹，以及文件夹空白处右键打开。';
 
   @override
-  String get windowsContextMenuDisabledSubtitle => '启用后可在资源管理器中通过右键“在 RawView 中打开”直接打开文件、多个文件、文件夹或当前目录。';
+  String get windowsContextMenuDisabledSubtitle =>
+      '启用后可在资源管理器中通过右键“在 RawView 中打开”直接打开文件、多个文件、文件夹或当前目录。';
 
   @override
   String get installScopeTitle => '安装范围';
@@ -137,7 +139,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get embeddedJpegShortLabel => 'JPG';
+  String get fastPreviewShortLabel => 'FAST';
 
   @override
   String get rawShortLabel => 'RAW';

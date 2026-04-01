@@ -62,7 +62,8 @@ import 'app_localizations_zh.dart';
 /// be consistent with the languages listed in the AppLocalizations.supportedLocales
 /// property.
 abstract class AppLocalizations {
-  AppLocalizations(String locale) : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+  AppLocalizations(String locale)
+      : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -70,7 +71,8 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations);
   }
 
-  static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
+  static const LocalizationsDelegate<AppLocalizations> delegate =
+      _AppLocalizationsDelegate();
 
   /// A list of this localizations delegate along with the default localizations
   /// delegates.
@@ -82,7 +84,8 @@ abstract class AppLocalizations {
   /// Additional delegates can be added by appending to this list in
   /// MaterialApp. This list does not have to be used at all if a custom list
   /// of delegates is preferred or required.
-  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates = <LocalizationsDelegate<dynamic>>[
+  static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
+      <LocalizationsDelegate<dynamic>>[
     delegate,
     GlobalMaterialLocalizations.delegate,
     GlobalCupertinoLocalizations.delegate,
@@ -131,35 +134,35 @@ abstract class AppLocalizations {
   /// **'English'**
   String get languageEnglish;
 
-  /// No description provided for @previewModeSectionTitle.
+  /// No description provided for @rawPreviewSourceSectionTitle.
   ///
   /// In en, this message translates to:
-  /// **'Preview Mode'**
-  String get previewModeSectionTitle;
+  /// **'RAW Preview Source'**
+  String get rawPreviewSourceSectionTitle;
 
-  /// No description provided for @embeddedJpegTitle.
+  /// No description provided for @fastPreviewTitle.
   ///
   /// In en, this message translates to:
-  /// **'Embedded JPEG'**
-  String get embeddedJpegTitle;
+  /// **'Fast Preview'**
+  String get fastPreviewTitle;
 
-  /// No description provided for @embeddedJpegSubtitle.
+  /// No description provided for @fastPreviewSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Fast preview, lower quality'**
-  String get embeddedJpegSubtitle;
+  /// **'Show the cached fast preview first, then keep using the fast preview layer. This usually uses the embedded preview and falls back to fast RAW processing when unavailable.'**
+  String get fastPreviewSubtitle;
 
-  /// No description provided for @loadRawImageTitle.
+  /// No description provided for @decodedRawPreviewTitle.
   ///
   /// In en, this message translates to:
-  /// **'Load RAW Image'**
-  String get loadRawImageTitle;
+  /// **'Decoded RAW'**
+  String get decodedRawPreviewTitle;
 
-  /// No description provided for @loadRawImageSubtitle.
+  /// No description provided for @decodedRawPreviewSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'High quality, slower'**
-  String get loadRawImageSubtitle;
+  /// **'Show the cached fast preview first, then decode RAW for the final image.'**
+  String get decodedRawPreviewSubtitle;
 
   /// No description provided for @rawProcessingSectionTitle.
   ///
@@ -167,17 +170,17 @@ abstract class AppLocalizations {
   /// **'RAW Processing'**
   String get rawProcessingSectionTitle;
 
-  /// No description provided for @halfSizeDecodingTitle.
+  /// No description provided for @halfSizeRawDecodeTitle.
   ///
   /// In en, this message translates to:
-  /// **'Half Size Decoding'**
-  String get halfSizeDecodingTitle;
+  /// **'Half-size RAW Decode'**
+  String get halfSizeRawDecodeTitle;
 
-  /// No description provided for @halfSizeDecodingSubtitle.
+  /// No description provided for @halfSizeRawDecodeSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Faster decoding, 50% resolution. Disable for full resolution.'**
-  String get halfSizeDecodingSubtitle;
+  /// **'Decode the final RAW image at 50% resolution for better speed. Disable for full resolution.'**
+  String get halfSizeRawDecodeSubtitle;
 
   /// No description provided for @timeDisplaySectionTitle.
   ///
@@ -311,11 +314,11 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{1 folder} other{{count} folders}}'**
   String folderSelectionTitle(int count);
 
-  /// No description provided for @embeddedJpegShortLabel.
+  /// No description provided for @fastPreviewShortLabel.
   ///
   /// In en, this message translates to:
-  /// **'JPG'**
-  String get embeddedJpegShortLabel;
+  /// **'FAST'**
+  String get fastPreviewShortLabel;
 
   /// No description provided for @rawShortLabel.
   ///
@@ -330,7 +333,8 @@ abstract class AppLocalizations {
   String get imageShortLabel;
 }
 
-class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {
+class _AppLocalizationsDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
   const _AppLocalizationsDelegate();
 
   @override
@@ -339,25 +343,25 @@ class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> 
   }
 
   @override
-  bool isSupported(Locale locale) => <String>['en', 'zh'].contains(locale.languageCode);
+  bool isSupported(Locale locale) =>
+      <String>['en', 'zh'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
-
-
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
-    case 'en': return AppLocalizationsEn();
-    case 'zh': return AppLocalizationsZh();
+    case 'en':
+      return AppLocalizationsEn();
+    case 'zh':
+      return AppLocalizationsZh();
   }
 
   throw FlutterError(
-    'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
-    'an issue with the localizations generation tool. Please file an issue '
-    'on GitHub with a reproducible sample app and the gen-l10n configuration '
-    'that was used.'
-  );
+      'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
+      'an issue with the localizations generation tool. Please file an issue '
+      'on GitHub with a reproducible sample app and the gen-l10n configuration '
+      'that was used.');
 }

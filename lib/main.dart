@@ -41,6 +41,12 @@ const List<String> _supportedExtensions = [
   ..._bitmapExtensions,
 ];
 
+// File classification only.
+//
+// The displayed image source has one more layer of meaning:
+// - bitmap files display the file itself
+// - RAW files first display a fast preview layer
+// - RAW files may then display a decoded RAW layer
 enum _MediaKind { raw, bitmap }
 
 class _MediaFile {
@@ -754,17 +760,21 @@ class _HomePageState extends State<HomePage> {
                   itemBuilder: (context, index) {
                     final mediaFile = _files[index];
                     final filePath = mediaFile.path;
-                    final cacheKey = '$filePath:thumb';
-                    return RawThumbnail(
+                    final fastPreviewCacheKey = '$filePath:fast-preview';
+                    return MediaThumbnailTile(
                       key: ValueKey(filePath),
                       mediaFile: mediaFile,
                       settings: _settings,
                       timestampRepository: _timestampRepository,
                       resizeWidth: thumbnailResizeWidth,
-                      cachedImage: mediaFile.isRaw ? _imageCache.get(cacheKey) : null,
-                      onCacheUpdate: (image) {
+                      cachedFastPreviewImage: mediaFile.isRaw
+                          ? _imageCache.get(fastPreviewCacheKey)
+                          : null,
+                      onFastPreviewCacheUpdate: (image) {
                         if (mediaFile.isRaw) {
-                          Future(() => _imageCache.put(cacheKey, image));
+                          Future(
+                            () => _imageCache.put(fastPreviewCacheKey, image),
+                          );
                         }
                       },
                       onTap: () {
@@ -779,6 +789,7 @@ class _HomePageState extends State<HomePage> {
                                   child: ImagePreviewPage(
                                     files: _files,
                                     initialIndex: index,
+                                    thumbnailResizeWidth: thumbnailResizeWidth,
                                     imageCache: _imageCache,
                                     timestampRepository: _timestampRepository,
                                     settings: _settings,
@@ -799,58 +810,58 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class RawThumbnail extends StatefulWidget {
+class MediaThumbnailTile extends StatefulWidget {
   final _MediaFile mediaFile;
   final ViewerSettings settings;
   final _TimestampRepository timestampRepository;
   final int resizeWidth;
-  final ViewerImage? cachedImage;
-  final Function(ViewerImage) onCacheUpdate;
+  final ViewerImage? cachedFastPreviewImage;
+  final Function(ViewerImage) onFastPreviewCacheUpdate;
   final VoidCallback onTap;
 
-  const RawThumbnail({
+  const MediaThumbnailTile({
     super.key,
     required this.mediaFile,
     required this.settings,
     required this.timestampRepository,
     required this.resizeWidth,
-    this.cachedImage,
-    required this.onCacheUpdate,
+    this.cachedFastPreviewImage,
+    required this.onFastPreviewCacheUpdate,
     required this.onTap,
   });
 
   String get filePath => mediaFile.path;
 
   @override
-  State<RawThumbnail> createState() => _RawThumbnailState();
+  State<MediaThumbnailTile> createState() => _MediaThumbnailTileState();
 }
 
-class _RawThumbnailState extends State<RawThumbnail> {
-  WorkerTask<LibRawImage?>? _thumbTask;
-  Future<ViewerImage?>? _thumbFuture;
+class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
+  WorkerTask<LibRawImage?>? _fastPreviewTask;
+  Future<ViewerImage?>? _fastPreviewFuture;
   late Future<_MediaTimestampInfo> _timestampFuture;
 
   @override
   void initState() {
     super.initState();
     // Start loading only if not cached (RAW files only; bitmaps use FileImage)
-    if (widget.mediaFile.isRaw && widget.cachedImage == null) {
-      _loadThumbnail();
+    if (widget.mediaFile.isRaw && widget.cachedFastPreviewImage == null) {
+      _loadRawFastPreview();
     }
     _timestampFuture = widget.timestampRepository.load(widget.filePath);
   }
 
   @override
-  void didUpdateWidget(RawThumbnail oldWidget) {
+  void didUpdateWidget(MediaThumbnailTile oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.filePath != oldWidget.filePath) {
-      _thumbTask?.cancel();
-      _thumbTask = null;
-      _thumbFuture = null;
+      _fastPreviewTask?.cancel();
+      _fastPreviewTask = null;
+      _fastPreviewFuture = null;
 
       // If the file path changes (recycling), we need to reload or check cache
-      if (widget.mediaFile.isRaw && widget.cachedImage == null) {
-        _loadThumbnail();
+      if (widget.mediaFile.isRaw && widget.cachedFastPreviewImage == null) {
+        _loadRawFastPreview();
       }
       _timestampFuture = widget.timestampRepository.load(widget.filePath);
     } else if (widget.settings.timeDisplaySource !=
@@ -861,21 +872,23 @@ class _RawThumbnailState extends State<RawThumbnail> {
 
   @override
   void dispose() {
-    _thumbTask?.cancel();
+    _fastPreviewTask?.cancel();
     super.dispose();
   }
 
-  void _loadThumbnail() {
-    // Only called for RAW files; bitmap files use FileImage directly
-    final task = WorkerService().requestThumbnail(widget.filePath);
-    _thumbTask = task;
-    _thumbFuture = task.result.then((image) {
+  void _loadRawFastPreview() {
+    // Only called for RAW files; bitmap files use FileImage directly.
+    // This layer prefers embedded preview data and falls back to a fast
+    // RAW-generated preview when the file has no embedded preview.
+    final task = WorkerService().requestRawFastPreview(widget.filePath);
+    _fastPreviewTask = task;
+    _fastPreviewFuture = task.result.then((image) {
       if (!mounted) return null;
       if (image == null) {
         return null;
       }
       final viewerImage = ViewerImage.fromRaw(image);
-      widget.onCacheUpdate(viewerImage);
+      widget.onFastPreviewCacheUpdate(viewerImage);
       return viewerImage;
     });
   }
@@ -971,10 +984,10 @@ class _RawThumbnailState extends State<RawThumbnail> {
       return _buildBitmapThumbnail();
     }
 
-    // RAW files: use cache-based approach
-    if (widget.cachedImage != null) {
+    // RAW files: show the cached fast preview layer if we already have it.
+    if (widget.cachedFastPreviewImage != null) {
       return RawImageWidget(
-        image: widget.cachedImage!,
+        image: widget.cachedFastPreviewImage!,
         fit: BoxFit.cover,
         memCacheWidth: widget.resizeWidth,
         heroTag: widget.filePath,
@@ -982,7 +995,7 @@ class _RawThumbnailState extends State<RawThumbnail> {
     }
 
     return FutureBuilder<ViewerImage?>(
-      future: _thumbFuture,
+      future: _fastPreviewFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Container(
@@ -1031,6 +1044,7 @@ class _RawThumbnailState extends State<RawThumbnail> {
 class ImagePreviewPage extends StatefulWidget {
   final List<_MediaFile> files;
   final int initialIndex;
+  final int thumbnailResizeWidth;
   final LruCache<String, ViewerImage> imageCache;
   final _TimestampRepository timestampRepository;
   final ViewerSettings settings;
@@ -1040,6 +1054,7 @@ class ImagePreviewPage extends StatefulWidget {
     super.key,
     required this.files,
     required this.initialIndex,
+    required this.thumbnailResizeWidth,
     required this.imageCache,
     required this.timestampRepository,
     required this.settings,
@@ -1103,23 +1118,32 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     if (index >= 0 && index < widget.files.length) {
       final mediaFile = widget.files[index];
       final String filePath = mediaFile.path;
-      final thumbKey = '$filePath:thumb';
-      
+      final fastPreviewCacheKey = '$filePath:fast-preview';
+
       if (mediaFile.isRaw) {
-        if (widget.imageCache.get(thumbKey) == null) {
+        if (widget.imageCache.get(fastPreviewCacheKey) == null) {
           WorkerService()
-              .requestThumbnail(filePath, priority: TaskPriority.low)
+              .requestRawFastPreview(filePath, priority: TaskPriority.low)
               .result
-              .then((thumb) {
-            if (thumb != null && mounted) {
-              widget.imageCache.put(thumbKey, ViewerImage.fromRaw(thumb));
+              .then((fastPreviewImage) {
+            if (fastPreviewImage != null && mounted) {
+              widget.imageCache.put(
+                fastPreviewCacheKey,
+                ViewerImage.fromRaw(fastPreviewImage),
+              );
             }
           });
         }
       } else {
-        // For bitmaps, defer to Flutter's native image cache pipeline
+        // For bitmaps, preload the same low-res layer used by single preview
         if (mounted) {
-          precacheImage(FileImage(File(filePath)), context);
+          precacheImage(
+            ResizeImage(
+              FileImage(File(filePath)),
+              width: widget.thumbnailResizeWidth,
+            ),
+            context,
+          );
         }
       }
     }
@@ -1207,7 +1231,9 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
               return SingleImagePreview(
                 key: ValueKey(filePath),
                 mediaFile: mediaFile,
-                thumbnail: widget.imageCache.get('$filePath:thumb'),
+                fastPreviewImage:
+                    widget.imageCache.get('$filePath:fast-preview'),
+                thumbnailResizeWidth: widget.thumbnailResizeWidth,
                 imageCache: widget.imageCache,
                 settings: widget.settings,
                 onSwitchRequest: _switchPage,
@@ -1266,7 +1292,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
 
 class SingleImagePreview extends StatefulWidget {
   final _MediaFile mediaFile;
-  final ViewerImage? thumbnail;
+  final ViewerImage? fastPreviewImage;
+  final int thumbnailResizeWidth;
   final LruCache<String, ViewerImage> imageCache;
   final ViewerSettings settings;
   final Function(int) onSwitchRequest;
@@ -1277,7 +1304,8 @@ class SingleImagePreview extends StatefulWidget {
   const SingleImagePreview({
     super.key,
     required this.mediaFile,
-    this.thumbnail,
+    this.fastPreviewImage,
+    required this.thumbnailResizeWidth,
     required this.imageCache,
     required this.settings,
     required this.onSwitchRequest,
@@ -1294,11 +1322,11 @@ class SingleImagePreview extends StatefulWidget {
 }
 
 class _SingleImagePreviewState extends State<SingleImagePreview> {
-  ViewerImage? _thumbnail;
-  ViewerImage? _preview;
-  bool _isLoadingPreview = false;
-  late bool _useEmbeddedPreview;
-  late int _halfSize;
+  ViewerImage? _fastPreviewImage;
+  ViewerImage? _decodedRawPreviewImage;
+  bool _isLoadingDecodedRawPreview = false;
+  late bool _preferFastPreviewForRaw;
+  late int _rawDecodeHalfSize;
   final TransformationController _transformationController =
       TransformationController();
   bool _panEnabled = false;
@@ -1311,10 +1339,10 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
   @override
   void initState() {
     super.initState();
-    _thumbnail = widget.thumbnail;
-    _useEmbeddedPreview = widget.settings.useEmbeddedPreview;
-    _halfSize = widget.settings.halfSize ? 1 : 0;
-    _loadImages();
+    _fastPreviewImage = widget.fastPreviewImage;
+    _preferFastPreviewForRaw = widget.settings.preferFastPreviewForRaw;
+    _rawDecodeHalfSize = widget.settings.useHalfSizeRawDecode ? 1 : 0;
+    _loadRawDisplayLayers();
     _transformationController.addListener(_onTransformationChange);
   }
 
@@ -1328,7 +1356,7 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
         _currentTask = null;
         if (mounted) {
           setState(() {
-            _isLoadingPreview = false;
+            _isLoadingDecodedRawPreview = false;
           });
         }
       }
@@ -1344,10 +1372,11 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
       // Cancel any ongoing task to restart with correct priority
       _currentTask?.cancel();
       _currentTask = null;
-      _isLoadingPreview = false;
+      _isLoadingDecodedRawPreview = false;
 
-      // Reload logic will skip if _thumbnail/_preview are already set
-      _loadImages();
+      // Reload logic will skip if the fast preview or decoded RAW layer is
+      // already available.
+      _loadRawDisplayLayers();
     }
   }
 
@@ -1371,44 +1400,46 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
     }
   }
 
-  Future<void> _loadImages() async {
+  Future<void> _loadRawDisplayLayers() async {
     // For non-RAW files, we rely entirely on Flutter's Image.file
     if (!widget.isRaw) return;
 
-    if (_thumbnail == null) {
-      // Check if thumbnail is already in cache
-      final thumbKey = '${widget.filePath}:thumb';
-      final cachedThumb = widget.imageCache.get(thumbKey);
+    if (_fastPreviewImage == null) {
+      // Check whether the RAW fast preview layer is already in cache.
+      final fastPreviewKey = '${widget.filePath}:fast-preview';
+      final cachedFastPreview = widget.imageCache.get(fastPreviewKey);
 
-      if (cachedThumb != null) {
+      if (cachedFastPreview != null) {
         if (mounted) {
           setState(() {
-            _thumbnail = cachedThumb;
+            _fastPreviewImage = cachedFastPreview;
           });
         }
       } else {
         // If not active, or fast scrolling, use low priority
-        final thumbPriority = (!widget.isActive || widget.isFastScrolling)
+        final fastPreviewPriority =
+            (!widget.isActive || widget.isFastScrolling)
             ? TaskPriority.low
             : TaskPriority.high;
-        ViewerImage? thumb;
+        ViewerImage? fastPreviewImage;
         if (widget.isRaw) {
           final task = WorkerService()
-              .requestThumbnail(widget.filePath, priority: thumbPriority);
+              .requestRawFastPreview(widget.filePath,
+                  priority: fastPreviewPriority);
           _currentTask = task;
-          final rawThumb = await task.result;
+          final rawFastPreview = await task.result;
           _currentTask = null;
-          if (rawThumb != null) {
-            thumb = ViewerImage.fromRaw(rawThumb);
+          if (rawFastPreview != null) {
+            fastPreviewImage = ViewerImage.fromRaw(rawFastPreview);
           }
         }
 
-        if (mounted && thumb != null) {
+        if (mounted && fastPreviewImage != null) {
           setState(() {
-            _thumbnail = thumb;
+            _fastPreviewImage = fastPreviewImage;
           });
-          // Cache it for fast subsequent switches
-          Future(() => widget.imageCache.put(thumbKey, thumb!));
+          // Cache it for fast subsequent switches.
+          Future(() => widget.imageCache.put(fastPreviewKey, fastPreviewImage!));
         }
       }
     }
@@ -1416,63 +1447,79 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
     if (!widget.isActive || widget.isFastScrolling) {
       if (widget.isFastScrolling &&
           _currentTask != null &&
-          _thumbnail != null) {
+          _fastPreviewImage != null) {
         _currentTask?.cancel();
         _currentTask = null;
         if (mounted) {
           setState(() {
-            _isLoadingPreview = false;
+            _isLoadingDecodedRawPreview = false;
           });
         }
       }
       return;
     }
 
-    if (!widget.isRaw || _useEmbeddedPreview) return;
-    if (_preview != null) return;
+    if (_preferFastPreviewForRaw) return;
+    if (_decodedRawPreviewImage != null) return;
 
-    // Check cache for preview
-    final previewKey = '${widget.filePath}:preview:$_halfSize';
-    final cachedPreview = widget.imageCache.get(previewKey);
-    if (cachedPreview != null) {
+    // Check cache for the decoded RAW layer.
+    final decodedRawPreviewKey =
+        '${widget.filePath}:decoded-raw:$_rawDecodeHalfSize';
+    final cachedDecodedRawPreview = widget.imageCache.get(decodedRawPreviewKey);
+    if (cachedDecodedRawPreview != null) {
       setState(() {
-        _preview = cachedPreview;
+        _decodedRawPreviewImage = cachedDecodedRawPreview;
       });
       return;
     }
 
     if (mounted) {
       setState(() {
-        _isLoadingPreview = true;
+        _isLoadingDecodedRawPreview = true;
       });
     }
 
     const priority = TaskPriority.high;
-    final task = WorkerService().requestPreview(widget.filePath,
-        halfSize: _halfSize, priority: priority);
+    final task = WorkerService().requestDecodedRawPreview(widget.filePath,
+        halfSize: _rawDecodeHalfSize, priority: priority);
     _currentTask = task;
-    final rawPreview = await task.result;
+    final rawDecodedRawPreview = await task.result;
     _currentTask = null;
-    final preview = rawPreview == null ? null : ViewerImage.fromRaw(rawPreview);
+    final decodedRawPreviewImage = rawDecodedRawPreview == null
+        ? null
+        : ViewerImage.fromRaw(rawDecodedRawPreview);
 
     if (mounted && widget.isActive) {
       setState(() {
-        _preview = preview;
-        _isLoadingPreview = false;
+        _decodedRawPreviewImage = decodedRawPreviewImage;
+        _isLoadingDecodedRawPreview = false;
       });
-      if (preview != null) {
-        // Run cache update asynchronously to avoid blocking UI or subsequent tasks
-        Future(() => widget.imageCache.put(previewKey, preview));
+      if (decodedRawPreviewImage != null) {
+        // Run cache update asynchronously to avoid blocking UI or subsequent tasks.
+        Future(() =>
+            widget.imageCache.put(decodedRawPreviewKey, decodedRawPreviewImage));
       }
     }
   }
 
-  void _togglePreviewMode() {
+  void _toggleRawPreviewSource() {
+    if (!widget.isRaw) return;
+
+    final nextPreferFastPreviewForRaw = !_preferFastPreviewForRaw;
+    if (nextPreferFastPreviewForRaw &&
+        _currentTask != null &&
+        _fastPreviewImage != null) {
+      _currentTask?.cancel();
+      _currentTask = null;
+    }
     setState(() {
-      _useEmbeddedPreview = !_useEmbeddedPreview;
+      _preferFastPreviewForRaw = nextPreferFastPreviewForRaw;
+      if (_preferFastPreviewForRaw) {
+        _isLoadingDecodedRawPreview = false;
+      }
     });
-    if (!_useEmbeddedPreview && _preview == null) {
-      _loadImages();
+    if (!_preferFastPreviewForRaw && _decodedRawPreviewImage == null) {
+      _loadRawDisplayLayers();
     }
   }
 
@@ -1581,30 +1628,40 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
                   if (!widget.isRaw)
                     _buildBitmapPreview()
                   else ...[
-                    if (_thumbnail != null)
-                      // Low-res placeholder (matches grid cache)
+                    if (_fastPreviewImage != null)
+                      // Low-res placeholder from the cached RAW fast preview.
                       RawImageWidget(
-                        image: _thumbnail!,
+                        image: _fastPreviewImage!,
                         fit: BoxFit.contain,
-                        memCacheWidth: 100, // Match grid cache width
+                        memCacheWidth: widget.thumbnailResizeWidth,
                         heroTag: widget.isActive ? widget.filePath : null,
                       ),
-                    if (_thumbnail != null)
-                      // High-res version (loads on top)
+                    if (_fastPreviewImage != null && _preferFastPreviewForRaw)
+                      // RAW fast preview layer. This usually comes from the
+                      // embedded preview, but may fall back to a fast RAW
+                      // decode when no embedded preview exists.
+                      if (widget.isActive && !widget.isFastScrolling)
+                        RawImageWidget(
+                          image: _fastPreviewImage!,
+                          fit: BoxFit.contain,
+                        ),
+                    if (_decodedRawPreviewImage != null &&
+                        !_preferFastPreviewForRaw &&
+                        widget.isActive &&
+                        !widget.isFastScrolling)
                       RawImageWidget(
-                        image: _thumbnail!,
+                        image: _decodedRawPreviewImage!,
                         fit: BoxFit.contain,
                       ),
-                    if (_preview != null && !_useEmbeddedPreview)
-                      RawImageWidget(image: _preview!, fit: BoxFit.contain),
-                    if (_thumbnail == null &&
-                        (_preview == null || _useEmbeddedPreview))
+                    if (_fastPreviewImage == null &&
+                        (_decodedRawPreviewImage == null ||
+                            _preferFastPreviewForRaw))
                       const Center(
                           child: ExcludeSemantics(
                               child: CircularProgressIndicator())),
-                    if (_isLoadingPreview &&
-                        _preview == null &&
-                        !_useEmbeddedPreview)
+                    if (_isLoadingDecodedRawPreview &&
+                        _decodedRawPreviewImage == null &&
+                        !_preferFastPreviewForRaw)
                       const Center(
                           child: ExcludeSemantics(
                         child: CircularProgressIndicator(
@@ -1623,12 +1680,12 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
           top: kToolbarHeight + 20, // Below the main AppBar
           right: 10,
           child: TextButton(
-            onPressed: _togglePreviewMode,
+            onPressed: _toggleRawPreviewSource,
             style: TextButton.styleFrom(backgroundColor: Colors.black54),
             child: Text(
               widget.isRaw
-                  ? (_useEmbeddedPreview
-                      ? l10n.embeddedJpegShortLabel
+                  ? (_preferFastPreviewForRaw
+                      ? l10n.fastPreviewShortLabel
                       : l10n.rawShortLabel)
                   : l10n.imageShortLabel,
               style: const TextStyle(
@@ -1643,15 +1700,33 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
   }
 
   Widget _buildBitmapPreview() {
-    Widget image = Image.file(
-      File(widget.filePath),
-      fit: BoxFit.contain,
-      gaplessPlayback: true,
-      errorBuilder: (context, error, stackTrace) => const Center(
-        child: Icon(Icons.broken_image, color: Colors.white),
-      ),
+    final file = File(widget.filePath);
+    Widget image = Stack(
+      fit: StackFit.expand,
+      children: [
+        Image(
+          image: ResizeImage(
+            FileImage(file),
+            width: widget.thumbnailResizeWidth,
+          ),
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          errorBuilder: (context, error, stackTrace) => const Center(
+            child: Icon(Icons.broken_image, color: Colors.white),
+          ),
+        ),
+        if (widget.isActive && !widget.isFastScrolling)
+          Image.file(
+            file,
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            errorBuilder: (context, error, stackTrace) => const Center(
+              child: Icon(Icons.broken_image, color: Colors.white),
+            ),
+          ),
+      ],
     );
-    
+
     // Only wrap the active image in a Hero to prevent duplicate Hero tags in the PageView
     if (widget.isActive) {
       return Hero(tag: widget.filePath, child: image);

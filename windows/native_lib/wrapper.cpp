@@ -34,6 +34,8 @@ extern "C" {
         }
     }
 
+    // Despite the ABI name, get_thumbnail semantically returns the RAW fast
+    // preview layer.
     EXPORT void get_thumbnail(const wchar_t* file_path, ThumbnailResult* out) {
         if (out == nullptr) return;
 
@@ -47,7 +49,7 @@ extern "C" {
             return;
         }
 
-        // Try to unpack thumbnail
+        // Try to unpack the embedded RAW preview first.
         if (RawProcessor.unpack_thumb() == LIBRAW_SUCCESS) {
             int errc = 0;
             libraw_processed_image_t *thumb = RawProcessor.dcraw_make_mem_thumb(&errc);
@@ -75,7 +77,7 @@ extern "C" {
             }
         }
         
-        // Fallback: generate a preview from raw data
+        // Fallback: generate a RAW fast preview from decoded RAW data.
         RawProcessor.imgdata.params.use_camera_wb = 1;
         RawProcessor.imgdata.params.half_size = 1;
         RawProcessor.imgdata.params.output_bps = 8;
@@ -110,7 +112,8 @@ extern "C" {
         RawProcessor.recycle();
     }
 
-    // Get preview image (fast decoding)
+    // Despite the ABI name, get_preview semantically returns the decoded RAW
+    // layer.
     EXPORT void get_preview(const wchar_t* file_path, int half_size,
                             ImageResult* out) {
         if (out == nullptr) return;

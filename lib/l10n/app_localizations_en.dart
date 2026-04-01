@@ -27,28 +27,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get languageEnglish => 'English';
 
   @override
-  String get previewModeSectionTitle => 'Preview Mode';
+  String get rawPreviewSourceSectionTitle => 'RAW Preview Source';
 
   @override
-  String get embeddedJpegTitle => 'Embedded JPEG';
+  String get fastPreviewTitle => 'Fast Preview';
 
   @override
-  String get embeddedJpegSubtitle => 'Fast preview, lower quality';
+  String get fastPreviewSubtitle =>
+      'Show the cached fast preview first, then keep using the fast preview layer. This usually uses the embedded preview and falls back to fast RAW processing when unavailable.';
 
   @override
-  String get loadRawImageTitle => 'Load RAW Image';
+  String get decodedRawPreviewTitle => 'Decoded RAW';
 
   @override
-  String get loadRawImageSubtitle => 'High quality, slower';
+  String get decodedRawPreviewSubtitle =>
+      'Show the cached fast preview first, then decode RAW for the final image.';
 
   @override
   String get rawProcessingSectionTitle => 'RAW Processing';
 
   @override
-  String get halfSizeDecodingTitle => 'Half Size Decoding';
+  String get halfSizeRawDecodeTitle => 'Half-size RAW Decode';
 
   @override
-  String get halfSizeDecodingSubtitle => 'Faster decoding, 50% resolution. Disable for full resolution.';
+  String get halfSizeRawDecodeSubtitle =>
+      'Decode the final RAW image at 50% resolution for better speed. Disable for full resolution.';
 
   @override
   String get timeDisplaySectionTitle => 'Time Display';
@@ -63,7 +66,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get fileModifiedTimeTitle => 'File Modified Time';
 
   @override
-  String get fileModifiedTimeSubtitle => 'Use file system last modified time directly';
+  String get fileModifiedTimeSubtitle =>
+      'Use file system last modified time directly';
 
   @override
   String get cacheSectionTitle => 'Cache';
@@ -86,10 +90,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get windowsContextMenuToggleTitle => 'Show \"Open in RawView\"';
 
   @override
-  String get windowsContextMenuEnabledSubtitle => 'Installed for the current user. Supports files, multiple files, folders, and right-click on folder background.';
+  String get windowsContextMenuEnabledSubtitle =>
+      'Installed for the current user. Supports files, multiple files, folders, and right-click on folder background.';
 
   @override
-  String get windowsContextMenuDisabledSubtitle => 'Enable this to open files, multiple files, folders, or the current directory directly from Explorer with \"Open in RawView\".';
+  String get windowsContextMenuDisabledSubtitle =>
+      'Enable this to open files, multiple files, folders, or the current directory directly from Explorer with \"Open in RawView\".';
 
   @override
   String get installScopeTitle => 'Install Scope';
@@ -101,10 +107,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get installScopeNotInstalled => 'Not installed';
 
   @override
-  String get windowsContextMenuEnabledMessage => '\"Open in RawView\" context menu enabled';
+  String get windowsContextMenuEnabledMessage =>
+      '\"Open in RawView\" context menu enabled';
 
   @override
-  String get windowsContextMenuRemovedMessage => '\"Open in RawView\" context menu removed';
+  String get windowsContextMenuRemovedMessage =>
+      '\"Open in RawView\" context menu removed';
 
   @override
   String windowsContextMenuUpdateFailed(String error) {
@@ -137,7 +145,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get embeddedJpegShortLabel => 'JPG';
+  String get fastPreviewShortLabel => 'FAST';
 
   @override
   String get rawShortLabel => 'RAW';

@@ -34,10 +34,15 @@ extern "C" {
         }
     }
 
+    // Build the RAW fast preview layer.
+    //
+    // Prefer the embedded preview via unpack_thumb(). If the file does not
+    // expose one, fall back to a half-size RAW decode so the UI still gets a
+    // fast first image.
     ThumbnailResult process_thumbnail(LibRaw& RawProcessor) {
         ThumbnailResult result = {nullptr, 0, 0, 0, 0};
 
-        // Try to unpack thumbnail
+        // Try to unpack the embedded RAW preview first.
         if (RawProcessor.unpack_thumb() == LIBRAW_SUCCESS) {
             int errc = 0;
             libraw_processed_image_t *thumb = RawProcessor.dcraw_make_mem_thumb(&errc);
@@ -65,7 +70,7 @@ extern "C" {
             LOGD("unpack_thumb failed");
         }
         
-        // Fallback: Generate preview from raw data
+        // Fallback: generate a RAW fast preview from decoded RAW data.
         RawProcessor.imgdata.params.use_camera_wb = 1;
         RawProcessor.imgdata.params.half_size = 1; // Half size for speed
         RawProcessor.imgdata.params.output_bps = 8;
@@ -105,6 +110,8 @@ extern "C" {
         return result;
     }
 
+    // Despite the ABI name, get_thumbnail semantically returns the RAW fast
+    // preview layer.
     EXPORT void get_thumbnail(const char* file_path, ThumbnailResult* out) {
         if (!out) return;
         if (!file_path) {
@@ -143,10 +150,11 @@ extern "C" {
         RawProcessor.recycle();
     }
 
+    // Build the decoded RAW layer used as the final high-quality image.
     ImageResult process_preview(LibRaw& RawProcessor, int half_size) {
         ImageResult result = {nullptr, 0, 0, 0};
 
-        // Set parameters for speed, sacrificing some quality
+        // Configure decoded RAW output. half_size trades quality for speed.
         RawProcessor.imgdata.params.use_camera_wb = 1;
         RawProcessor.imgdata.params.half_size = half_size; // 1: Half size, 0: Full size
         RawProcessor.imgdata.params.output_bps = 8; // 8-bit output
@@ -187,7 +195,8 @@ extern "C" {
         return result;
     }
 
-    // Get preview image (fast decoding)
+    // Despite the ABI name, get_preview semantically returns the decoded RAW
+    // layer.
     EXPORT void get_preview(const char* file_path, int half_size, ImageResult* out) {
         if (!out) return;
         if (!file_path) {

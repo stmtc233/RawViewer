@@ -16,7 +16,7 @@ class WorkerService {
   final Map<int, Completer<LibRawImage?>> _pendingRequests = {};
   int _nextRequestId = 0;
 
-  // Deduplication map: key is 'path:type:halfSize' -> requestId
+  // Deduplication map: key is 'path:type:halfSize' -> requestId.
   final Map<String, int> _activeRequestsByKey = {};
 
   // Track active requests to cancel them if needed (best effort)
@@ -65,17 +65,33 @@ class WorkerService {
     }
   }
 
-  WorkerTask<LibRawImage?> requestThumbnail(String path,
+  // RAW fast preview layer: prefer embedded preview data and fall back to a
+  // fast RAW-generated preview when the file has no embedded preview.
+  WorkerTask<LibRawImage?> requestRawFastPreview(String path,
       {TaskPriority priority = TaskPriority.high}) {
     final requestId = _nextRequestId++;
-    return WorkerTask(this, requestId, path, _RequestType.thumbnail,
+    return WorkerTask(this, requestId, path, _RequestType.rawFastPreview,
         priority: priority);
   }
 
-  WorkerTask<LibRawImage?> requestPreview(String path,
+  @Deprecated('Use requestRawFastPreview()')
+  WorkerTask<LibRawImage?> requestThumbnail(String path,
+      {TaskPriority priority = TaskPriority.high}) {
+    return requestRawFastPreview(path, priority: priority);
+  }
+
+  // Decoded RAW layer used as the final high-quality image.
+  WorkerTask<LibRawImage?> requestDecodedRawPreview(String path,
       {int halfSize = 1, TaskPriority priority = TaskPriority.high}) {
     final requestId = _nextRequestId++;
-    return WorkerTask(this, requestId, path, _RequestType.preview,
+    return WorkerTask(this, requestId, path, _RequestType.decodedRawPreview,
+        halfSize: halfSize, priority: priority);
+  }
+
+  @Deprecated('Use requestDecodedRawPreview()')
+  WorkerTask<LibRawImage?> requestPreview(String path,
+      {int halfSize = 1, TaskPriority priority = TaskPriority.high}) {
+    return requestDecodedRawPreview(path,
         halfSize: halfSize, priority: priority);
   }
 
@@ -169,7 +185,7 @@ class WorkerTask<T> {
   }
 }
 
-enum _RequestType { thumbnail, preview }
+enum _RequestType { rawFastPreview, decodedRawPreview }
 
 class _WorkerRequest {
   final int requestId;
@@ -248,11 +264,11 @@ void _workerEntry(SendPort mainSendPort) {
 
       try {
         LibRawImage? result;
-        if (request.type == _RequestType.thumbnail) {
-          result = getThumbnailSync(request.path);
+        if (request.type == _RequestType.rawFastPreview) {
+          result = getRawFastPreviewSync(request.path);
         } else {
-          result =
-              getPreviewSync(PreviewRequest(request.path, request.halfSize));
+          result = getDecodedRawPreviewSync(request.path,
+              halfSize: request.halfSize);
         }
 
         // Check cancellation again after processing

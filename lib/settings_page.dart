@@ -53,16 +53,21 @@ typedef WindowsContextMenuToggleHandler = Future<WindowsContextMenuSettings>
     Function(bool enabled);
 
 class ViewerSettings {
-  final bool useEmbeddedPreview;
-  final bool halfSize;
+  // true: stop at the RAW fast preview layer. This usually uses the embedded
+  // preview and falls back to a fast RAW-generated preview when unavailable.
+  // false: continue decoding RAW for the final image layer.
+  final bool preferFastPreviewForRaw;
+  // Controls the decoded RAW layer only. This does not affect the fast preview
+  // layer shown first while browsing RAW files.
+  final bool useHalfSizeRawDecode;
   final int maxCacheSize; // in MB
   final TimeDisplaySource timeDisplaySource;
   final AppLanguage appLanguage;
   final WindowsContextMenuSettings windowsContextMenu;
 
   const ViewerSettings({
-    this.useEmbeddedPreview = false,
-    this.halfSize = true,
+    this.preferFastPreviewForRaw = false,
+    this.useHalfSizeRawDecode = true,
     this.maxCacheSize = 512,
     this.timeDisplaySource = TimeDisplaySource.capturedAt,
     this.appLanguage = AppLanguage.system,
@@ -70,16 +75,18 @@ class ViewerSettings {
   });
 
   ViewerSettings copyWith({
-    bool? useEmbeddedPreview,
-    bool? halfSize,
+    bool? preferFastPreviewForRaw,
+    bool? useHalfSizeRawDecode,
     int? maxCacheSize,
     TimeDisplaySource? timeDisplaySource,
     AppLanguage? appLanguage,
     WindowsContextMenuSettings? windowsContextMenu,
   }) {
     return ViewerSettings(
-      useEmbeddedPreview: useEmbeddedPreview ?? this.useEmbeddedPreview,
-      halfSize: halfSize ?? this.halfSize,
+      preferFastPreviewForRaw:
+          preferFastPreviewForRaw ?? this.preferFastPreviewForRaw,
+      useHalfSizeRawDecode:
+          useHalfSizeRawDecode ?? this.useHalfSizeRawDecode,
       maxCacheSize: maxCacheSize ?? this.maxCacheSize,
       timeDisplaySource: timeDisplaySource ?? this.timeDisplaySource,
       appLanguage: appLanguage ?? this.appLanguage,
@@ -234,35 +241,37 @@ class _SettingsPageState extends State<SettingsPage> {
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Text(
-                l10n.previewModeSectionTitle,
+                l10n.rawPreviewSourceSectionTitle,
                 style:
                     const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
             ExcludeSemantics(
               child: RadioListTile<bool>(
-                title: Text(l10n.embeddedJpegTitle),
-                subtitle: Text(l10n.embeddedJpegSubtitle),
+                title: Text(l10n.fastPreviewTitle),
+                subtitle: Text(l10n.fastPreviewSubtitle),
                 value: true,
-                groupValue: _currentSettings.useEmbeddedPreview,
+                groupValue: _currentSettings.preferFastPreviewForRaw,
                 onChanged: (value) {
                   setState(() {
-                    _currentSettings =
-                        _currentSettings.copyWith(useEmbeddedPreview: value);
+                    _currentSettings = _currentSettings.copyWith(
+                      preferFastPreviewForRaw: value,
+                    );
                   });
                 },
               ),
             ),
             ExcludeSemantics(
               child: RadioListTile<bool>(
-                title: Text(l10n.loadRawImageTitle),
-                subtitle: Text(l10n.loadRawImageSubtitle),
+                title: Text(l10n.decodedRawPreviewTitle),
+                subtitle: Text(l10n.decodedRawPreviewSubtitle),
                 value: false,
-                groupValue: _currentSettings.useEmbeddedPreview,
+                groupValue: _currentSettings.preferFastPreviewForRaw,
                 onChanged: (value) {
                   setState(() {
-                    _currentSettings =
-                        _currentSettings.copyWith(useEmbeddedPreview: value);
+                    _currentSettings = _currentSettings.copyWith(
+                      preferFastPreviewForRaw: value,
+                    );
                   });
                 },
               ),
@@ -278,13 +287,14 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             ExcludeSemantics(
               child: SwitchListTile(
-                title: Text(l10n.halfSizeDecodingTitle),
-                subtitle: Text(l10n.halfSizeDecodingSubtitle),
-                value: _currentSettings.halfSize,
+                title: Text(l10n.halfSizeRawDecodeTitle),
+                subtitle: Text(l10n.halfSizeRawDecodeSubtitle),
+                value: _currentSettings.useHalfSizeRawDecode,
                 onChanged: (value) {
                   setState(() {
-                    _currentSettings =
-                        _currentSettings.copyWith(halfSize: value);
+                    _currentSettings = _currentSettings.copyWith(
+                      useHalfSizeRawDecode: value,
+                    );
                   });
                 },
               ),

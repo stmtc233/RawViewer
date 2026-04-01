@@ -48,7 +48,7 @@ final class ThumbnailResult extends Struct {
   @Int32()
   external int height;
   @Int32()
-  external int format; // 0: JPEG, 1: RGB
+  external int format; // 0: encoded preview JPEG, 1: RGB bitmap data
 }
 
 final class ImageResult extends Struct {
@@ -68,9 +68,11 @@ typedef GetThumbnailC = Void Function(
 typedef GetThumbnailDart = void Function(
     Pointer<Utf16> path, Pointer<ThumbnailResult> out);
 
-typedef GetPreviewC = Void Function(
+// The native symbol name is still `get_preview`, but it semantically returns
+// the decoded RAW layer rather than an arbitrary preview.
+typedef GetDecodedRawPreviewC = Void Function(
     Pointer<Utf16> path, Int32 halfSize, Pointer<ImageResult> out);
-typedef GetPreviewDart = void Function(
+typedef GetDecodedRawPreviewDart = void Function(
     Pointer<Utf16> path, int halfSize, Pointer<ImageResult> out);
 
 // --- POSIX (UTF-8 path) ---
@@ -80,9 +82,9 @@ typedef GetThumbnailC_Posix = Void Function(
 typedef GetThumbnailDart_Posix = void Function(
     Pointer<Utf8> path, Pointer<ThumbnailResult> out);
 
-typedef GetPreviewC_Posix = Void Function(
+typedef GetDecodedRawPreviewC_Posix = Void Function(
     Pointer<Utf8> path, Int32 halfSize, Pointer<ImageResult> out);
-typedef GetPreviewDart_Posix = void Function(
+typedef GetDecodedRawPreviewDart_Posix = void Function(
     Pointer<Utf8> path, int halfSize, Pointer<ImageResult> out);
 
 // --- Buffer variants ---
@@ -92,9 +94,9 @@ typedef GetThumbnailC_Buffer = Void Function(
 typedef GetThumbnailDart_Buffer = void Function(
     Pointer<Uint8> buffer, int size, Pointer<ThumbnailResult> out);
 
-typedef GetPreviewC_Buffer = Void Function(
+typedef GetDecodedRawPreviewC_Buffer = Void Function(
     Pointer<Uint8> buffer, Int32 size, Int32 halfSize, Pointer<ImageResult> out);
-typedef GetPreviewDart_Buffer = void Function(
+typedef GetDecodedRawPreviewDart_Buffer = void Function(
     Pointer<Uint8> buffer, int size, int halfSize, Pointer<ImageResult> out);
 
 // --- Free ---
@@ -106,7 +108,8 @@ class LibRawImage {
   final Uint8List data;
   final int width;
   final int height;
-  final int format; // 0: JPEG, 1: BMP (Converted from RGB)
+  // 0: encoded preview JPEG, 1: BMP bytes converted from RGB
+  final int format;
 
   LibRawImage(this.data, this.width, this.height, this.format);
 }
@@ -195,7 +198,11 @@ Uint8List _addBmpHeader(Uint8List rgbData, int width, int height) {
   }
 }
 
-// Worker function for compute
+// Returns the RAW fast preview layer.
+//
+// Despite the legacy `thumbnail` naming, this is not limited to an embedded
+// JPEG. Native code first tries to extract embedded preview data and then falls
+// back to a fast RAW-generated preview when needed.
 LibRawImage? getThumbnailSync(String path) {
   final FreeBufferDart freeBufferFunc =
       nativeLib.lookup<NativeFunction<FreeBufferC>>('free_buffer').asFunction();
@@ -288,23 +295,30 @@ LibRawImage? _processThumbnailResult(
   return LibRawImage(finalData, width, height, finalFormat);
 }
 
-class PreviewRequest {
+LibRawImage? getRawFastPreviewSync(String path) {
+  return getThumbnailSync(path);
+}
+
+class DecodedRawPreviewRequest {
   final String path;
   final int halfSize;
 
-  PreviewRequest(this.path, this.halfSize);
+  DecodedRawPreviewRequest(this.path, this.halfSize);
 }
 
-// Worker function for compute
-LibRawImage? getPreviewSync(PreviewRequest request) {
+// Returns the decoded RAW layer used as the final high-quality image.
+//
+// `halfSize` only affects this decoded RAW layer. The fast preview layer above
+// is loaded through [`getRawFastPreviewSync()`](lib/native_lib.dart:291).
+LibRawImage? _getDecodedRawPreviewSync(DecodedRawPreviewRequest request) {
   final FreeBufferDart freeBufferFunc =
       nativeLib.lookup<NativeFunction<FreeBufferC>>('free_buffer').asFunction();
 
   final resultPtr = calloc<ImageResult>();
   try {
     if (Platform.isWindows) {
-      final GetPreviewDart getPreviewFunc = nativeLib
-          .lookup<NativeFunction<GetPreviewC>>('get_preview')
+      final GetDecodedRawPreviewDart getPreviewFunc = nativeLib
+          .lookup<NativeFunction<GetDecodedRawPreviewC>>('get_preview')
           .asFunction();
 
       final pathPtr = request.path.toNativeUtf16();
@@ -314,8 +328,8 @@ LibRawImage? getPreviewSync(PreviewRequest request) {
         calloc.free(pathPtr);
       }
     } else {
-      final GetPreviewDart_Posix getPreviewFunc = nativeLib
-          .lookup<NativeFunction<GetPreviewC_Posix>>('get_preview')
+      final GetDecodedRawPreviewDart_Posix getPreviewFunc = nativeLib
+          .lookup<NativeFunction<GetDecodedRawPreviewC_Posix>>('get_preview')
           .asFunction();
 
       final pathPtr = request.path.toNativeUtf8();
@@ -337,8 +351,8 @@ LibRawImage? getPreviewSync(PreviewRequest request) {
             final bufferList = bufferPtr.asTypedList(bytes.length);
             bufferList.setAll(0, bytes);
 
-            final GetPreviewDart_Buffer getPreviewBufferFunc = nativeLib
-                .lookup<NativeFunction<GetPreviewC_Buffer>>(
+            final GetDecodedRawPreviewDart_Buffer getPreviewBufferFunc = nativeLib
+                .lookup<NativeFunction<GetDecodedRawPreviewC_Buffer>>(
                     'get_preview_from_buffer')
                 .asFunction();
 
@@ -359,6 +373,15 @@ LibRawImage? getPreviewSync(PreviewRequest request) {
   } finally {
     calloc.free(resultPtr);
   }
+}
+
+LibRawImage? getDecodedRawPreviewSync(String path, {int halfSize = 1}) {
+  return _getDecodedRawPreviewSync(DecodedRawPreviewRequest(path, halfSize));
+}
+
+@Deprecated('Use getDecodedRawPreviewSync()')
+LibRawImage? getPreviewSync(DecodedRawPreviewRequest request) {
+  return _getDecodedRawPreviewSync(request);
 }
 
 LibRawImage? _processPreviewResult(

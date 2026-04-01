@@ -39,6 +39,11 @@ void copy_rgb_to_bgr(uint8_t* destination,
   }
 }
 
+// Build the RAW fast preview layer.
+//
+// Prefer the embedded preview via `unpack_thumb()`. If the file does not
+// expose one, fall back to a half-size RAW decode so the UI still gets a fast
+// first image.
 ThumbnailResult process_thumbnail(LibRaw& raw_processor) {
   ThumbnailResult result = empty_thumbnail();
 
@@ -93,6 +98,7 @@ ThumbnailResult process_thumbnail(LibRaw& raw_processor) {
   return result;
 }
 
+// Build the decoded RAW layer used as the final high-quality image.
 ImageResult process_preview(LibRaw& raw_processor, int half_size) {
   ImageResult result = empty_image();
 
@@ -133,6 +139,8 @@ EXPORT void free_buffer(uint8_t* buffer) {
 
 // Keep macOS exported ABI aligned with other POSIX targets because Dart FFI
 // calls these functions using void/out-parameter signatures.
+// Despite the ABI name, `get_thumbnail` semantically returns the RAW fast
+// preview layer.
 EXPORT void get_thumbnail(const char* file_path, ThumbnailResult* out) {
   if (out == nullptr) {
     return;
@@ -176,6 +184,8 @@ EXPORT void get_thumbnail_from_buffer(uint8_t* buffer,
   raw_processor.recycle();
 }
 
+// Despite the ABI name, `get_preview` semantically returns the decoded RAW
+// layer.
 EXPORT void get_preview(const char* file_path,
                         int half_size,
                         ImageResult* out) {
