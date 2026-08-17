@@ -102,6 +102,15 @@ target_compile_definitions(native_lib PRIVATE LIBRAW_NODLL)
 target_compile_options(native_lib PRIVATE -fvisibility=hidden -O3)
 set_target_properties(native_lib PROPERTIES CXX_STANDARD 14)
 
+# Enable OpenMP so LibRaw's demosaic takes its multi-threaded path. GCC ships
+# libgomp, so this needs no extra packaging; skip it if the toolchain lacks it.
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+  target_link_libraries(native_lib PRIVATE OpenMP::OpenMP_CXX)
+else()
+  message(STATUS "OpenMP not found; LibRaw demosaic stays single-threaded.")
+endif()
+
 # Add dependency libraries. Add any application-specific dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter)
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)

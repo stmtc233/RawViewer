@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:exif/exif.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -11,10 +12,14 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
+import 'dart:collection';
+
 import 'l10n/app_localizations.dart';
+import 'image_store.dart';
 import 'native_lib.dart';
 import 'settings_page.dart';
 import 'lru_cache.dart';
+import 'viewer_image.dart';
 import 'worker_service.dart';
 
 const List<String> _rawExtensions = [
@@ -84,11 +89,24 @@ class _MediaTimestampInfo {
 }
 
 class _TimestampRepository {
-  final Map<String, Future<_MediaTimestampInfo>> _futureCache = {};
+  // Bounded so browsing a very large directory cannot grow this without limit.
+  static const int _maxEntries = 2048;
+  final LinkedHashMap<String, Future<_MediaTimestampInfo>> _futureCache =
+      LinkedHashMap<String, Future<_MediaTimestampInfo>>();
 
   Future<_MediaTimestampInfo> load(String filePath) {
-    return _futureCache.putIfAbsent(
-        filePath, () => _readTimestampInfo(filePath));
+    final existing = _futureCache.remove(filePath);
+    if (existing != null) {
+      _futureCache[filePath] = existing; // Refresh recency.
+      return existing;
+    }
+
+    final future = _readTimestampInfo(filePath);
+    _futureCache[filePath] = future;
+    while (_futureCache.length > _maxEntries) {
+      _futureCache.remove(_futureCache.keys.first);
+    }
+    return future;
   }
 
   void clear() {
@@ -124,7 +142,13 @@ class _TimestampRepository {
   }
 }
 
-Future<DateTime?> _parseCapturedAtFromBytes(Uint8List bytes) async {
+// Runs on a helper isolate: EXIF parsing is pure CPU work and parsing it inline
+// stutters the grid when many tiles resolve their timestamps at once.
+Future<DateTime?> _parseCapturedAtFromBytes(Uint8List bytes) {
+  return Isolate.run(() => _parseCapturedAtFromBytesSync(bytes));
+}
+
+Future<DateTime?> _parseCapturedAtFromBytesSync(Uint8List bytes) async {
   try {
     final data = await readExifFromBytes(bytes);
     final rawValue = data['Image DateTime']?.printable ??
@@ -155,6 +179,18 @@ DateTime? _parseExifDateTime(String value) {
     );
   }
   return DateTime.tryParse(normalized);
+}
+
+/// Granularity of decode-target widths, in physical pixels.
+const int kDecodeWidthBucket = 128;
+
+/// Rounds a desired decode width up to the next [kDecodeWidthBucket] step.
+///
+/// Decode targets double as cache keys, so a continuously-varying width (window
+/// resize, DPR changes) would otherwise invalidate every cached image.
+int bucketDecodeWidth(double width) {
+  if (width <= kDecodeWidthBucket) return kDecodeWidthBucket;
+  return (width / kDecodeWidthBucket).ceil() * kDecodeWidthBucket;
 }
 
 const MethodChannel _desktopOpenChannel = MethodChannel('rawviewer/open_paths');
@@ -207,6 +243,11 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> with WindowListener {
   Locale? _locale;
 
+  // Resize/move fire continuously while dragging; persist only once the user
+  // settles instead of hitting the disk on every event.
+  static const Duration _windowPersistDelay = Duration(milliseconds: 300);
+  Timer? _windowGeometryTimer;
+
   @override
   void initState() {
     super.initState();
@@ -217,32 +258,42 @@ class _MyAppState extends State<MyApp> with WindowListener {
 
   @override
   void dispose() {
+    _windowGeometryTimer?.cancel();
     if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
       windowManager.removeListener(this);
     }
     super.dispose();
   }
 
-  @override
-  void onWindowResized() async {
-    final isMaximized = await windowManager.isMaximized();
-    if (isMaximized) return;
+  void _scheduleWindowGeometrySave() {
+    _windowGeometryTimer?.cancel();
+    _windowGeometryTimer = Timer(_windowPersistDelay, _persistWindowGeometry);
+  }
 
-    final size = await windowManager.getSize();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('window_width', size.width);
-    await prefs.setDouble('window_height', size.height);
+  Future<void> _persistWindowGeometry() async {
+    try {
+      if (await windowManager.isMaximized()) return;
+
+      final size = await windowManager.getSize();
+      final position = await windowManager.getPosition();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('window_width', size.width);
+      await prefs.setDouble('window_height', size.height);
+      await prefs.setDouble('window_x', position.dx);
+      await prefs.setDouble('window_y', position.dy);
+    } catch (_) {
+      // Window may already be gone; losing geometry is not worth surfacing.
+    }
   }
 
   @override
-  void onWindowMoved() async {
-    final isMaximized = await windowManager.isMaximized();
-    if (isMaximized) return;
+  void onWindowResized() {
+    _scheduleWindowGeometrySave();
+  }
 
-    final position = await windowManager.getPosition();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('window_x', position.dx);
-    await prefs.setDouble('window_y', position.dy);
+  @override
+  void onWindowMoved() {
+    _scheduleWindowGeometrySave();
   }
 
   @override
@@ -310,6 +361,7 @@ class _HomePageState extends State<HomePage> {
   _OpenedSourceKind _openedSourceKind = _OpenedSourceKind.none;
   // Use LRU Cache to limit memory usage.
   late LruCache<String, ViewerImage> _imageCache;
+  late ImageStore _imageStore;
   final _TimestampRepository _timestampRepository = _TimestampRepository();
   ViewerSettings _settings = const ViewerSettings();
   int _crossAxisCount = 4;
@@ -347,8 +399,18 @@ class _HomePageState extends State<HomePage> {
     final int maxBytes = _settings.maxCacheSize * 1024 * 1024;
     _imageCache = LruCache(
       maxBytes,
-      sizeOf: (image) => image.data.length,
+      sizeOf: (image) => image.sizeInBytes,
+      // Evicted entries own a live ui.Image handle; dropping the reference is
+      // not enough to release the texture.
+      onEvict: (_, image) => image.dispose(),
     );
+    _imageStore = ImageStore(_imageCache);
+  }
+
+  void _replaceCache() {
+    final oldCache = _imageCache;
+    _initCache();
+    oldCache.clear();
   }
 
   Future<void> _refreshWindowsContextMenuState() async {
@@ -645,12 +707,15 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
 
-    // Calculate dynamic thumbnail resize width based on grid cell size
+    // Calculate dynamic thumbnail resize width based on grid cell size, then
+    // snap it to a bucket. Without bucketing, dragging the window by one pixel
+    // changes the decode target and re-decodes every visible thumbnail.
     final dpr = MediaQuery.of(context).devicePixelRatio;
     final screenWidth = MediaQuery.of(context).size.width;
     final totalPadding = 16.0 + (_crossAxisCount - 1) * 8.0;
     final cellWidth = (screenWidth - totalPadding) / _crossAxisCount;
-    final thumbnailResizeWidth = (cellWidth * dpr).clamp(100.0, 800.0).toInt();
+    final thumbnailResizeWidth =
+        bucketDecodeWidth((cellWidth * dpr).clamp(100.0, 800.0));
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_syncWindowsContextMenuLanguage(
@@ -721,14 +786,14 @@ class _HomePageState extends State<HomePage> {
 
                 if (result != null) {
                   widget.onAppLanguageChanged(result.appLanguage);
+                  final cacheSizeChanged =
+                      _settings.maxCacheSize != result.maxCacheSize;
                   setState(() {
-                    if (_settings.maxCacheSize != result.maxCacheSize) {
-                      _settings = result;
-                      _initCache(); // Re-initialize with new size
-                    } else {
-                      _settings = result;
-                    }
+                    _settings = result;
                   });
+                  if (cacheSizeChanged) {
+                    _replaceCache(); // Re-initialize with new size
+                  }
                 }
               },
             ),
@@ -760,23 +825,13 @@ class _HomePageState extends State<HomePage> {
                   itemBuilder: (context, index) {
                     final mediaFile = _files[index];
                     final filePath = mediaFile.path;
-                    final fastPreviewCacheKey = '$filePath:fast-preview';
                     return MediaThumbnailTile(
                       key: ValueKey(filePath),
                       mediaFile: mediaFile,
                       settings: _settings,
                       timestampRepository: _timestampRepository,
                       resizeWidth: thumbnailResizeWidth,
-                      cachedFastPreviewImage: mediaFile.isRaw
-                          ? _imageCache.get(fastPreviewCacheKey)
-                          : null,
-                      onFastPreviewCacheUpdate: (image) {
-                        if (mediaFile.isRaw) {
-                          Future(
-                            () => _imageCache.put(fastPreviewCacheKey, image),
-                          );
-                        }
-                      },
+                      imageStore: _imageStore,
                       onTap: () {
                         Navigator.push(
                           context,
@@ -790,7 +845,7 @@ class _HomePageState extends State<HomePage> {
                                     files: _files,
                                     initialIndex: index,
                                     thumbnailResizeWidth: thumbnailResizeWidth,
-                                    imageCache: _imageCache,
+                                    imageStore: _imageStore,
                                     timestampRepository: _timestampRepository,
                                     settings: _settings,
                                     onClose: () {
@@ -815,8 +870,7 @@ class MediaThumbnailTile extends StatefulWidget {
   final ViewerSettings settings;
   final _TimestampRepository timestampRepository;
   final int resizeWidth;
-  final ViewerImage? cachedFastPreviewImage;
-  final Function(ViewerImage) onFastPreviewCacheUpdate;
+  final ImageStore imageStore;
   final VoidCallback onTap;
 
   const MediaThumbnailTile({
@@ -825,8 +879,7 @@ class MediaThumbnailTile extends StatefulWidget {
     required this.settings,
     required this.timestampRepository,
     required this.resizeWidth,
-    this.cachedFastPreviewImage,
-    required this.onFastPreviewCacheUpdate,
+    required this.imageStore,
     required this.onTap,
   });
 
@@ -837,33 +890,32 @@ class MediaThumbnailTile extends StatefulWidget {
 }
 
 class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
-  WorkerTask<LibRawImage?>? _fastPreviewTask;
-  Future<ViewerImage?>? _fastPreviewFuture;
+  ViewerImage? _fastPreview;
+  bool _failed = false;
+  /// Incremented whenever this tile is recycled or disposed, so a load that
+  /// completes afterwards can tell that its result is no longer wanted.
+  int _generation = 0;
   late Future<_MediaTimestampInfo> _timestampFuture;
 
   @override
   void initState() {
     super.initState();
-    // Start loading only if not cached (RAW files only; bitmaps use FileImage)
-    if (widget.mediaFile.isRaw && widget.cachedFastPreviewImage == null) {
-      _loadRawFastPreview();
-    }
+    _startLoad();
     _timestampFuture = widget.timestampRepository.load(widget.filePath);
   }
 
   @override
   void didUpdateWidget(MediaThumbnailTile oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.filePath != oldWidget.filePath) {
-      _fastPreviewTask?.cancel();
-      _fastPreviewTask = null;
-      _fastPreviewFuture = null;
-
-      // If the file path changes (recycling), we need to reload or check cache
-      if (widget.mediaFile.isRaw && widget.cachedFastPreviewImage == null) {
-        _loadRawFastPreview();
+    if (widget.filePath != oldWidget.filePath ||
+        widget.resizeWidth != oldWidget.resizeWidth) {
+      _generation++;
+      _clearPreview();
+      _failed = false;
+      _startLoad();
+      if (widget.filePath != oldWidget.filePath) {
+        _timestampFuture = widget.timestampRepository.load(widget.filePath);
       }
-      _timestampFuture = widget.timestampRepository.load(widget.filePath);
     } else if (widget.settings.timeDisplaySource !=
         oldWidget.settings.timeDisplaySource) {
       setState(() {});
@@ -872,24 +924,55 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
 
   @override
   void dispose() {
-    _fastPreviewTask?.cancel();
+    _generation++; // Discard any in-flight result for this tile.
+    _clearPreview();
     super.dispose();
   }
 
-  void _loadRawFastPreview() {
-    // Only called for RAW files; bitmap files use FileImage directly.
+  void _clearPreview() {
+    _fastPreview?.dispose();
+    _fastPreview = null;
+  }
+
+  void _startLoad() {
+    // Bitmap files go through Flutter's own file/image pipeline.
+    if (!widget.mediaFile.isRaw) return;
+
+    // A cache hit resolves synchronously, so the very first frame already has
+    // the image rather than flashing a placeholder.
+    final cached = widget.imageStore.peek(widget.filePath, RawLayer.fastPreview,
+        targetWidth: widget.resizeWidth);
+    if (cached != null) {
+      _fastPreview = cached;
+      return;
+    }
+
+    unawaited(_loadRawFastPreview(_generation));
+  }
+
+  Future<void> _loadRawFastPreview(int generation) async {
     // This layer prefers embedded preview data and falls back to a fast
     // RAW-generated preview when the file has no embedded preview.
-    final task = WorkerService().requestRawFastPreview(widget.filePath);
-    _fastPreviewTask = task;
-    _fastPreviewFuture = task.result.then((image) {
-      if (!mounted) return null;
-      if (image == null) {
-        return null;
-      }
-      final viewerImage = ViewerImage.fromRaw(image);
-      widget.onFastPreviewCacheUpdate(viewerImage);
-      return viewerImage;
+    //
+    // The task is intentionally not cancelled when this tile is recycled: the
+    // worker dedupes fast previews by path, so cancelling would also resolve
+    // another tile's shared request to null. Scrolling past is instead handled
+    // by ignoring a stale result via [generation].
+    final image = await widget.imageStore.load(
+      widget.filePath,
+      RawLayer.fastPreview,
+      targetWidth: widget.resizeWidth,
+    );
+
+    if (!mounted || generation != _generation) {
+      image?.dispose();
+      return;
+    }
+
+    setState(() {
+      _clearPreview();
+      _fastPreview = image;
+      _failed = image == null;
     });
   }
 
@@ -984,43 +1067,31 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
       return _buildBitmapThumbnail();
     }
 
-    // RAW files: show the cached fast preview layer if we already have it.
-    if (widget.cachedFastPreviewImage != null) {
+    final preview = _fastPreview;
+    if (preview != null) {
       return RawImageWidget(
-        image: widget.cachedFastPreviewImage!,
+        image: preview,
         fit: BoxFit.cover,
-        memCacheWidth: widget.resizeWidth,
         heroTag: widget.filePath,
       );
     }
 
-    return FutureBuilder<ViewerImage?>(
-      future: _fastPreviewFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Container(
-            color: Colors.grey[800],
-            child: const Center(
-                child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2))),
-          );
-        }
-        if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
-          return Container(
-            color: Colors.grey[800],
-            child: const Center(child: Icon(Icons.broken_image, size: 20)),
-          );
-        }
+    if (_failed) {
+      return Container(
+        color: Colors.grey[800],
+        child: const Center(child: Icon(Icons.broken_image, size: 20)),
+      );
+    }
 
-        return RawImageWidget(
-          image: snapshot.data!,
-          fit: BoxFit.cover,
-          memCacheWidth: widget.resizeWidth,
-          heroTag: widget.filePath,
-        );
-      },
+    return Container(
+      color: Colors.grey[800],
+      child: const Center(
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
     );
   }
 
@@ -1045,7 +1116,7 @@ class ImagePreviewPage extends StatefulWidget {
   final List<_MediaFile> files;
   final int initialIndex;
   final int thumbnailResizeWidth;
-  final LruCache<String, ViewerImage> imageCache;
+  final ImageStore imageStore;
   final _TimestampRepository timestampRepository;
   final ViewerSettings settings;
   final VoidCallback onClose;
@@ -1055,7 +1126,7 @@ class ImagePreviewPage extends StatefulWidget {
     required this.files,
     required this.initialIndex,
     required this.thumbnailResizeWidth,
-    required this.imageCache,
+    required this.imageStore,
     required this.timestampRepository,
     required this.settings,
     required this.onClose,
@@ -1073,7 +1144,9 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
 
   DateTime? _lastSwitchTime;
   Timer? _scrollStopTimer;
-  bool _isFastScrolling = false;
+  // A notifier rather than setState: flipping this must not rebuild the whole
+  // PageView (and every page in it) on each scroll burst.
+  final ValueNotifier<bool> _isFastScrolling = ValueNotifier<bool>(false);
   late Future<_MediaTimestampInfo> _currentTimestampFuture;
 
   @override
@@ -1088,6 +1161,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
 
   @override
   void dispose() {
+    _scrollStopTimer?.cancel();
+    _isFastScrolling.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -1115,36 +1190,28 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   }
 
   void _preloadIndex(int index) {
-    if (index >= 0 && index < widget.files.length) {
-      final mediaFile = widget.files[index];
-      final String filePath = mediaFile.path;
-      final fastPreviewCacheKey = '$filePath:fast-preview';
+    if (index < 0 || index >= widget.files.length) return;
 
-      if (mediaFile.isRaw) {
-        if (widget.imageCache.get(fastPreviewCacheKey) == null) {
-          WorkerService()
-              .requestRawFastPreview(filePath, priority: TaskPriority.low)
-              .result
-              .then((fastPreviewImage) {
-            if (fastPreviewImage != null && mounted) {
-              widget.imageCache.put(
-                fastPreviewCacheKey,
-                ViewerImage.fromRaw(fastPreviewImage),
-              );
-            }
-          });
-        }
-      } else {
-        // For bitmaps, preload the same low-res layer used by single preview
-        if (mounted) {
-          precacheImage(
-            ResizeImage(
-              FileImage(File(filePath)),
-              width: widget.thumbnailResizeWidth,
-            ),
-            context,
-          );
-        }
+    final mediaFile = widget.files[index];
+    final String filePath = mediaFile.path;
+
+    if (mediaFile.isRaw) {
+      // Warms the same full-resolution entry the preview reads, so a switch onto
+      // this page can paint on its first frame. The handle is not displayed
+      // here, so release it and let the cached master hold the pixels.
+      unawaited(widget.imageStore
+          .load(filePath, RawLayer.fastPreview, priority: TaskPriority.low)
+          .then((image) => image?.dispose()));
+    } else {
+      // For bitmaps, preload the same low-res layer used by single preview
+      if (mounted) {
+        precacheImage(
+          ResizeImage(
+            FileImage(File(filePath)),
+            width: widget.thumbnailResizeWidth,
+          ),
+          context,
+        );
       }
     }
   }
@@ -1175,29 +1242,22 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     _targetPage = newTarget;
     // Preload thumbnails IMMEDIATELY on scroll intention, rather than waiting for animation to hit 50%
     _preloadThumbnails(_targetPage,
-        isFastScrolling: fastScroll || _isFastScrolling);
+        isFastScrolling: fastScroll || _isFastScrolling.value);
 
     void startFastScrollTimer() {
-      if (!_isFastScrolling) {
-        setState(() {
-          _isFastScrolling = true;
-        });
-      }
+      _isFastScrolling.value = true;
       _scrollStopTimer?.cancel();
       _scrollStopTimer = Timer(const Duration(milliseconds: 300), () {
-        if (mounted) {
-          setState(() {
-            _isFastScrolling = false;
-            // Also ensure we correctly update target/index when stopping
-            if (_pageController.page != _targetPage.toDouble()) {
-              _pageController.jumpToPage(_targetPage);
-            }
-          });
+        if (!mounted) return;
+        _isFastScrolling.value = false;
+        // Also ensure we correctly update target/index when stopping
+        if (_pageController.page != _targetPage.toDouble()) {
+          _pageController.jumpToPage(_targetPage);
         }
       });
     }
 
-    if (fastScroll || _isFastScrolling) {
+    if (fastScroll || _isFastScrolling.value) {
       startFastScrollTimer();
       _pageController.jumpToPage(_targetPage);
     } else {
@@ -1231,10 +1291,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
               return SingleImagePreview(
                 key: ValueKey(filePath),
                 mediaFile: mediaFile,
-                fastPreviewImage:
-                    widget.imageCache.get('$filePath:fast-preview'),
                 thumbnailResizeWidth: widget.thumbnailResizeWidth,
-                imageCache: widget.imageCache,
+                imageStore: widget.imageStore,
                 settings: widget.settings,
                 onSwitchRequest: _switchPage,
                 isActive: index == _currentIndex,
@@ -1292,21 +1350,19 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
 
 class SingleImagePreview extends StatefulWidget {
   final _MediaFile mediaFile;
-  final ViewerImage? fastPreviewImage;
   final int thumbnailResizeWidth;
-  final LruCache<String, ViewerImage> imageCache;
+  final ImageStore imageStore;
   final ViewerSettings settings;
   final Function(int) onSwitchRequest;
   final bool isActive;
-  final bool isFastScrolling;
+  final ValueNotifier<bool> isFastScrolling;
   final ValueChanged<bool>? onScaleStateChanged;
 
   const SingleImagePreview({
     super.key,
     required this.mediaFile,
-    this.fastPreviewImage,
     required this.thumbnailResizeWidth,
-    required this.imageCache,
+    required this.imageStore,
     required this.settings,
     required this.onSwitchRequest,
     required this.isActive,
@@ -1336,58 +1392,87 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
   bool _scaleEnabled = false;
   final Set<int> _activePointers = {};
 
+  /// Only the expensive decoded-RAW task is tracked for cancellation.
+  ///
+  /// The fast preview is deliberately never cancelled: it is cheap, and the
+  /// worker dedupes it by path, so cancelling ours would also resolve a grid
+  /// tile's shared request to null and leave that tile showing a broken image.
+  WorkerTask<LibRawImage?>? _decodedRawTask;
+
   @override
   void initState() {
     super.initState();
-    _fastPreviewImage = widget.fastPreviewImage;
     _preferFastPreviewForRaw = widget.settings.preferFastPreviewForRaw;
     _rawDecodeHalfSize = widget.settings.useHalfSizeRawDecode ? 1 : 0;
-    _loadRawDisplayLayers();
+
+    // Take a cached fast preview synchronously so the first frame of a page
+    // switch already paints an image instead of an empty (black) area. Prefer
+    // the full-resolution entry, but fall back to the grid's thumbnail-sized
+    // one: showing it slightly soft for a moment beats showing black.
+    if (widget.isRaw) {
+      _fastPreviewImage =
+          widget.imageStore.peek(widget.filePath, RawLayer.fastPreview) ??
+              widget.imageStore.peek(widget.filePath, RawLayer.fastPreview,
+                  targetWidth: widget.thumbnailResizeWidth);
+    }
+
+    unawaited(_loadRawDisplayLayers());
     _transformationController.addListener(_onTransformationChange);
+    widget.isFastScrolling.addListener(_onFastScrollingChanged);
   }
 
   @override
   void didUpdateWidget(SingleImagePreview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!widget.isActive && oldWidget.isActive) {
-      _transformationController.value = Matrix4.identity();
-      if (_currentTask != null) {
-        _currentTask!.cancel();
-        _currentTask = null;
-        if (mounted) {
-          setState(() {
-            _isLoadingDecodedRawPreview = false;
-          });
-        }
-      }
+
+    if (oldWidget.isFastScrolling != widget.isFastScrolling) {
+      oldWidget.isFastScrolling.removeListener(_onFastScrollingChanged);
+      widget.isFastScrolling.addListener(_onFastScrollingChanged);
     }
 
-    bool becameActive = widget.isActive && !oldWidget.isActive;
-    bool fastScrollStopped =
-        widget.isActive && !widget.isFastScrolling && oldWidget.isFastScrolling;
-    bool fastScrollStarted =
-        widget.isActive && widget.isFastScrolling && !oldWidget.isFastScrolling;
+    if (!widget.isActive && oldWidget.isActive) {
+      _transformationController.value = Matrix4.identity();
+      _cancelDecodedRawTask();
+    }
 
-    if (becameActive || fastScrollStopped || fastScrollStarted) {
-      // Cancel any ongoing task to restart with correct priority
-      _currentTask?.cancel();
-      _currentTask = null;
-      _isLoadingDecodedRawPreview = false;
-
-      // Reload logic will skip if the fast preview or decoded RAW layer is
-      // already available.
-      _loadRawDisplayLayers();
+    if (widget.isActive && !oldWidget.isActive) {
+      // Reload skips whatever layer is already available.
+      unawaited(_loadRawDisplayLayers());
     }
   }
 
-  WorkerTask<LibRawImage?>? _currentTask;
-
   @override
   void dispose() {
-    _currentTask?.cancel();
+    widget.isFastScrolling.removeListener(_onFastScrollingChanged);
+    _decodedRawTask?.cancel();
+    _fastPreviewImage?.dispose();
+    _decodedRawPreviewImage?.dispose();
     _transformationController.removeListener(_onTransformationChange);
     _transformationController.dispose();
     super.dispose();
+  }
+
+  void _cancelDecodedRawTask() {
+    _decodedRawTask?.cancel();
+    _decodedRawTask = null;
+    if (_isLoadingDecodedRawPreview && mounted) {
+      setState(() {
+        _isLoadingDecodedRawPreview = false;
+      });
+    } else {
+      _isLoadingDecodedRawPreview = false;
+    }
+  }
+
+  void _onFastScrollingChanged() {
+    if (!widget.isActive) return;
+
+    if (widget.isFastScrolling.value) {
+      // Do not spend CPU on a full decode the user is scrolling straight past.
+      _cancelDecodedRawTask();
+    } else {
+      unawaited(_loadRawDisplayLayers());
+    }
   }
 
   void _onTransformationChange() {
@@ -1405,112 +1490,80 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
     if (!widget.isRaw) return;
 
     if (_fastPreviewImage == null) {
-      // Check whether the RAW fast preview layer is already in cache.
-      final fastPreviewKey = '${widget.filePath}:fast-preview';
-      final cachedFastPreview = widget.imageCache.get(fastPreviewKey);
+      // If not active, or fast scrolling, use low priority
+      final fastPreviewPriority =
+          (!widget.isActive || widget.isFastScrolling.value)
+              ? TaskPriority.low
+              : TaskPriority.high;
 
-      if (cachedFastPreview != null) {
-        if (mounted) {
-          setState(() {
-            _fastPreviewImage = cachedFastPreview;
-          });
-        }
-      } else {
-        // If not active, or fast scrolling, use low priority
-        final fastPreviewPriority =
-            (!widget.isActive || widget.isFastScrolling)
-            ? TaskPriority.low
-            : TaskPriority.high;
-        ViewerImage? fastPreviewImage;
-        if (widget.isRaw) {
-          final task = WorkerService()
-              .requestRawFastPreview(widget.filePath,
-                  priority: fastPreviewPriority);
-          _currentTask = task;
-          final rawFastPreview = await task.result;
-          _currentTask = null;
-          if (rawFastPreview != null) {
-            fastPreviewImage = ViewerImage.fromRaw(rawFastPreview);
-          }
-        }
+      // No targetWidth: this is the full-screen layer, so keep the preview's
+      // own resolution rather than the grid's thumbnail size.
+      final fastPreviewImage = await widget.imageStore.load(
+        widget.filePath,
+        RawLayer.fastPreview,
+        priority: fastPreviewPriority,
+      );
 
-        if (mounted && fastPreviewImage != null) {
-          setState(() {
-            _fastPreviewImage = fastPreviewImage;
-          });
-          // Cache it for fast subsequent switches.
-          Future(() => widget.imageCache.put(fastPreviewKey, fastPreviewImage!));
-        }
+      if (!mounted) {
+        fastPreviewImage?.dispose();
+        return;
+      }
+
+      if (fastPreviewImage != null) {
+        setState(() {
+          _fastPreviewImage?.dispose();
+          _fastPreviewImage = fastPreviewImage;
+        });
       }
     }
 
-    if (!widget.isActive || widget.isFastScrolling) {
-      if (widget.isFastScrolling &&
-          _currentTask != null &&
-          _fastPreviewImage != null) {
-        _currentTask?.cancel();
-        _currentTask = null;
-        if (mounted) {
-          setState(() {
-            _isLoadingDecodedRawPreview = false;
-          });
-        }
-      }
+    if (!widget.isActive || widget.isFastScrolling.value) {
       return;
     }
 
     if (_preferFastPreviewForRaw) return;
     if (_decodedRawPreviewImage != null) return;
 
-    // Check cache for the decoded RAW layer.
-    final decodedRawPreviewKey =
-        '${widget.filePath}:decoded-raw:$_rawDecodeHalfSize';
-    final cachedDecodedRawPreview = widget.imageCache.get(decodedRawPreviewKey);
-    if (cachedDecodedRawPreview != null) {
-      setState(() {
-        _decodedRawPreviewImage = cachedDecodedRawPreview;
-      });
+    setState(() {
+      _isLoadingDecodedRawPreview = true;
+    });
+
+    final decodedRawPreviewImage = await widget.imageStore.load(
+      widget.filePath,
+      RawLayer.decoded,
+      halfSize: _rawDecodeHalfSize,
+      onTaskStarted: (task) => _decodedRawTask = task,
+    );
+    _decodedRawTask = null;
+
+    // A cancelled or superseded load must not overwrite what is on screen.
+    if (!mounted || !widget.isActive || _preferFastPreviewForRaw) {
+      decodedRawPreviewImage?.dispose();
+      if (mounted && _isLoadingDecodedRawPreview) {
+        setState(() {
+          _isLoadingDecodedRawPreview = false;
+        });
+      }
       return;
     }
 
-    if (mounted) {
-      setState(() {
-        _isLoadingDecodedRawPreview = true;
-      });
-    }
-
-    const priority = TaskPriority.high;
-    final task = WorkerService().requestDecodedRawPreview(widget.filePath,
-        halfSize: _rawDecodeHalfSize, priority: priority);
-    _currentTask = task;
-    final rawDecodedRawPreview = await task.result;
-    _currentTask = null;
-    final decodedRawPreviewImage = rawDecodedRawPreview == null
-        ? null
-        : ViewerImage.fromRaw(rawDecodedRawPreview);
-
-    if (mounted && widget.isActive) {
-      setState(() {
-        _decodedRawPreviewImage = decodedRawPreviewImage;
-        _isLoadingDecodedRawPreview = false;
-      });
+    setState(() {
       if (decodedRawPreviewImage != null) {
-        // Run cache update asynchronously to avoid blocking UI or subsequent tasks.
-        Future(() =>
-            widget.imageCache.put(decodedRawPreviewKey, decodedRawPreviewImage));
+        _decodedRawPreviewImage?.dispose();
+        _decodedRawPreviewImage = decodedRawPreviewImage;
       }
-    }
+      _isLoadingDecodedRawPreview = false;
+    });
   }
 
   void _toggleRawPreviewSource() {
     if (!widget.isRaw) return;
 
     final nextPreferFastPreviewForRaw = !_preferFastPreviewForRaw;
-    if (nextPreferFastPreviewForRaw &&
-        _currentTask != null &&
-        _fastPreviewImage != null) {
-      _currentTask?.cancel();
-      _currentTask = null;
+    if (nextPreferFastPreviewForRaw && _fastPreviewImage != null) {
+      // Switching to the fast preview: abandon the full decode in flight.
+      _decodedRawTask?.cancel();
+      _decodedRawTask = null;
     }
     setState(() {
       _preferFastPreviewForRaw = nextPreferFastPreviewForRaw;
@@ -1519,7 +1572,7 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
       }
     });
     if (!_preferFastPreviewForRaw && _decodedRawPreviewImage == null) {
-      _loadRawDisplayLayers();
+      unawaited(_loadRawDisplayLayers());
     }
   }
 
@@ -1542,9 +1595,9 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
         final Matrix4 matrix = _transformationController.value.clone();
 
         final Matrix4 scaleMatrix = Matrix4.identity()
-          ..translate(focalPoint.dx, focalPoint.dy)
-          ..scale(scaleChange)
-          ..translate(-focalPoint.dx, -focalPoint.dy);
+          ..translateByDouble(focalPoint.dx, focalPoint.dy, 0, 1)
+          ..scaleByDouble(scaleChange, scaleChange, scaleChange, 1)
+          ..translateByDouble(-focalPoint.dx, -focalPoint.dy, 0, 1);
 
         final Matrix4 newMatrix = scaleMatrix * matrix;
 
@@ -1622,56 +1675,12 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
               maxScale: 5.0,
               panEnabled: _panEnabled,
               scaleEnabled: _scaleEnabled,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (!widget.isRaw)
-                    _buildBitmapPreview()
-                  else ...[
-                    if (_fastPreviewImage != null)
-                      // Low-res placeholder from the cached RAW fast preview.
-                      RawImageWidget(
-                        image: _fastPreviewImage!,
-                        fit: BoxFit.contain,
-                        memCacheWidth: widget.thumbnailResizeWidth,
-                        heroTag: widget.isActive ? widget.filePath : null,
-                      ),
-                    if (_fastPreviewImage != null && _preferFastPreviewForRaw)
-                      // RAW fast preview layer. This usually comes from the
-                      // embedded preview, but may fall back to a fast RAW
-                      // decode when no embedded preview exists.
-                      if (widget.isActive && !widget.isFastScrolling)
-                        RawImageWidget(
-                          image: _fastPreviewImage!,
-                          fit: BoxFit.contain,
-                        ),
-                    if (_decodedRawPreviewImage != null &&
-                        !_preferFastPreviewForRaw &&
-                        widget.isActive &&
-                        !widget.isFastScrolling)
-                      RawImageWidget(
-                        image: _decodedRawPreviewImage!,
-                        fit: BoxFit.contain,
-                      ),
-                    if (_fastPreviewImage == null &&
-                        (_decodedRawPreviewImage == null ||
-                            _preferFastPreviewForRaw))
-                      const Center(
-                          child: ExcludeSemantics(
-                              child: CircularProgressIndicator())),
-                    if (_isLoadingDecodedRawPreview &&
-                        _decodedRawPreviewImage == null &&
-                        !_preferFastPreviewForRaw)
-                      const Center(
-                          child: ExcludeSemantics(
-                        child: CircularProgressIndicator(
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white54),
-                        ),
-                      )),
-                  ],
-                ],
-              ),
+              child: widget.isRaw
+                  ? _buildRawPreview()
+                  : Stack(
+                      fit: StackFit.expand,
+                      children: [_buildBitmapPreview()],
+                    ),
             ),
           ),
         ),
@@ -1699,32 +1708,98 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
     );
   }
 
-  Widget _buildBitmapPreview() {
-    final file = File(widget.filePath);
-    Widget image = Stack(
+  /// Paints exactly one RAW image layer.
+  ///
+  /// The decoded layer fully covers the fast preview, so stacking both would
+  /// pay for a large overdraw every frame with nothing to show for it. The
+  /// spinner only appears when there is genuinely nothing to display yet.
+  Widget _buildRawPreview() {
+    final showDecoded =
+        _decodedRawPreviewImage != null && !_preferFastPreviewForRaw;
+    final displayed =
+        showDecoded ? _decodedRawPreviewImage : _fastPreviewImage;
+
+    return Stack(
       fit: StackFit.expand,
       children: [
-        Image(
-          image: ResizeImage(
-            FileImage(file),
-            width: widget.thumbnailResizeWidth,
-          ),
-          fit: BoxFit.contain,
-          gaplessPlayback: true,
-          errorBuilder: (context, error, stackTrace) => const Center(
-            child: Icon(Icons.broken_image, color: Colors.white),
-          ),
-        ),
-        if (widget.isActive && !widget.isFastScrolling)
-          Image.file(
-            file,
+        if (displayed != null)
+          RawImageWidget(
+            image: displayed,
             fit: BoxFit.contain,
-            gaplessPlayback: true,
-            errorBuilder: (context, error, stackTrace) => const Center(
-              child: Icon(Icons.broken_image, color: Colors.white),
+            heroTag: widget.isActive ? widget.filePath : null,
+          ),
+        if (displayed == null)
+          const Center(
+            child: ExcludeSemantics(child: CircularProgressIndicator()),
+          )
+        else if (_isLoadingDecodedRawPreview && !showDecoded)
+          // Sharpening in the background; keep showing the fast preview.
+          const Positioned(
+            top: kToolbarHeight + 24,
+            left: 16,
+            child: ExcludeSemantics(
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white54),
+                ),
+              ),
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildBitmapPreview() {
+    final file = File(widget.filePath);
+
+    // Decoding a bitmap at full resolution costs width*height*4 bytes no matter
+    // how small the window is — an 8000x6000 JPEG is ~192 MB. Cap the decode at
+    // what the viewport can actually show, with headroom for zooming in.
+    final mediaQuery = MediaQuery.of(context);
+    final viewportWidth = mediaQuery.size.width * mediaQuery.devicePixelRatio;
+    final fullDecodeWidth = bucketDecodeWidth(
+      (viewportWidth * _bitmapZoomHeadroom).clamp(
+        widget.thumbnailResizeWidth.toDouble(),
+        _maxBitmapDecodeWidth,
+      ),
+    );
+
+    Widget image = ValueListenableBuilder<bool>(
+      valueListenable: widget.isFastScrolling,
+      builder: (context, isFastScrolling, _) {
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Image(
+              image: ResizeImage(
+                FileImage(file),
+                width: widget.thumbnailResizeWidth,
+              ),
+              fit: BoxFit.contain,
+              gaplessPlayback: true,
+              errorBuilder: (context, error, stackTrace) => const Center(
+                child: Icon(Icons.broken_image, color: Colors.white),
+              ),
+            ),
+            if (widget.isActive && !isFastScrolling)
+              Image(
+                image: ResizeImage(
+                  FileImage(file),
+                  width: fullDecodeWidth,
+                  policy: ResizeImagePolicy.fit,
+                ),
+                fit: BoxFit.contain,
+                gaplessPlayback: true,
+                errorBuilder: (context, error, stackTrace) => const Center(
+                  child: Icon(Icons.broken_image, color: Colors.white),
+                ),
+              ),
+          ],
+        );
+      },
     );
 
     // Only wrap the active image in a Hero to prevent duplicate Hero tags in the PageView
@@ -1735,39 +1810,45 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
   }
 }
 
+/// Extra resolution decoded beyond the viewport so zooming stays sharp.
+const double _bitmapZoomHeadroom = 2.0;
+
+/// Hard ceiling on bitmap decode width, in physical pixels.
+const double _maxBitmapDecodeWidth = 4096;
+
+/// Paints an already-decoded [ViewerImage].
+///
+/// Uses [RawImage] rather than [Image.memory] on purpose: the `ui.Image` is
+/// already in hand, so the pixels land in the very frame this widget is built.
+/// Going through `Image.memory` would re-enter the async codec path and leave a
+/// blank (black, over the dark scaffold) gap on every page switch.
 class RawImageWidget extends StatelessWidget {
   final ViewerImage image;
   final BoxFit? fit;
-  final int? memCacheWidth;
   final String? heroTag;
 
   const RawImageWidget({
     super.key,
     required this.image,
     this.fit,
-    this.memCacheWidth,
     this.heroTag,
   });
 
   @override
   Widget build(BuildContext context) {
-    Widget image = Image.memory(
-      this.image.data,
+    Widget painted = RawImage(
+      image: image.image,
       fit: fit,
-      cacheWidth: memCacheWidth,
-      gaplessPlayback: true,
-      errorBuilder: (context, error, stackTrace) => const Center(
-        child: Icon(Icons.broken_image, color: Colors.white),
-      ),
+      filterQuality: FilterQuality.medium,
     );
 
     if (heroTag != null) {
       return Hero(
         tag: heroTag!,
-        child: image,
+        child: painted,
       );
     }
-    return image;
+    return painted;
   }
 }
 

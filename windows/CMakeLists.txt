@@ -78,6 +78,15 @@ set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}")
 install(TARGETS ${BINARY_NAME} native_lib RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
+# native_lib is built with /openmp:llvm, which makes it depend on the LLVM
+# OpenMP runtime. Ship it or the app fails to start on machines without Visual
+# Studio installed.
+if(NATIVE_LIB_OPENMP_RUNTIME)
+  install(FILES "${NATIVE_LIB_OPENMP_RUNTIME}"
+    DESTINATION "${CMAKE_INSTALL_PREFIX}"
+    COMPONENT Runtime)
+endif()
+
 install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   COMPONENT Runtime)
 

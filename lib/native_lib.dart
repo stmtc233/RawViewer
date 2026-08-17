@@ -1,6 +1,7 @@
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
+
 import 'package:ffi/ffi.dart';
 import 'package:path/path.dart' as path;
 
@@ -39,6 +40,17 @@ DynamicLibrary _openNativeLibrary() {
 
 final DynamicLibrary nativeLib = _openNativeLibrary();
 
+/// Pixel/encoding layout of a [LibRawImage].
+///
+/// These values mirror the `format` field in the native `ThumbnailResult`.
+abstract final class RawPixelFormat {
+  /// Encoded image bytes (embedded JPEG preview), decoded by the engine.
+  static const int encoded = 0;
+
+  /// Tightly packed RGBA8888 pixels, ready for [ui.ImageDescriptor.raw].
+  static const int rgba8888 = 2;
+}
+
 final class ThumbnailResult extends Struct {
   external Pointer<Uint8> data;
   @Int32()
@@ -48,7 +60,9 @@ final class ThumbnailResult extends Struct {
   @Int32()
   external int height;
   @Int32()
-  external int format; // 0: encoded preview JPEG, 1: RGB bitmap data
+  external int format; // See RawPixelFormat.
+  @Int32()
+  external int stride;
 }
 
 final class ImageResult extends Struct {
@@ -59,244 +73,219 @@ final class ImageResult extends Struct {
   external int width;
   @Int32()
   external int height;
+  @Int32()
+  external int stride;
 }
 
 // --- Windows (UTF-16 path) ---
 
 typedef GetThumbnailC = Void Function(
-    Pointer<Utf16> path, Pointer<ThumbnailResult> out);
+    Pointer<Utf16> path, Pointer<Void> cancelToken, Pointer<ThumbnailResult> out);
 typedef GetThumbnailDart = void Function(
-    Pointer<Utf16> path, Pointer<ThumbnailResult> out);
+    Pointer<Utf16> path, Pointer<Void> cancelToken, Pointer<ThumbnailResult> out);
 
 // The native symbol name is still `get_preview`, but it semantically returns
 // the decoded RAW layer rather than an arbitrary preview.
-typedef GetDecodedRawPreviewC = Void Function(
-    Pointer<Utf16> path, Int32 halfSize, Pointer<ImageResult> out);
-typedef GetDecodedRawPreviewDart = void Function(
-    Pointer<Utf16> path, int halfSize, Pointer<ImageResult> out);
+typedef GetDecodedRawPreviewC = Void Function(Pointer<Utf16> path, Int32 halfSize,
+    Pointer<Void> cancelToken, Pointer<ImageResult> out);
+typedef GetDecodedRawPreviewDart = void Function(Pointer<Utf16> path,
+    int halfSize, Pointer<Void> cancelToken, Pointer<ImageResult> out);
 
 // --- POSIX (UTF-8 path) ---
 
-typedef GetThumbnailC_Posix = Void Function(
-    Pointer<Utf8> path, Pointer<ThumbnailResult> out);
-typedef GetThumbnailDart_Posix = void Function(
-    Pointer<Utf8> path, Pointer<ThumbnailResult> out);
+typedef GetThumbnailPosixC = Void Function(
+    Pointer<Utf8> path, Pointer<Void> cancelToken, Pointer<ThumbnailResult> out);
+typedef GetThumbnailPosixDart = void Function(
+    Pointer<Utf8> path, Pointer<Void> cancelToken, Pointer<ThumbnailResult> out);
 
-typedef GetDecodedRawPreviewC_Posix = Void Function(
-    Pointer<Utf8> path, Int32 halfSize, Pointer<ImageResult> out);
-typedef GetDecodedRawPreviewDart_Posix = void Function(
-    Pointer<Utf8> path, int halfSize, Pointer<ImageResult> out);
+typedef GetDecodedRawPreviewPosixC = Void Function(Pointer<Utf8> path,
+    Int32 halfSize, Pointer<Void> cancelToken, Pointer<ImageResult> out);
+typedef GetDecodedRawPreviewPosixDart = void Function(Pointer<Utf8> path,
+    int halfSize, Pointer<Void> cancelToken, Pointer<ImageResult> out);
 
 // --- Buffer variants ---
 
-typedef GetThumbnailC_Buffer = Void Function(
-    Pointer<Uint8> buffer, Int32 size, Pointer<ThumbnailResult> out);
-typedef GetThumbnailDart_Buffer = void Function(
-    Pointer<Uint8> buffer, int size, Pointer<ThumbnailResult> out);
+typedef GetThumbnailBufferC = Void Function(Pointer<Uint8> buffer, Int32 size,
+    Pointer<Void> cancelToken, Pointer<ThumbnailResult> out);
+typedef GetThumbnailBufferDart = void Function(Pointer<Uint8> buffer, int size,
+    Pointer<Void> cancelToken, Pointer<ThumbnailResult> out);
 
-typedef GetDecodedRawPreviewC_Buffer = Void Function(
-    Pointer<Uint8> buffer, Int32 size, Int32 halfSize, Pointer<ImageResult> out);
-typedef GetDecodedRawPreviewDart_Buffer = void Function(
-    Pointer<Uint8> buffer, int size, int halfSize, Pointer<ImageResult> out);
+typedef GetDecodedRawPreviewBufferC = Void Function(
+    Pointer<Uint8> buffer,
+    Int32 size,
+    Int32 halfSize,
+    Pointer<Void> cancelToken,
+    Pointer<ImageResult> out);
+typedef GetDecodedRawPreviewBufferDart = void Function(Pointer<Uint8> buffer,
+    int size, int halfSize, Pointer<Void> cancelToken, Pointer<ImageResult> out);
 
-// --- Free ---
+// --- Free / cancellation ---
 
 typedef FreeBufferC = Void Function(Pointer<Uint8> buffer);
 typedef FreeBufferDart = void Function(Pointer<Uint8> buffer);
 
+typedef CreateCancelTokenC = Pointer<Void> Function();
+typedef CreateCancelTokenDart = Pointer<Void> Function();
+
+typedef CancelTokenSetC = Void Function(Pointer<Void> token);
+typedef CancelTokenSetDart = void Function(Pointer<Void> token);
+
+typedef DestroyCancelTokenC = Void Function(Pointer<Void> token);
+typedef DestroyCancelTokenDart = void Function(Pointer<Void> token);
+
+// Symbol lookups are cached because `DynamicLibrary.lookup` is not free and the
+// decode path runs on every thumbnail and every page switch.
+final FreeBufferDart _freeBuffer =
+    nativeLib.lookup<NativeFunction<FreeBufferC>>('free_buffer').asFunction();
+
+final CreateCancelTokenDart _createCancelToken = nativeLib
+    .lookup<NativeFunction<CreateCancelTokenC>>('create_cancel_token')
+    .asFunction();
+
+final CancelTokenSetDart _cancelTokenSet = nativeLib
+    .lookup<NativeFunction<CancelTokenSetC>>('cancel_token_set')
+    .asFunction();
+
+final DestroyCancelTokenDart _destroyCancelToken = nativeLib
+    .lookup<NativeFunction<DestroyCancelTokenC>>('destroy_cancel_token')
+    .asFunction();
+
+/// A native cancellation flag handed to LibRaw's progress callback.
+///
+/// Setting it makes an in-flight `unpack()`/`dcraw_process()` abort instead of
+/// running to completion, which is what keeps fast page-flipping from pinning
+/// the CPU on previews nobody will look at.
+class RawCancelToken {
+  Pointer<Void> _handle;
+  bool _destroyed = false;
+
+  RawCancelToken() : _handle = _createCancelToken();
+
+  Pointer<Void> get handle => _handle;
+
+  void cancel() {
+    if (!_destroyed && _handle != nullptr) {
+      _cancelTokenSet(_handle);
+    }
+  }
+
+  /// Must be called exactly once, after the native call using this token has
+  /// returned. The token outlives the call, never the other way around.
+  void dispose() {
+    if (_destroyed) return;
+    _destroyed = true;
+    if (_handle != nullptr) {
+      _destroyCancelToken(_handle);
+      _handle = nullptr;
+    }
+  }
+}
+
+/// A decoded RAW layer as it crosses the isolate boundary.
+///
+/// [data] is either encoded bytes ([RawPixelFormat.encoded]) or tightly packed
+/// RGBA8888 pixels ([RawPixelFormat.rgba8888]).
 class LibRawImage {
   final Uint8List data;
   final int width;
   final int height;
-  // 0: encoded preview JPEG, 1: BMP bytes converted from RGB
   final int format;
+  final int stride;
 
-  LibRawImage(this.data, this.width, this.height, this.format);
-}
+  LibRawImage(this.data, this.width, this.height, this.format, this.stride);
 
-class ViewerImage {
-  final Uint8List data;
-  final int? width;
-  final int? height;
-  final int? format;
-  final bool isRaw;
-
-  const ViewerImage({
-    required this.data,
-    required this.isRaw,
-    this.width,
-    this.height,
-    this.format,
-  });
-
-  factory ViewerImage.fromRaw(LibRawImage image) {
-    return ViewerImage(
-      data: image.data,
-      width: image.width,
-      height: image.height,
-      format: image.format,
-      isRaw: true,
-    );
-  }
-
-  factory ViewerImage.fromEncodedBytes(Uint8List data) {
-    return ViewerImage(
-      data: data,
-      isRaw: false,
-    );
-  }
-}
-
-// BMP Header Generator
-Uint8List _addBmpHeader(Uint8List rgbData, int width, int height) {
-  final int dataSize = rgbData.length;
-  // Padding for 4-byte alignment
-  int padding = (4 - (width * 3) % 4) % 4;
-  int stride = width * 3 + padding;
-  final int fileSize = 54 + stride * height;
-
-  final ByteData bd = ByteData(54);
-  // Bitmap File Header
-  bd.setUint8(0, 0x42); // 'B'
-  bd.setUint8(1, 0x4D); // 'M'
-  bd.setUint32(2, fileSize, Endian.little);
-  bd.setUint32(6, 0, Endian.little); // Reserved
-  bd.setUint32(10, 54, Endian.little); // Offset to pixel data
-
-  // Bitmap Info Header
-  bd.setUint32(14, 40, Endian.little); // Header size
-  bd.setInt32(18, width, Endian.little);
-  bd.setInt32(22, -height, Endian.little); // Negative height for top-down
-  bd.setUint16(26, 1, Endian.little); // Planes
-  bd.setUint16(28, 24, Endian.little); // BPP (RGB)
-  bd.setUint32(30, 0, Endian.little); // Compression (BI_RGB)
-  bd.setUint32(34, dataSize, Endian.little);
-  bd.setInt32(38, 0, Endian.little); // X pixels per meter
-  bd.setInt32(42, 0, Endian.little); // Y pixels per meter
-  bd.setUint32(46, 0, Endian.little); // Colors used
-  bd.setUint32(50, 0, Endian.little); // Important colors
-
-  final Uint8List header = bd.buffer.asUint8List();
-
-  if (padding == 0) {
-    final BytesBuilder builder = BytesBuilder(copy: false);
-    builder.add(header);
-    builder.add(rgbData);
-    return builder.toBytes();
-  } else {
-    final BytesBuilder builder = BytesBuilder(copy: false);
-    builder.add(header);
-    for (int y = 0; y < height; y++) {
-      final int start = y * width * 3;
-      final int end = start + width * 3;
-      builder.add(rgbData.sublist(start, end));
-      for (int p = 0; p < padding; p++) {
-        builder.addByte(0);
-      }
-    }
-    return builder.toBytes();
-  }
+  bool get isRgba => format == RawPixelFormat.rgba8888;
 }
 
 // Returns the RAW fast preview layer.
 //
 // Despite the legacy `thumbnail` naming, this is not limited to an embedded
 // JPEG. Native code first tries to extract embedded preview data and then falls
-// back to a fast RAW-generated preview when needed.
-LibRawImage? getThumbnailSync(String path) {
-  final FreeBufferDart freeBufferFunc =
-      nativeLib.lookup<NativeFunction<FreeBufferC>>('free_buffer').asFunction();
-
+// back to a fast RAW-generated preview when the file has no embedded preview.
+LibRawImage? getRawFastPreviewSync(String filePath, {RawCancelToken? cancelToken}) {
+  final token = cancelToken?.handle ?? nullptr;
   final resultPtr = calloc<ThumbnailResult>();
   try {
     if (Platform.isWindows) {
-      final GetThumbnailDart getThumbnailFunc = nativeLib
+      final getThumbnailFunc = nativeLib
           .lookup<NativeFunction<GetThumbnailC>>('get_thumbnail')
-          .asFunction();
+          .asFunction<GetThumbnailDart>();
 
-      final pathPtr = path.toNativeUtf16();
+      final pathPtr = filePath.toNativeUtf16();
       try {
-        getThumbnailFunc(pathPtr, resultPtr);
+        getThumbnailFunc(pathPtr, token, resultPtr);
       } finally {
         calloc.free(pathPtr);
       }
     } else {
-      final GetThumbnailDart_Posix getThumbnailFunc = nativeLib
-          .lookup<NativeFunction<GetThumbnailC_Posix>>('get_thumbnail')
-          .asFunction();
+      final getThumbnailFunc = nativeLib
+          .lookup<NativeFunction<GetThumbnailPosixC>>('get_thumbnail')
+          .asFunction<GetThumbnailPosixDart>();
 
-      final pathPtr = path.toNativeUtf8();
+      final pathPtr = filePath.toNativeUtf8();
       try {
-        getThumbnailFunc(pathPtr, resultPtr);
+        getThumbnailFunc(pathPtr, token, resultPtr);
       } finally {
         calloc.free(pathPtr);
       }
 
-      if (resultPtr.ref.data == nullptr) {
-        // Fallback: Try reading file to memory and passing buffer (Android Scoped Storage)
-        if (Platform.isAndroid) {
-          try {
-            final file = File(path);
-            if (!file.existsSync()) return null;
-
-            final bytes = file.readAsBytesSync();
-            final bufferPtr = calloc<Uint8>(bytes.length);
-            final bufferList = bufferPtr.asTypedList(bytes.length);
-            bufferList.setAll(0, bytes);
-
-            final GetThumbnailDart_Buffer getThumbnailBufferFunc = nativeLib
-                .lookup<NativeFunction<GetThumbnailC_Buffer>>(
-                    'get_thumbnail_from_buffer')
-                .asFunction();
-
-            try {
-              getThumbnailBufferFunc(bufferPtr, bytes.length, resultPtr);
-            } finally {
-              calloc.free(bufferPtr);
-            }
-          } catch (e) {
-            return null;
-          }
-        }
+      if (resultPtr.ref.data == nullptr && Platform.isAndroid) {
+        // Fallback: read the file into memory and pass a buffer, which is what
+        // Android Scoped Storage paths require.
+        _withAndroidFileBuffer(filePath, (bufferPtr, length) {
+          final getThumbnailBufferFunc = nativeLib
+              .lookup<NativeFunction<GetThumbnailBufferC>>(
+                  'get_thumbnail_from_buffer')
+              .asFunction<GetThumbnailBufferDart>();
+          getThumbnailBufferFunc(bufferPtr, length, token, resultPtr);
+        });
       }
     }
 
-    return _processThumbnailResult(resultPtr.ref, freeBufferFunc);
+    return _processThumbnailResult(resultPtr.ref);
   } finally {
     calloc.free(resultPtr);
   }
 }
 
-LibRawImage? _processThumbnailResult(
-    ThumbnailResult result, FreeBufferDart freeBufferFunc) {
-  if (result.data == nullptr || result.size == 0) {
+/// Reads [filePath] into native memory and runs [action] over it.
+///
+/// Returns false when the file could not be read.
+bool _withAndroidFileBuffer(
+    String filePath, void Function(Pointer<Uint8> buffer, int length) action) {
+  try {
+    final file = File(filePath);
+    if (!file.existsSync()) return false;
+
+    final bytes = file.readAsBytesSync();
+    final bufferPtr = calloc<Uint8>(bytes.length);
+    try {
+      bufferPtr.asTypedList(bytes.length).setAll(0, bytes);
+      action(bufferPtr, bytes.length);
+      return true;
+    } finally {
+      calloc.free(bufferPtr);
+    }
+  } catch (_) {
+    return false;
+  }
+}
+
+LibRawImage? _processThumbnailResult(ThumbnailResult result) {
+  if (result.data == nullptr || result.size <= 0) {
     return null;
   }
 
-  // Copy native data to Dart Uint8List
-  final rawData = result.data.asTypedList(result.size);
-  Uint8List finalData;
-  int finalFormat = result.format;
-
-  if (result.format == 1) {
-    // RGB format, add BMP header here in isolate
-    finalData =
-        _addBmpHeader(Uint8List.fromList(rawData), result.width, result.height);
-  } else {
-    // JPEG, just copy
-    finalData = Uint8List.fromList(rawData);
-  }
-
+  // Copy out of native memory before handing ownership back to free_buffer.
+  final data = Uint8List.fromList(result.data.asTypedList(result.size));
   final width = result.width;
   final height = result.height;
+  final format = result.format;
+  final stride = result.stride;
 
-  freeBufferFunc(result.data);
+  _freeBuffer(result.data);
 
-  return LibRawImage(finalData, width, height, finalFormat);
-}
-
-LibRawImage? getRawFastPreviewSync(String path) {
-  return getThumbnailSync(path);
+  return LibRawImage(data, width, height, format, stride);
 }
 
 class DecodedRawPreviewRequest {
@@ -308,98 +297,64 @@ class DecodedRawPreviewRequest {
 
 // Returns the decoded RAW layer used as the final high-quality image.
 //
-// `halfSize` only affects this decoded RAW layer. The fast preview layer above
-// is loaded through [`getRawFastPreviewSync()`](lib/native_lib.dart:291).
-LibRawImage? _getDecodedRawPreviewSync(DecodedRawPreviewRequest request) {
-  final FreeBufferDart freeBufferFunc =
-      nativeLib.lookup<NativeFunction<FreeBufferC>>('free_buffer').asFunction();
-
+// `halfSize` only affects this decoded RAW layer. The fast preview layer is
+// loaded through [getRawFastPreviewSync].
+LibRawImage? getDecodedRawPreviewSync(String filePath,
+    {int halfSize = 1, RawCancelToken? cancelToken}) {
+  final token = cancelToken?.handle ?? nullptr;
   final resultPtr = calloc<ImageResult>();
   try {
     if (Platform.isWindows) {
-      final GetDecodedRawPreviewDart getPreviewFunc = nativeLib
+      final getPreviewFunc = nativeLib
           .lookup<NativeFunction<GetDecodedRawPreviewC>>('get_preview')
-          .asFunction();
+          .asFunction<GetDecodedRawPreviewDart>();
 
-      final pathPtr = request.path.toNativeUtf16();
+      final pathPtr = filePath.toNativeUtf16();
       try {
-        getPreviewFunc(pathPtr, request.halfSize, resultPtr);
+        getPreviewFunc(pathPtr, halfSize, token, resultPtr);
       } finally {
         calloc.free(pathPtr);
       }
     } else {
-      final GetDecodedRawPreviewDart_Posix getPreviewFunc = nativeLib
-          .lookup<NativeFunction<GetDecodedRawPreviewC_Posix>>('get_preview')
-          .asFunction();
+      final getPreviewFunc = nativeLib
+          .lookup<NativeFunction<GetDecodedRawPreviewPosixC>>('get_preview')
+          .asFunction<GetDecodedRawPreviewPosixDart>();
 
-      final pathPtr = request.path.toNativeUtf8();
+      final pathPtr = filePath.toNativeUtf8();
       try {
-        getPreviewFunc(pathPtr, request.halfSize, resultPtr);
+        getPreviewFunc(pathPtr, halfSize, token, resultPtr);
       } finally {
         calloc.free(pathPtr);
       }
 
-      if (resultPtr.ref.data == nullptr) {
-        // Fallback: Try buffer (Android)
-        if (Platform.isAndroid) {
-          try {
-            final file = File(request.path);
-            if (!file.existsSync()) return null;
-
-            final bytes = file.readAsBytesSync();
-            final bufferPtr = calloc<Uint8>(bytes.length);
-            final bufferList = bufferPtr.asTypedList(bytes.length);
-            bufferList.setAll(0, bytes);
-
-            final GetDecodedRawPreviewDart_Buffer getPreviewBufferFunc = nativeLib
-                .lookup<NativeFunction<GetDecodedRawPreviewC_Buffer>>(
-                    'get_preview_from_buffer')
-                .asFunction();
-
-            try {
-              getPreviewBufferFunc(
-                  bufferPtr, bytes.length, request.halfSize, resultPtr);
-            } finally {
-              calloc.free(bufferPtr);
-            }
-          } catch (e) {
-            return null;
-          }
-        }
+      if (resultPtr.ref.data == nullptr && Platform.isAndroid) {
+        _withAndroidFileBuffer(filePath, (bufferPtr, length) {
+          final getPreviewBufferFunc = nativeLib
+              .lookup<NativeFunction<GetDecodedRawPreviewBufferC>>(
+                  'get_preview_from_buffer')
+              .asFunction<GetDecodedRawPreviewBufferDart>();
+          getPreviewBufferFunc(bufferPtr, length, halfSize, token, resultPtr);
+        });
       }
     }
 
-    return _processPreviewResult(resultPtr.ref, freeBufferFunc);
+    return _processPreviewResult(resultPtr.ref);
   } finally {
     calloc.free(resultPtr);
   }
 }
 
-LibRawImage? getDecodedRawPreviewSync(String path, {int halfSize = 1}) {
-  return _getDecodedRawPreviewSync(DecodedRawPreviewRequest(path, halfSize));
-}
-
-@Deprecated('Use getDecodedRawPreviewSync()')
-LibRawImage? getPreviewSync(DecodedRawPreviewRequest request) {
-  return _getDecodedRawPreviewSync(request);
-}
-
-LibRawImage? _processPreviewResult(
-    ImageResult result, FreeBufferDart freeBufferFunc) {
-  if (result.data == nullptr || result.size == 0) {
+LibRawImage? _processPreviewResult(ImageResult result) {
+  if (result.data == nullptr || result.size <= 0) {
     return null;
   }
 
-  final rawData = result.data.asTypedList(result.size);
-
-  // Preview is always RGB (1)
-  final finalData =
-      _addBmpHeader(Uint8List.fromList(rawData), result.width, result.height);
-
+  final data = Uint8List.fromList(result.data.asTypedList(result.size));
   final width = result.width;
   final height = result.height;
+  final stride = result.stride;
 
-  freeBufferFunc(result.data);
+  _freeBuffer(result.data);
 
-  return LibRawImage(finalData, width, height, 1);
+  return LibRawImage(data, width, height, RawPixelFormat.rgba8888, stride);
 }

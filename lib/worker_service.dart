@@ -1,67 +1,128 @@
 import 'dart:async';
+import 'dart:collection';
+import 'dart:io';
 import 'dart:isolate';
 
 import 'native_lib.dart';
 
+enum TaskPriority { high, low }
+
+enum _RequestType { rawFastPreview, decodedRawPreview }
+
+/// Decodes RAW previews on a pool of isolates.
+///
+/// Work is handed out from a single shared queue to whichever isolate is idle,
+/// rather than round-robin. A slow full-size decode therefore cannot block
+/// unrelated requests that happened to hash to the same worker.
 class WorkerService {
   static final WorkerService _instance = WorkerService._internal();
   factory WorkerService() => _instance;
 
-  // Use a pool of isolates to allow concurrent decoding
-  static const int _poolSize = 4;
-  final List<SendPort?> _workerSendPorts = List.filled(_poolSize, null);
-  final List<Isolate?> _isolates = List.filled(_poolSize, null);
-  int _nextWorkerIndex = 0;
+  WorkerService._internal();
+
+  // Each decode is itself multi-threaded where OpenMP is enabled, so a very
+  // large pool would just oversubscribe the CPU.
+  static final int _poolSize = Platform.numberOfProcessors.clamp(2, 6);
+
+  final List<SendPort> _workerSendPorts = [];
+  final List<Isolate> _isolates = [];
+  final Set<int> _idleWorkers = {};
+
+  /// Which worker is currently executing a given request, so cancellation can
+  /// be routed to the isolate that can actually abort it.
+  final Map<int, int> _requestToWorker = {};
+
+  final Queue<_WorkerRequest> _highPriorityQueue = Queue<_WorkerRequest>();
+  final Queue<_WorkerRequest> _lowPriorityQueue = Queue<_WorkerRequest>();
 
   final Map<int, Completer<LibRawImage?>> _pendingRequests = {};
   int _nextRequestId = 0;
 
-  // Deduplication map: key is 'path:type:halfSize' -> requestId.
+  // Deduplication, kept in both directions so responses do not need a scan.
   final Map<String, int> _activeRequestsByKey = {};
+  final Map<int, String> _keyByRequestId = {};
 
-  // Track active requests to cancel them if needed (best effort)
   final Set<int> _cancelledRequests = {};
 
-  WorkerService._internal();
+  Future<void>? _initFuture;
 
-  Future<void> init() async {
-    if (_isolates[0] != null) return;
+  Future<void> init() => _initFuture ??= _init();
 
+  Future<void> _init() async {
     for (int i = 0; i < _poolSize; i++) {
-      final receivePort = ReceivePort();
-      _isolates[i] = await Isolate.spawn(_workerEntry, receivePort.sendPort);
+      final workerIndex = i;
+      final handshakePort = ReceivePort();
+      final isolate = await Isolate.spawn(_workerEntry, handshakePort.sendPort);
+      final sendPort = await handshakePort.first as SendPort;
+      handshakePort.close();
 
-      // Wait for the worker to send its SendPort
-      _workerSendPorts[i] = await receivePort.first as SendPort;
-
-      // Listen for responses
       final responsePort = ReceivePort();
-      _workerSendPorts[i]!.send(responsePort.sendPort);
+      sendPort.send(responsePort.sendPort);
+      responsePort.listen((message) => _handleResponse(workerIndex, message));
 
-      responsePort.listen(_handleResponse);
+      _isolates.add(isolate);
+      _workerSendPorts.add(sendPort);
+      _idleWorkers.add(workerIndex);
     }
   }
 
-  void _handleResponse(dynamic message) {
-    if (message is _WorkerResponse) {
-      final completer = _pendingRequests.remove(message.requestId);
+  void _handleResponse(int workerIndex, dynamic message) {
+    if (message is! _WorkerResponse) return;
 
-      // Also remove from deduplication map
-      _activeRequestsByKey.removeWhere((key, val) => val == message.requestId);
+    final requestId = message.requestId;
+    _requestToWorker.remove(requestId);
+    _idleWorkers.add(workerIndex);
 
-      if (completer != null) {
-        if (_cancelledRequests.contains(message.requestId)) {
-          _cancelledRequests.remove(message.requestId);
-          // Just ignore the result if cancelled
-          return;
-        }
+    final completer = _pendingRequests.remove(requestId);
+    final key = _keyByRequestId.remove(requestId);
+    if (key != null && _activeRequestsByKey[key] == requestId) {
+      _activeRequestsByKey.remove(key);
+    }
 
-        if (message.error != null) {
-          completer.completeError(message.error!);
-        } else {
-          completer.complete(message.image);
-        }
+    if (completer != null && !completer.isCompleted) {
+      if (_cancelledRequests.remove(requestId)) {
+        completer.complete(null);
+      } else if (message.error != null) {
+        completer.completeError(message.error!);
+      } else {
+        completer.complete(message.image);
       }
+    } else {
+      _cancelledRequests.remove(requestId);
+    }
+
+    _drainQueues();
+  }
+
+  /// Hands queued work to idle workers, highest priority first.
+  void _drainQueues() {
+    while (_idleWorkers.isNotEmpty &&
+        (_highPriorityQueue.isNotEmpty || _lowPriorityQueue.isNotEmpty)) {
+      final request = _highPriorityQueue.isNotEmpty
+          ? _highPriorityQueue.removeFirst()
+          : _lowPriorityQueue.removeFirst();
+
+      if (_cancelledRequests.contains(request.requestId)) {
+        _finalizeCancelled(request.requestId);
+        continue;
+      }
+
+      final workerIndex = _idleWorkers.first;
+      _idleWorkers.remove(workerIndex);
+      _requestToWorker[request.requestId] = workerIndex;
+      _workerSendPorts[workerIndex].send(request);
+    }
+  }
+
+  void _finalizeCancelled(int requestId) {
+    _cancelledRequests.remove(requestId);
+    final completer = _pendingRequests.remove(requestId);
+    final key = _keyByRequestId.remove(requestId);
+    if (key != null && _activeRequestsByKey[key] == requestId) {
+      _activeRequestsByKey.remove(key);
+    }
+    if (completer != null && !completer.isCompleted) {
+      completer.complete(null);
     }
   }
 
@@ -69,123 +130,159 @@ class WorkerService {
   // fast RAW-generated preview when the file has no embedded preview.
   WorkerTask<LibRawImage?> requestRawFastPreview(String path,
       {TaskPriority priority = TaskPriority.high}) {
-    final requestId = _nextRequestId++;
-    return WorkerTask(this, requestId, path, _RequestType.rawFastPreview,
+    return WorkerTask._(
+        this, _nextRequestId++, path, _RequestType.rawFastPreview,
         priority: priority);
-  }
-
-  @Deprecated('Use requestRawFastPreview()')
-  WorkerTask<LibRawImage?> requestThumbnail(String path,
-      {TaskPriority priority = TaskPriority.high}) {
-    return requestRawFastPreview(path, priority: priority);
   }
 
   // Decoded RAW layer used as the final high-quality image.
   WorkerTask<LibRawImage?> requestDecodedRawPreview(String path,
       {int halfSize = 1, TaskPriority priority = TaskPriority.high}) {
-    final requestId = _nextRequestId++;
-    return WorkerTask(this, requestId, path, _RequestType.decodedRawPreview,
+    return WorkerTask._(
+        this, _nextRequestId++, path, _RequestType.decodedRawPreview,
         halfSize: halfSize, priority: priority);
   }
 
-  @Deprecated('Use requestDecodedRawPreview()')
-  WorkerTask<LibRawImage?> requestPreview(String path,
-      {int halfSize = 1, TaskPriority priority = TaskPriority.high}) {
-    return requestDecodedRawPreview(path,
-        halfSize: halfSize, priority: priority);
-  }
-
-  Future<T> _executeTask<T>(int requestId, String path, _RequestType type,
+  Future<LibRawImage?> _executeTask(
+      int requestId, String path, _RequestType type,
       {int halfSize = 1, TaskPriority priority = TaskPriority.high}) async {
     await init();
 
-    final dedupeKey = '$path:${type.name}:$halfSize';
-    if (_activeRequestsByKey.containsKey(dedupeKey)) {
-      final existingReqId = _activeRequestsByKey[dedupeKey]!;
-      // Bump the priority of the existing request
-      bumpRequest(existingReqId, priority);
-
-      if (_pendingRequests.containsKey(existingReqId)) {
-        final result = await _pendingRequests[existingReqId]!.future;
-        return result as T;
-      }
+    if (_cancelledRequests.contains(requestId)) {
+      _cancelledRequests.remove(requestId);
+      return null;
     }
 
-    _activeRequestsByKey[dedupeKey] = requestId;
+    final dedupeKey = '$path:${type.name}:$halfSize';
+    final existingReqId = _activeRequestsByKey[dedupeKey];
+    if (existingReqId != null) {
+      final existing = _pendingRequests[existingReqId];
+      if (existing != null && !existing.isCompleted) {
+        bumpRequest(existingReqId, priority);
+        return existing.future;
+      }
+      // Stale entry from a finished or cancelled request; drop it and dispatch
+      // normally instead of falling through and duplicating the decode.
+      _activeRequestsByKey.remove(dedupeKey);
+      _keyByRequestId.remove(existingReqId);
+    }
+
     final completer = Completer<LibRawImage?>();
     _pendingRequests[requestId] = completer;
+    _activeRequestsByKey[dedupeKey] = requestId;
+    _keyByRequestId[requestId] = dedupeKey;
 
-    final workerIndex = _nextWorkerIndex;
-    _nextWorkerIndex = (_nextWorkerIndex + 1) % _poolSize;
-
-    _workerSendPorts[workerIndex]!.send(_WorkerRequest(
+    final request = _WorkerRequest(
       requestId: requestId,
       path: path,
       type: type,
       halfSize: halfSize,
       priority: priority,
-    ));
+    );
 
-    final result = await completer.future;
-    return result as T;
+    if (priority == TaskPriority.high) {
+      _highPriorityQueue.addLast(request);
+    } else {
+      _lowPriorityQueue.addLast(request);
+    }
+    _drainQueues();
+
+    return completer.future;
   }
 
+  /// Re-prioritises a queued request. Requests already executing are left alone.
   void bumpRequest(int requestId, TaskPriority priority) {
-    for (int i = 0; i < _poolSize; i++) {
-      if (_workerSendPorts[i] != null) {
-        _workerSendPorts[i]!.send(_BumpRequest(requestId, priority));
-      }
-    }
+    if (priority != TaskPriority.high) return;
+    if (_requestToWorker.containsKey(requestId)) return;
+
+    final index =
+        _lowPriorityQueue.toList().indexWhere((r) => r.requestId == requestId);
+    if (index == -1) return;
+
+    final pending = _lowPriorityQueue.toList();
+    final request = pending.removeAt(index);
+    _lowPriorityQueue
+      ..clear()
+      ..addAll(pending);
+    _highPriorityQueue.addLast(request);
+    _drainQueues();
   }
 
   void cancelRequest(int requestId) {
     _cancelledRequests.add(requestId);
-    for (int i = 0; i < _poolSize; i++) {
-      if (_workerSendPorts[i] != null) {
-        _workerSendPorts[i]!.send(_CancelRequest(requestId));
-      }
+
+    // Still queued: drop it without ever starting the decode.
+    if (_removeFromQueues(requestId)) {
+      _finalizeCancelled(requestId);
+      _drainQueues();
+      return;
     }
-    // Remove from pending requests map and complete with null to avoid hanging
-    final completer = _pendingRequests.remove(requestId);
-    _activeRequestsByKey.removeWhere((key, val) => val == requestId);
+
+    // Already running: tell that worker to trip the native cancel token so
+    // LibRaw aborts instead of decoding an image nobody is waiting for.
+    final workerIndex = _requestToWorker[requestId];
+    if (workerIndex != null) {
+      _workerSendPorts[workerIndex].send(_CancelRequest(requestId));
+    }
+
+    final completer = _pendingRequests[requestId];
     if (completer != null && !completer.isCompleted) {
+      // Unblock the caller now; the worker's late response is discarded.
+      _pendingRequests.remove(requestId);
       completer.complete(null);
     }
   }
 
+  bool _removeFromQueues(int requestId) {
+    final before =
+        _highPriorityQueue.length + _lowPriorityQueue.length;
+    _highPriorityQueue.removeWhere((r) => r.requestId == requestId);
+    _lowPriorityQueue.removeWhere((r) => r.requestId == requestId);
+    return _highPriorityQueue.length + _lowPriorityQueue.length != before;
+  }
+
   void dispose() {
-    for (int i = 0; i < _poolSize; i++) {
-      _isolates[i]?.kill();
-      _isolates[i] = null;
-      _workerSendPorts[i] = null;
+    for (final isolate in _isolates) {
+      isolate.kill(priority: Isolate.immediate);
     }
+    _isolates.clear();
+    _workerSendPorts.clear();
+    _idleWorkers.clear();
+    _requestToWorker.clear();
+    _highPriorityQueue.clear();
+    _lowPriorityQueue.clear();
     _pendingRequests.clear();
+    _activeRequestsByKey.clear();
+    _keyByRequestId.clear();
     _cancelledRequests.clear();
+    _initFuture = null;
   }
 }
-
-enum TaskPriority { high, low }
 
 class WorkerTask<T> {
   final WorkerService _service;
   final int requestId;
   final String path;
-  final _RequestType type;
+  final _RequestType _type;
   final int halfSize;
   final TaskPriority priority;
 
-  WorkerTask(this._service, this.requestId, this.path, this.type,
+  Future<T>? _result;
+
+  WorkerTask._(this._service, this.requestId, this.path, this._type,
       {this.halfSize = 1, this.priority = TaskPriority.high});
 
-  Future<T> get result => _service._executeTask<T>(requestId, path, type,
-      halfSize: halfSize, priority: priority);
+  /// The decode result. Awaiting more than once reuses the same in-flight
+  /// request instead of dispatching the work again.
+  Future<T> get result => _result ??= _service
+      ._executeTask(requestId, path, _type,
+          halfSize: halfSize, priority: priority)
+      .then((image) => image as T);
 
   void cancel() {
     _service.cancelRequest(requestId);
   }
 }
-
-enum _RequestType { rawFastPreview, decodedRawPreview }
 
 class _WorkerRequest {
   final int requestId;
@@ -208,12 +305,6 @@ class _CancelRequest {
   _CancelRequest(this.requestId);
 }
 
-class _BumpRequest {
-  final int requestId;
-  final TaskPriority priority;
-  _BumpRequest(this.requestId, this.priority);
-}
-
 class _WorkerResponse {
   final int requestId;
   final LibRawImage? image;
@@ -231,117 +322,58 @@ void _workerEntry(SendPort mainSendPort) {
   mainSendPort.send(receivePort.sendPort);
 
   SendPort? replyPort;
-  final Set<int> cancelledIds = {};
-  // Use two lists for priority handling
-  final List<_WorkerRequest> highPriorityRequests = [];
-  final List<_WorkerRequest> lowPriorityRequests = [];
-  bool isProcessing = false;
 
-  // Process the queue
-  Future<void> processQueue() async {
-    if (isProcessing) return;
-    isProcessing = true;
+  // Cancel tokens for requests currently being decoded by this isolate. The
+  // native side polls these from LibRaw's progress callback.
+  final Map<int, RawCancelToken> activeTokens = {};
 
-    while (highPriorityRequests.isNotEmpty || lowPriorityRequests.isNotEmpty) {
-      // Prioritize high priority requests, then low priority
-      // Use LIFO for both queues (take the last request)
-      _WorkerRequest request;
-      if (highPriorityRequests.isNotEmpty) {
-        request = highPriorityRequests.removeLast();
-      } else {
-        request = lowPriorityRequests.removeLast();
-      }
+  // Cancellations that arrived before the request started running here.
+  final Set<int> preCancelled = {};
 
-      if (cancelledIds.contains(request.requestId)) {
-        cancelledIds.remove(request.requestId);
-        continue;
-      }
-
-      if (replyPort == null) {
-        // Should not happen if protocol is followed
-        continue;
-      }
-
-      try {
-        LibRawImage? result;
-        if (request.type == _RequestType.rawFastPreview) {
-          result = getRawFastPreviewSync(request.path);
-        } else {
-          result = getDecodedRawPreviewSync(request.path,
-              halfSize: request.halfSize);
-        }
-
-        // Check cancellation again after processing
-        if (cancelledIds.contains(request.requestId)) {
-          cancelledIds.remove(request.requestId);
-          continue;
-        }
-
-        replyPort!.send(_WorkerResponse(
-          requestId: request.requestId,
-          image: result,
-        ));
-      } catch (e) {
-        if (cancelledIds.contains(request.requestId)) {
-          cancelledIds.remove(request.requestId);
-          continue;
-        }
-        replyPort!.send(_WorkerResponse(
-          requestId: request.requestId,
-          error: e.toString(),
-        ));
-      }
-
-      // Yield to event loop to allow incoming messages (like Cancel or new Requests)
-      await Future.delayed(Duration.zero);
-    }
-    isProcessing = false;
-  }
-
-  receivePort.listen((message) {
+  receivePort.listen((message) async {
     if (message is SendPort) {
       replyPort = message;
-    } else if (message is _CancelRequest) {
-      cancelledIds.add(message.requestId);
-      // Optimization: Remove from pending queues immediately if present
-      highPriorityRequests.removeWhere((r) => r.requestId == message.requestId);
-      lowPriorityRequests.removeWhere((r) => r.requestId == message.requestId);
-    } else if (message is _BumpRequest) {
-      _WorkerRequest? foundRequest;
+      return;
+    }
 
-      // Find and remove the request from whichever queue it's in
-      int index = highPriorityRequests
-          .indexWhere((r) => r.requestId == message.requestId);
-      if (index != -1) {
-        foundRequest = highPriorityRequests.removeAt(index);
+    if (message is _CancelRequest) {
+      final token = activeTokens[message.requestId];
+      if (token != null) {
+        token.cancel();
       } else {
-        index = lowPriorityRequests
-            .indexWhere((r) => r.requestId == message.requestId);
-        if (index != -1) {
-          foundRequest = lowPriorityRequests.removeAt(index);
-        }
+        preCancelled.add(message.requestId);
+      }
+      return;
+    }
+
+    if (message is! _WorkerRequest) return;
+
+    final port = replyPort;
+    if (port == null) return;
+
+    final token = RawCancelToken();
+    if (preCancelled.remove(message.requestId)) {
+      token.cancel();
+    }
+    activeTokens[message.requestId] = token;
+
+    try {
+      final LibRawImage? result;
+      if (message.type == _RequestType.rawFastPreview) {
+        result = getRawFastPreviewSync(message.path, cancelToken: token);
+      } else {
+        result = getDecodedRawPreviewSync(message.path,
+            halfSize: message.halfSize, cancelToken: token);
       }
 
-      // If found, re-add it to the end (top of stack) of the target priority queue
-      if (foundRequest != null) {
-        if (message.priority == TaskPriority.high) {
-          highPriorityRequests.add(foundRequest);
-        } else {
-          lowPriorityRequests.add(foundRequest);
-        }
-        if (!isProcessing) {
-          processQueue();
-        }
-      }
-    } else if (message is _WorkerRequest) {
-      if (message.priority == TaskPriority.high) {
-        highPriorityRequests.add(message);
-      } else {
-        lowPriorityRequests.add(message);
-      }
-      if (!isProcessing) {
-        processQueue();
-      }
+      port.send(_WorkerResponse(requestId: message.requestId, image: result));
+    } catch (e) {
+      port.send(
+          _WorkerResponse(requestId: message.requestId, error: e.toString()));
+    } finally {
+      activeTokens.remove(message.requestId);
+      // Safe only after the native call has returned.
+      token.dispose();
     }
   });
 }

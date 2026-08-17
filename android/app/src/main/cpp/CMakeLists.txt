@@ -31,3 +31,9 @@ add_library(native_lib SHARED
 )
 
 target_link_libraries(native_lib android log)
+
+# Enable OpenMP so LibRaw's demosaic takes its multi-threaded path.
+# -static-openmp links the runtime into libnative_lib.so, so there is no extra
+# libomp.so to package or load at runtime.
+target_compile_options(native_lib PRIVATE -fopenmp -static-openmp)
+target_link_options(native_lib PRIVATE -fopenmp -static-openmp)
