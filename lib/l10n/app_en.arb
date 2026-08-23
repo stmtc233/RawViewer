@@ -88,6 +88,32 @@
       }
     }
   },
+  "mediaFilterTooltip": "Filter image type",
+  "mediaFilterAll": "All ({count})",
+  "@mediaFilterAll": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mediaFilterRaw": "RAW ({count})",
+  "@mediaFilterRaw": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mediaFilterImages": "Standard images ({count})",
+  "@mediaFilterImages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mediaFilterEmptyState": "No images match the current filter",
   "fastPreviewShortLabel": "FAST",
   "rawShortLabel": "RAW",
   "imageShortLabel": "IMG"

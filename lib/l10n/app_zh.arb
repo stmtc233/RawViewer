@@ -88,6 +88,32 @@
       }
     }
   },
+  "mediaFilterTooltip": "筛选图片类型",
+  "mediaFilterAll": "全部（{count}）",
+  "@mediaFilterAll": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mediaFilterRaw": "RAW（{count}）",
+  "@mediaFilterRaw": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mediaFilterImages": "普通图片（{count}）",
+  "@mediaFilterImages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mediaFilterEmptyState": "没有符合当前筛选条件的图片",
   "fastPreviewShortLabel": "FAST",
   "rawShortLabel": "RAW",
   "imageShortLabel": "IMG"

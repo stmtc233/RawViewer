@@ -5,9 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:rawviewer/image_store.dart';
 import 'package:rawviewer/justified_grid_layout.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rawviewer/lru_cache.dart';
 import 'package:rawviewer/l10n/app_localizations.dart';
 import 'package:rawviewer/main.dart';
+import 'package:rawviewer/media_filter.dart';
 import 'package:rawviewer/native_lib.dart';
 import 'package:rawviewer/settings_page.dart';
 import 'package:rawviewer/viewer_image.dart';
@@ -338,5 +340,80 @@ void main() {
 
       expect(image.sizeInBytes, 4 * 4 * 4);
     });
+  });
+
+  test('media filters include the expected file kinds', () {
+    expect(MediaFilter.all.includes(isRaw: true), isTrue);
+    expect(MediaFilter.all.includes(isRaw: false), isTrue);
+
+    expect(MediaFilter.raw.includes(isRaw: true), isTrue);
+    expect(MediaFilter.raw.includes(isRaw: false), isFalse);
+
+    expect(MediaFilter.images.includes(isRaw: true), isFalse);
+    expect(MediaFilter.images.includes(isRaw: false), isTrue);
+  });
+
+  testWidgets('media filter menu reports counts and changes selection',
+      (tester) async {
+    var selectedFilter = MediaFilter.all;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            return Scaffold(
+              appBar: AppBar(
+                actions: [
+                  MediaFilterButton(
+                    selectedFilter: selectedFilter,
+                    rawCount: 2,
+                    imageCount: 3,
+                    onSelected: (filter) {
+                      setState(() {
+                        selectedFilter = filter;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.byIcon(Icons.filter_alt_outlined));
+    await tester.pumpAndSettle();
+
+    expect(find.text('All (5)'), findsOneWidget);
+    expect(find.text('RAW (2)'), findsOneWidget);
+    expect(find.text('Standard images (3)'), findsOneWidget);
+
+    final rawMenuItem = find.ancestor(
+      of: find.text('RAW (2)'),
+      matching: find.byType(CheckedPopupMenuItem<MediaFilter>),
+    );
+    await tester.tap(rawMenuItem);
+    await tester.pumpAndSettle();
+
+    expect(selectedFilter, MediaFilter.raw);
+    expect(find.byIcon(Icons.filter_alt), findsOneWidget);
+  });
+
+  testWidgets('home toolbar fits a narrow viewport', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(MediaFilterButton), findsOneWidget);
   });
 }

@@ -171,6 +171,27 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get mediaFilterTooltip => '筛选图片类型';
+
+  @override
+  String mediaFilterAll(int count) {
+    return '全部（$count）';
+  }
+
+  @override
+  String mediaFilterRaw(int count) {
+    return 'RAW（$count）';
+  }
+
+  @override
+  String mediaFilterImages(int count) {
+    return '普通图片（$count）';
+  }
+
+  @override
+  String get mediaFilterEmptyState => '没有符合当前筛选条件的图片';
+
+  @override
   String get fastPreviewShortLabel => 'FAST';
 
   @override

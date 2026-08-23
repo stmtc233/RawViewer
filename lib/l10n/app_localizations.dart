@@ -371,6 +371,36 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{1 folder} other{{count} folders}}'**
   String folderSelectionTitle(int count);
 
+  /// No description provided for @mediaFilterTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter image type'**
+  String get mediaFilterTooltip;
+
+  /// No description provided for @mediaFilterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All ({count})'**
+  String mediaFilterAll(int count);
+
+  /// No description provided for @mediaFilterRaw.
+  ///
+  /// In en, this message translates to:
+  /// **'RAW ({count})'**
+  String mediaFilterRaw(int count);
+
+  /// No description provided for @mediaFilterImages.
+  ///
+  /// In en, this message translates to:
+  /// **'Standard images ({count})'**
+  String mediaFilterImages(int count);
+
+  /// No description provided for @mediaFilterEmptyState.
+  ///
+  /// In en, this message translates to:
+  /// **'No images match the current filter'**
+  String get mediaFilterEmptyState;
+
   /// No description provided for @fastPreviewShortLabel.
   ///
   /// In en, this message translates to:

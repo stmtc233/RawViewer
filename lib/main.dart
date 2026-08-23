@@ -18,6 +18,7 @@ import 'dart:collection';
 import 'l10n/app_localizations.dart';
 import 'image_store.dart';
 import 'justified_grid_layout.dart';
+import 'media_filter.dart';
 import 'native_lib.dart';
 import 'settings_page.dart';
 import 'lru_cache.dart';
@@ -364,6 +365,7 @@ class _HomePageState extends State<HomePage> {
   late ImageStore _imageStore;
   final _TimestampRepository _timestampRepository = _TimestampRepository();
   ViewerSettings _settings = const ViewerSettings();
+  MediaFilter _mediaFilter = MediaFilter.all;
   int _crossAxisCount = 4;
   bool _hasUserConfiguredGridAspectRatio = false;
   final Map<String, double> _mediaAspectRatios = <String, double>{};
@@ -777,8 +779,12 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  Widget _buildThumbnailTile(int index, int thumbnailResizeWidth) {
-    final mediaFile = _files[index];
+  Widget _buildThumbnailTile(
+    List<_MediaFile> files,
+    int index,
+    int thumbnailResizeWidth,
+  ) {
+    final mediaFile = files[index];
     final filePath = mediaFile.path;
     return _MediaThumbnailTile(
       key: ValueKey(filePath),
@@ -799,7 +805,7 @@ class _HomePageState extends State<HomePage> {
                 child: FadeTransition(
                   opacity: animation,
                   child: _ImagePreviewPage(
-                    files: _files,
+                    files: files,
                     initialIndex: index,
                     thumbnailResizeWidth: thumbnailResizeWidth,
                     imageStore: _imageStore,
@@ -818,7 +824,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildAdaptiveGrid(int thumbnailResizeWidth) {
+  Widget _buildAdaptiveGrid(
+    List<_MediaFile> files,
+    int thumbnailResizeWidth,
+  ) {
     const gridPadding = EdgeInsets.all(12);
     const gridSpacing = 10.0;
 
@@ -831,7 +840,7 @@ class _HomePageState extends State<HomePage> {
               (width - gridSpacing * (_crossAxisCount - 1)) / _crossAxisCount;
           final targetRowHeight = nominalCellWidth / (3 / 2);
           final rows = buildJustifiedGridRows(
-            aspectRatios: _files
+            aspectRatios: files
                 .map(
                   (file) =>
                       _mediaAspectRatios[file.path] ??
@@ -865,6 +874,7 @@ class _HomePageState extends State<HomePage> {
                           child: SizedBox(
                             width: row.widths[itemIndex],
                             child: _buildThumbnailTile(
+                              files,
                               row.indices[itemIndex],
                               thumbnailResizeWidth,
                             ),
@@ -885,6 +895,11 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final rawCount = _files.where((file) => file.isRaw).length;
+    final imageCount = _files.length - rawCount;
+    final filteredFiles = _files
+        .where((file) => _mediaFilter.includes(isRaw: file.isRaw))
+        .toList(growable: false);
 
     // Calculate dynamic thumbnail resize width based on grid cell size, then
     // snap it to a bucket. Without bucketing, dragging the window by one pixel
@@ -915,6 +930,14 @@ class _HomePageState extends State<HomePage> {
               largerThumbnailsTooltip: l10n.largerThumbnailsTooltip,
               smallerThumbnailsTooltip: l10n.smallerThumbnailsTooltip,
               gridColumnsTooltip: l10n.gridColumnsTooltip(_crossAxisCount),
+              selectedMediaFilter: _mediaFilter,
+              rawCount: rawCount,
+              imageCount: imageCount,
+              onMediaFilterSelected: (filter) {
+                setState(() {
+                  _mediaFilter = filter;
+                });
+              },
               onDecreaseThumbnailSize:
                   _crossAxisCount > 1 ? () => _updateCrossAxisCount(-1) : null,
               onIncreaseThumbnailSize:
@@ -933,33 +956,39 @@ class _HomePageState extends State<HomePage> {
                         onOpenFiles: _openFiles,
                         onOpenFolder: _openFolder,
                       )
-                    : _settings.gridAspectRatio.isAdaptive
-                        ? _buildAdaptiveGrid(thumbnailResizeWidth)
-                        : GridView.builder(
-                            addAutomaticKeepAlives: false,
-                            scrollCacheExtent:
-                                const ScrollCacheExtent.pixels(200),
-                            padding: const EdgeInsets.all(12),
-                            gridDelegate:
-                                SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: _crossAxisCount,
-                              crossAxisSpacing: 10,
-                              mainAxisSpacing: 10,
-                              childAspectRatio:
-                                  _settings.gridAspectRatio.aspectRatio,
-                            ),
-                            itemCount: _files.length,
-                            itemBuilder: (context, index) {
-                              return _buildThumbnailTile(
-                                index,
+                    : filteredFiles.isEmpty
+                        ? Center(child: Text(l10n.mediaFilterEmptyState))
+                        : _settings.gridAspectRatio.isAdaptive
+                            ? _buildAdaptiveGrid(
+                                filteredFiles,
                                 thumbnailResizeWidth,
-                              );
-                            },
-                          ),
+                              )
+                            : GridView.builder(
+                                addAutomaticKeepAlives: false,
+                                scrollCacheExtent:
+                                    const ScrollCacheExtent.pixels(200),
+                                padding: const EdgeInsets.all(12),
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: _crossAxisCount,
+                                  crossAxisSpacing: 10,
+                                  mainAxisSpacing: 10,
+                                  childAspectRatio:
+                                      _settings.gridAspectRatio.aspectRatio,
+                                ),
+                                itemCount: filteredFiles.length,
+                                itemBuilder: (context, index) {
+                                  return _buildThumbnailTile(
+                                    filteredFiles,
+                                    index,
+                                    thumbnailResizeWidth,
+                                  );
+                                },
+                              ),
               ),
             ),
             _GalleryStatusBar(
-              itemCountLabel: l10n.galleryItemCount(_files.length),
+              itemCountLabel: l10n.galleryItemCount(filteredFiles.length),
               gridColumnsLabel: l10n.gridColumnsTooltip(_crossAxisCount),
             ),
           ],
@@ -1008,6 +1037,10 @@ class _DesktopCommandBar extends StatelessWidget {
   final String largerThumbnailsTooltip;
   final String smallerThumbnailsTooltip;
   final String gridColumnsTooltip;
+  final MediaFilter selectedMediaFilter;
+  final int rawCount;
+  final int imageCount;
+  final ValueChanged<MediaFilter> onMediaFilterSelected;
   final VoidCallback? onDecreaseThumbnailSize;
   final VoidCallback? onIncreaseThumbnailSize;
   final VoidCallback onOpenSettings;
@@ -1023,6 +1056,10 @@ class _DesktopCommandBar extends StatelessWidget {
     required this.largerThumbnailsTooltip,
     required this.smallerThumbnailsTooltip,
     required this.gridColumnsTooltip,
+    required this.selectedMediaFilter,
+    required this.rawCount,
+    required this.imageCount,
+    required this.onMediaFilterSelected,
     required this.onDecreaseThumbnailSize,
     required this.onIncreaseThumbnailSize,
     required this.onOpenSettings,
@@ -1093,6 +1130,13 @@ class _DesktopCommandBar extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
               ],
+              MediaFilterButton(
+                selectedFilter: selectedMediaFilter,
+                rawCount: rawCount,
+                imageCount: imageCount,
+                onSelected: onMediaFilterSelected,
+              ),
+              const SizedBox(width: 4),
               DesktopIconButton(
                 icon: Icons.zoom_in,
                 tooltip: largerThumbnailsTooltip,

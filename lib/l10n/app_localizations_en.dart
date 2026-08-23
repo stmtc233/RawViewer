@@ -177,6 +177,27 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get mediaFilterTooltip => 'Filter image type';
+
+  @override
+  String mediaFilterAll(int count) {
+    return 'All ($count)';
+  }
+
+  @override
+  String mediaFilterRaw(int count) {
+    return 'RAW ($count)';
+  }
+
+  @override
+  String mediaFilterImages(int count) {
+    return 'Standard images ($count)';
+  }
+
+  @override
+  String get mediaFilterEmptyState => 'No images match the current filter';
+
+  @override
   String get fastPreviewShortLabel => 'FAST';
 
   @override
