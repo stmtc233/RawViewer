@@ -377,8 +377,19 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
+    var gridAspectRatio = _settings.gridAspectRatio;
+    final savedRatio = prefs.getString('grid_aspect_ratio');
+    if (savedRatio != null) {
+      for (final ratio in GridAspectRatio.values) {
+        if (ratio.name == savedRatio) {
+          gridAspectRatio = ratio;
+          break;
+        }
+      }
+    }
     setState(() {
       _crossAxisCount = prefs.getInt('grid_cross_axis_count') ?? 4;
+      _settings = _settings.copyWith(gridAspectRatio: gridAspectRatio);
     });
   }
 
@@ -392,6 +403,11 @@ class _HomePageState extends State<HomePage> {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('grid_cross_axis_count', newCount);
+  }
+
+  Future<void> _persistGridAspectRatio(GridAspectRatio ratio) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('grid_aspect_ratio', ratio.name);
   }
 
   void _initCache() {
@@ -788,11 +804,16 @@ class _HomePageState extends State<HomePage> {
                   widget.onAppLanguageChanged(result.appLanguage);
                   final cacheSizeChanged =
                       _settings.maxCacheSize != result.maxCacheSize;
+                  final gridAspectRatioChanged =
+                      _settings.gridAspectRatio != result.gridAspectRatio;
                   setState(() {
                     _settings = result;
                   });
                   if (cacheSizeChanged) {
                     _replaceCache(); // Re-initialize with new size
+                  }
+                  if (gridAspectRatioChanged) {
+                    unawaited(_persistGridAspectRatio(result.gridAspectRatio));
                   }
                 }
               },
@@ -820,6 +841,7 @@ class _HomePageState extends State<HomePage> {
                     crossAxisCount: _crossAxisCount,
                     crossAxisSpacing: 8,
                     mainAxisSpacing: 8,
+                    childAspectRatio: _settings.gridAspectRatio.aspectRatio,
                   ),
                   itemCount: _files.length,
                   itemBuilder: (context, index) {

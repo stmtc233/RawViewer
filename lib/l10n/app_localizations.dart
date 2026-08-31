@@ -110,6 +110,12 @@ abstract class AppLocalizations {
   /// **'Settings'**
   String get settingsTitle;
 
+  /// No description provided for @gridAspectRatioSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Grid Cell Ratio'**
+  String get gridAspectRatioSectionTitle;
+
   /// No description provided for @languageSectionTitle.
   ///
   /// In en, this message translates to:
