@@ -365,6 +365,7 @@ class _HomePageState extends State<HomePage> {
   final _TimestampRepository _timestampRepository = _TimestampRepository();
   ViewerSettings _settings = const ViewerSettings();
   int _crossAxisCount = 4;
+  bool _hasUserConfiguredGridAspectRatio = false;
 
   @override
   void initState() {
@@ -377,19 +378,19 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    var gridAspectRatio = _settings.gridAspectRatio;
-    final savedRatio = prefs.getString('grid_aspect_ratio');
-    if (savedRatio != null) {
-      for (final ratio in GridAspectRatio.values) {
-        if (ratio.name == savedRatio) {
-          gridAspectRatio = ratio;
-          break;
-        }
-      }
+    final savedGridAspectRatio = GridAspectRatio.values.asNameMap()[
+      prefs.getString('grid_aspect_ratio')
+    ];
+    if (!mounted) {
+      return;
     }
     setState(() {
       _crossAxisCount = prefs.getInt('grid_cross_axis_count') ?? 4;
-      _settings = _settings.copyWith(gridAspectRatio: gridAspectRatio);
+      if (!_hasUserConfiguredGridAspectRatio) {
+        _settings = _settings.copyWith(
+          gridAspectRatio: savedGridAspectRatio ?? GridAspectRatio.ratio3x2,
+        );
+      }
     });
   }
 
@@ -813,6 +814,7 @@ class _HomePageState extends State<HomePage> {
                     _replaceCache(); // Re-initialize with new size
                   }
                   if (gridAspectRatioChanged) {
+                    _hasUserConfiguredGridAspectRatio = true;
                     unawaited(_persistGridAspectRatio(result.gridAspectRatio));
                   }
                 }
