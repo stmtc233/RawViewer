@@ -72,13 +72,29 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Decoded RAW'));
-      await tester.pump();
-      expect(updatedSettings!.preferFastPreviewForRaw, isFalse);
-
-      await tester.tap(find.text('16:9'));
+      final settingsList = find.byType(Scrollable).first;
+      final wideGrid = find.byKey(const ValueKey('grid-aspect-ratio16x9'));
+      await tester.scrollUntilVisible(
+        wideGrid,
+        300,
+        scrollable: settingsList,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(wideGrid);
       await tester.pump();
       expect(updatedSettings!.gridAspectRatio, GridAspectRatio.ratio16x9);
+
+      final decodedPreview =
+          find.byKey(const ValueKey('raw-preview-decoded'));
+      await tester.scrollUntilVisible(
+        decodedPreview,
+        300,
+        scrollable: settingsList,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(decodedPreview);
+      await tester.pump();
+      expect(updatedSettings!.preferFastPreviewForRaw, isFalse);
     });
   });
 

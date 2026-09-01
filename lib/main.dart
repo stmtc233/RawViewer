@@ -855,7 +855,7 @@ class _HomePageState extends State<HomePage> {
                   itemBuilder: (context, index) {
                     final mediaFile = _files[index];
                     final filePath = mediaFile.path;
-                    return MediaThumbnailTile(
+                    return _MediaThumbnailTile(
                       key: ValueKey(filePath),
                       mediaFile: mediaFile,
                       settings: _settings,
@@ -871,7 +871,7 @@ class _HomePageState extends State<HomePage> {
                               return ExcludeSemantics(
                                 child: FadeTransition(
                                   opacity: animation,
-                                  child: ImagePreviewPage(
+                                  child: _ImagePreviewPage(
                                     files: _files,
                                     initialIndex: index,
                                     thumbnailResizeWidth: thumbnailResizeWidth,
@@ -895,7 +895,7 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class MediaThumbnailTile extends StatefulWidget {
+class _MediaThumbnailTile extends StatefulWidget {
   final _MediaFile mediaFile;
   final ViewerSettings settings;
   final _TimestampRepository timestampRepository;
@@ -903,7 +903,7 @@ class MediaThumbnailTile extends StatefulWidget {
   final ImageStore imageStore;
   final VoidCallback onTap;
 
-  const MediaThumbnailTile({
+  const _MediaThumbnailTile({
     super.key,
     required this.mediaFile,
     required this.settings,
@@ -916,12 +916,13 @@ class MediaThumbnailTile extends StatefulWidget {
   String get filePath => mediaFile.path;
 
   @override
-  State<MediaThumbnailTile> createState() => _MediaThumbnailTileState();
+  State<_MediaThumbnailTile> createState() => _MediaThumbnailTileState();
 }
 
-class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
+class _MediaThumbnailTileState extends State<_MediaThumbnailTile> {
   ViewerImage? _fastPreview;
   bool _failed = false;
+
   /// Incremented whenever this tile is recycled or disposed, so a load that
   /// completes afterwards can tell that its result is no longer wanted.
   int _generation = 0;
@@ -935,7 +936,7 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
   }
 
   @override
-  void didUpdateWidget(MediaThumbnailTile oldWidget) {
+  void didUpdateWidget(_MediaThumbnailTile oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.filePath != oldWidget.filePath ||
         widget.resizeWidth != oldWidget.resizeWidth) {
@@ -1142,7 +1143,7 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
   }
 }
 
-class ImagePreviewPage extends StatefulWidget {
+class _ImagePreviewPage extends StatefulWidget {
   final List<_MediaFile> files;
   final int initialIndex;
   final int thumbnailResizeWidth;
@@ -1151,8 +1152,7 @@ class ImagePreviewPage extends StatefulWidget {
   final ViewerSettings settings;
   final VoidCallback onClose;
 
-  const ImagePreviewPage({
-    super.key,
+  const _ImagePreviewPage({
     required this.files,
     required this.initialIndex,
     required this.thumbnailResizeWidth,
@@ -1163,10 +1163,10 @@ class ImagePreviewPage extends StatefulWidget {
   });
 
   @override
-  State<ImagePreviewPage> createState() => _ImagePreviewPageState();
+  State<_ImagePreviewPage> createState() => _ImagePreviewPageState();
 }
 
-class _ImagePreviewPageState extends State<ImagePreviewPage> {
+class _ImagePreviewPageState extends State<_ImagePreviewPage> {
   late PageController _pageController;
   late int _currentIndex;
   late int _targetPage;
@@ -1318,7 +1318,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
             itemBuilder: (context, index) {
               final mediaFile = widget.files[index];
               final filePath = mediaFile.path;
-              return SingleImagePreview(
+              return _SingleImagePreview(
                 key: ValueKey(filePath),
                 mediaFile: mediaFile,
                 thumbnailResizeWidth: widget.thumbnailResizeWidth,
@@ -1378,7 +1378,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   }
 }
 
-class SingleImagePreview extends StatefulWidget {
+class _SingleImagePreview extends StatefulWidget {
   final _MediaFile mediaFile;
   final int thumbnailResizeWidth;
   final ImageStore imageStore;
@@ -1388,7 +1388,7 @@ class SingleImagePreview extends StatefulWidget {
   final ValueNotifier<bool> isFastScrolling;
   final ValueChanged<bool>? onScaleStateChanged;
 
-  const SingleImagePreview({
+  const _SingleImagePreview({
     super.key,
     required this.mediaFile,
     required this.thumbnailResizeWidth,
@@ -1404,10 +1404,10 @@ class SingleImagePreview extends StatefulWidget {
   bool get isRaw => mediaFile.isRaw;
 
   @override
-  State<SingleImagePreview> createState() => _SingleImagePreviewState();
+  State<_SingleImagePreview> createState() => _SingleImagePreviewState();
 }
 
-class _SingleImagePreviewState extends State<SingleImagePreview> {
+class _SingleImagePreviewState extends State<_SingleImagePreview> {
   ViewerImage? _fastPreviewImage;
   ViewerImage? _decodedRawPreviewImage;
   bool _isLoadingDecodedRawPreview = false;
@@ -1452,7 +1452,7 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
   }
 
   @override
-  void didUpdateWidget(SingleImagePreview oldWidget) {
+  void didUpdateWidget(_SingleImagePreview oldWidget) {
     super.didUpdateWidget(oldWidget);
 
     if (oldWidget.isFastScrolling != widget.isFastScrolling) {

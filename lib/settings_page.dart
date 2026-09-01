@@ -254,24 +254,26 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             ExcludeSemantics(
-              child: Column(
-                children: AppLanguage.values
-                    .map(
-                      (language) => RadioListTile<AppLanguage>(
-                        title: Text(_languageLabel(language, l10n)),
-                        value: language,
-                        groupValue: _currentSettings.appLanguage,
-                        onChanged: (value) {
-                          if (value == null) {
-                            return;
-                          }
-                          _updateSettings(
-                            _currentSettings.copyWith(appLanguage: value),
-                          );
-                        },
-                      ),
-                    )
-                    .toList(),
+              child: RadioGroup<AppLanguage>(
+                groupValue: _currentSettings.appLanguage,
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+                  _updateSettings(
+                    _currentSettings.copyWith(appLanguage: value),
+                  );
+                },
+                child: Column(
+                  children: AppLanguage.values
+                      .map(
+                        (language) => RadioListTile<AppLanguage>(
+                          title: Text(_languageLabel(language, l10n)),
+                          value: language,
+                        ),
+                      )
+                      .toList(),
+                ),
               ),
             ),
             const Divider(),
@@ -284,24 +286,27 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             ExcludeSemantics(
-              child: Column(
-                children: GridAspectRatio.values
-                    .map(
-                      (ratio) => RadioListTile<GridAspectRatio>(
-                        title: Text(ratio.label),
-                        value: ratio,
-                        groupValue: _currentSettings.gridAspectRatio,
-                        onChanged: (value) {
-                          if (value == null) {
-                            return;
-                          }
-                          _updateSettings(
-                            _currentSettings.copyWith(gridAspectRatio: value),
-                          );
-                        },
-                      ),
-                    )
-                    .toList(),
+              child: RadioGroup<GridAspectRatio>(
+                groupValue: _currentSettings.gridAspectRatio,
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+                  _updateSettings(
+                    _currentSettings.copyWith(gridAspectRatio: value),
+                  );
+                },
+                child: Column(
+                  children: GridAspectRatio.values
+                      .map(
+                        (ratio) => RadioListTile<GridAspectRatio>(
+                          key: ValueKey('grid-aspect-${ratio.name}'),
+                          title: Text(ratio.label),
+                          value: ratio,
+                        ),
+                      )
+                      .toList(),
+                ),
               ),
             ),
             const Divider(),
@@ -314,33 +319,33 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             ExcludeSemantics(
-              child: RadioListTile<bool>(
-                title: Text(l10n.fastPreviewTitle),
-                subtitle: Text(l10n.fastPreviewSubtitle),
-                value: true,
+              child: RadioGroup<bool>(
                 groupValue: _currentSettings.preferFastPreviewForRaw,
                 onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
                   _updateSettings(
                     _currentSettings.copyWith(
                       preferFastPreviewForRaw: value,
                     ),
                   );
                 },
-              ),
-            ),
-            ExcludeSemantics(
-              child: RadioListTile<bool>(
-                title: Text(l10n.decodedRawPreviewTitle),
-                subtitle: Text(l10n.decodedRawPreviewSubtitle),
-                value: false,
-                groupValue: _currentSettings.preferFastPreviewForRaw,
-                onChanged: (value) {
-                  _updateSettings(
-                    _currentSettings.copyWith(
-                      preferFastPreviewForRaw: value,
+                child: Column(
+                  children: [
+                    RadioListTile<bool>(
+                      title: Text(l10n.fastPreviewTitle),
+                      subtitle: Text(l10n.fastPreviewSubtitle),
+                      value: true,
                     ),
-                  );
-                },
+                    RadioListTile<bool>(
+                      key: const ValueKey('raw-preview-decoded'),
+                      title: Text(l10n.decodedRawPreviewTitle),
+                      subtitle: Text(l10n.decodedRawPreviewSubtitle),
+                      value: false,
+                    ),
+                  ],
+                ),
               ),
             ),
             const Divider(),
@@ -374,10 +379,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             ExcludeSemantics(
-              child: RadioListTile<TimeDisplaySource>(
-                title: Text(l10n.captureTimeTitle),
-                subtitle: Text(l10n.captureTimeSubtitle),
-                value: TimeDisplaySource.capturedAt,
+              child: RadioGroup<TimeDisplaySource>(
                 groupValue: _currentSettings.timeDisplaySource,
                 onChanged: (value) {
                   if (value == null) {
@@ -387,22 +389,20 @@ class _SettingsPageState extends State<SettingsPage> {
                     _currentSettings.copyWith(timeDisplaySource: value),
                   );
                 },
-              ),
-            ),
-            ExcludeSemantics(
-              child: RadioListTile<TimeDisplaySource>(
-                title: Text(l10n.fileModifiedTimeTitle),
-                subtitle: Text(l10n.fileModifiedTimeSubtitle),
-                value: TimeDisplaySource.modifiedAt,
-                groupValue: _currentSettings.timeDisplaySource,
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-                  _updateSettings(
-                    _currentSettings.copyWith(timeDisplaySource: value),
-                  );
-                },
+                child: Column(
+                  children: [
+                    RadioListTile<TimeDisplaySource>(
+                      title: Text(l10n.captureTimeTitle),
+                      subtitle: Text(l10n.captureTimeSubtitle),
+                      value: TimeDisplaySource.capturedAt,
+                    ),
+                    RadioListTile<TimeDisplaySource>(
+                      title: Text(l10n.fileModifiedTimeTitle),
+                      subtitle: Text(l10n.fileModifiedTimeSubtitle),
+                      value: TimeDisplaySource.modifiedAt,
+                    ),
+                  ],
+                ),
               ),
             ),
             const Divider(),
