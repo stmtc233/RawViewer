@@ -44,15 +44,19 @@ jobs:
           - name: Android
             os: ubuntu-latest
             target: android
+            build_target: apk
           - name: Linux
             os: ubuntu-latest
             target: linux
+            build_target: linux
           - name: Windows
             os: windows-latest
             target: windows
+            build_target: windows
           - name: macOS
             os: macos-latest
             target: macos
+            build_target: macos
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
@@ -85,4 +89,4 @@ jobs:
 
       - name: Build
         shell: bash
-        run: flutter build ${{ matrix.target }} --release
+        run: flutter build ${{ matrix.build_target }} --release
