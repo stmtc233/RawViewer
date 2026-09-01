@@ -411,6 +411,28 @@ class _HomePageState extends State<HomePage> {
     await prefs.setString('grid_aspect_ratio', ratio.name);
   }
 
+  void _updateSettings(ViewerSettings settings) {
+    final cacheSizeChanged = _settings.maxCacheSize != settings.maxCacheSize;
+    final appLanguageChanged = _settings.appLanguage != settings.appLanguage;
+    final gridAspectRatioChanged =
+        _settings.gridAspectRatio != settings.gridAspectRatio;
+
+    setState(() {
+      _settings = settings;
+    });
+
+    if (cacheSizeChanged) {
+      _replaceCache();
+    }
+    if (appLanguageChanged) {
+      widget.onAppLanguageChanged(settings.appLanguage);
+    }
+    if (gridAspectRatioChanged) {
+      _hasUserConfiguredGridAspectRatio = true;
+      unawaited(_persistGridAspectRatio(settings.gridAspectRatio));
+    }
+  }
+
   void _initCache() {
     // maxCacheSize is in MB, convert to bytes
     final int maxBytes = _settings.maxCacheSize * 1024 * 1024;
@@ -764,7 +786,7 @@ class _HomePageState extends State<HomePage> {
                   return;
                 }
 
-                final result = await Navigator.push<ViewerSettings>(
+                await Navigator.push<void>(
                   context,
                   PageRouteBuilder(
                     opaque: false,
@@ -786,12 +808,13 @@ class _HomePageState extends State<HomePage> {
                                 ),
                                 child: SettingsPage(
                                   settings: _settings,
+                                  onSettingsChanged: _updateSettings,
                                   onWindowsContextMenuChanged:
                                       Platform.isWindows
                                           ? _setWindowsContextMenuEnabled
                                           : null,
-                                  onClose: (res) {
-                                    Navigator.pop(context, res);
+                                  onClose: () {
+                                    Navigator.pop(context);
                                   },
                                 )),
                           ),
@@ -801,23 +824,6 @@ class _HomePageState extends State<HomePage> {
                   ),
                 );
 
-                if (result != null) {
-                  widget.onAppLanguageChanged(result.appLanguage);
-                  final cacheSizeChanged =
-                      _settings.maxCacheSize != result.maxCacheSize;
-                  final gridAspectRatioChanged =
-                      _settings.gridAspectRatio != result.gridAspectRatio;
-                  setState(() {
-                    _settings = result;
-                  });
-                  if (cacheSizeChanged) {
-                    _replaceCache(); // Re-initialize with new size
-                  }
-                  if (gridAspectRatioChanged) {
-                    _hasUserConfiguredGridAspectRatio = true;
-                    unawaited(_persistGridAspectRatio(result.gridAspectRatio));
-                  }
-                }
               },
             ),
             IconButton(

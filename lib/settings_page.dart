@@ -131,16 +131,17 @@ class ViewerSettings {
 
 class SettingsPage extends StatefulWidget {
   final ViewerSettings settings;
-  final void Function(ViewerSettings?) onClose;
+  final VoidCallback onClose;
+  final ValueChanged<ViewerSettings> onSettingsChanged;
   final WindowsContextMenuToggleHandler? onWindowsContextMenuChanged;
-  final ValueChanged<AppLanguage>? onAppLanguageChanged;
 
-  const SettingsPage(
-      {super.key,
-      required this.settings,
-      required this.onClose,
-      this.onWindowsContextMenuChanged,
-      this.onAppLanguageChanged});
+  const SettingsPage({
+    super.key,
+    required this.settings,
+    required this.onClose,
+    required this.onSettingsChanged,
+    this.onWindowsContextMenuChanged,
+  });
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -167,6 +168,13 @@ class _SettingsPageState extends State<SettingsPage> {
     _currentSettings = widget.settings;
   }
 
+  void _updateSettings(ViewerSettings settings) {
+    setState(() {
+      _currentSettings = settings;
+    });
+    widget.onSettingsChanged(settings);
+  }
+
   bool get _showWindowsContextMenuSection =>
       Platform.isWindows && widget.onWindowsContextMenuChanged != null;
 
@@ -188,11 +196,9 @@ class _SettingsPageState extends State<SettingsPage> {
         return;
       }
 
-      setState(() {
-        _currentSettings = _currentSettings.copyWith(
-          windowsContextMenu: nextState,
-        );
-      });
+      _updateSettings(
+        _currentSettings.copyWith(windowsContextMenu: nextState),
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -233,7 +239,7 @@ class _SettingsPageState extends State<SettingsPage> {
           leading: IconButton(
             icon: const Icon(Icons.close),
             onPressed: () {
-              widget.onClose(_currentSettings);
+              widget.onClose();
             },
           ),
         ),
@@ -259,12 +265,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           if (value == null) {
                             return;
                           }
-                          setState(() {
-                            _currentSettings = _currentSettings.copyWith(
-                              appLanguage: value,
-                            );
-                          });
-                          widget.onAppLanguageChanged?.call(value);
+                          _updateSettings(
+                            _currentSettings.copyWith(appLanguage: value),
+                          );
                         },
                       ),
                     )
@@ -292,11 +295,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           if (value == null) {
                             return;
                           }
-                          setState(() {
-                            _currentSettings = _currentSettings.copyWith(
-                              gridAspectRatio: value,
-                            );
-                          });
+                          _updateSettings(
+                            _currentSettings.copyWith(gridAspectRatio: value),
+                          );
                         },
                       ),
                     )
@@ -319,11 +320,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 value: true,
                 groupValue: _currentSettings.preferFastPreviewForRaw,
                 onChanged: (value) {
-                  setState(() {
-                    _currentSettings = _currentSettings.copyWith(
+                  _updateSettings(
+                    _currentSettings.copyWith(
                       preferFastPreviewForRaw: value,
-                    );
-                  });
+                    ),
+                  );
                 },
               ),
             ),
@@ -334,11 +335,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 value: false,
                 groupValue: _currentSettings.preferFastPreviewForRaw,
                 onChanged: (value) {
-                  setState(() {
-                    _currentSettings = _currentSettings.copyWith(
+                  _updateSettings(
+                    _currentSettings.copyWith(
                       preferFastPreviewForRaw: value,
-                    );
-                  });
+                    ),
+                  );
                 },
               ),
             ),
@@ -357,11 +358,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 subtitle: Text(l10n.halfSizeRawDecodeSubtitle),
                 value: _currentSettings.useHalfSizeRawDecode,
                 onChanged: (value) {
-                  setState(() {
-                    _currentSettings = _currentSettings.copyWith(
-                      useHalfSizeRawDecode: value,
-                    );
-                  });
+                  _updateSettings(
+                    _currentSettings.copyWith(useHalfSizeRawDecode: value),
+                  );
                 },
               ),
             ),
@@ -384,10 +383,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   if (value == null) {
                     return;
                   }
-                  setState(() {
-                    _currentSettings =
-                        _currentSettings.copyWith(timeDisplaySource: value);
-                  });
+                  _updateSettings(
+                    _currentSettings.copyWith(timeDisplaySource: value),
+                  );
                 },
               ),
             ),
@@ -401,10 +399,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   if (value == null) {
                     return;
                   }
-                  setState(() {
-                    _currentSettings =
-                        _currentSettings.copyWith(timeDisplaySource: value);
-                  });
+                  _updateSettings(
+                    _currentSettings.copyWith(timeDisplaySource: value),
+                  );
                 },
               ),
             ),
@@ -429,10 +426,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 divisions: (4096 - 64) ~/ 64,
                 label: l10n.cacheSizeMb(_currentSettings.maxCacheSize),
                 onChanged: (value) {
-                  setState(() {
-                    _currentSettings =
-                        _currentSettings.copyWith(maxCacheSize: value.toInt());
-                  });
+                  _updateSettings(
+                    _currentSettings.copyWith(maxCacheSize: value.toInt()),
+                  );
                 },
               ),
             ),

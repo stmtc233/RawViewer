@@ -1,10 +1,14 @@
 import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:rawviewer/image_store.dart';
 import 'package:rawviewer/lru_cache.dart';
+import 'package:rawviewer/l10n/app_localizations.dart';
 import 'package:rawviewer/main.dart';
 import 'package:rawviewer/native_lib.dart';
+import 'package:rawviewer/settings_page.dart';
 import 'package:rawviewer/viewer_image.dart';
 
 void main() {
@@ -24,6 +28,57 @@ void main() {
       final buckets = widths.map(bucketDecodeWidth).toSet();
       expect(buckets, hasLength(1));
       expect(buckets.single, 512);
+    });
+  });
+
+  group('ViewerSettings', () {
+    test('defaults the grid to 3:2', () {
+      const settings = ViewerSettings();
+
+      expect(settings.gridAspectRatio, GridAspectRatio.ratio3x2);
+      expect(settings.gridAspectRatio.aspectRatio, 3 / 2);
+    });
+
+    test('copyWith changes only the requested grid ratio', () {
+      const original = ViewerSettings(maxCacheSize: 1024);
+      final updated = original.copyWith(
+        gridAspectRatio: GridAspectRatio.ratio16x9,
+      );
+
+      expect(updated.gridAspectRatio, GridAspectRatio.ratio16x9);
+      expect(updated.maxCacheSize, original.maxCacheSize);
+    });
+
+    testWidgets('publishes each setting change immediately', (tester) async {
+      ViewerSettings? updatedSettings;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('en')],
+          home: SettingsPage(
+            settings: const ViewerSettings(),
+            onClose: () {},
+            onSettingsChanged: (settings) {
+              updatedSettings = settings;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Decoded RAW'));
+      await tester.pump();
+      expect(updatedSettings!.preferFastPreviewForRaw, isFalse);
+
+      await tester.tap(find.text('16:9'));
+      await tester.pump();
+      expect(updatedSettings!.gridAspectRatio, GridAspectRatio.ratio16x9);
     });
   });
 
