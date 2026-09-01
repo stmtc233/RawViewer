@@ -2,6 +2,7 @@
   "@@locale": "en",
   "appTitle": "Raw Viewer",
   "settingsTitle": "Settings",
+"gridAspectRatioSectionTitle": "Grid Cell Ratio",
   "languageSectionTitle": "Language",
   "languageSystem": "Follow system",
   "languageChineseSimplified": "简体中文",

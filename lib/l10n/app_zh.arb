@@ -2,6 +2,7 @@
   "@@locale": "zh",
   "appTitle": "Raw Viewer",
   "settingsTitle": "设置",
+"gridAspectRatioSectionTitle": "预览网格比例",
   "languageSectionTitle": "语言",
   "languageSystem": "跟随系统",
   "languageChineseSimplified": "简体中文",

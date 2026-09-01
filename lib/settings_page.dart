@@ -20,6 +20,36 @@ extension AppLanguageLocale on AppLanguage {
   }
 }
 
+enum GridAspectRatio { ratio1x1, ratio3x2, ratio4x3, ratio16x9 }
+
+extension GridAspectRatioValue on GridAspectRatio {
+  double get aspectRatio {
+    switch (this) {
+      case GridAspectRatio.ratio1x1:
+        return 1.0;
+      case GridAspectRatio.ratio3x2:
+        return 3 / 2;
+      case GridAspectRatio.ratio4x3:
+        return 4 / 3;
+      case GridAspectRatio.ratio16x9:
+        return 16 / 9;
+    }
+  }
+
+  String get label {
+    switch (this) {
+      case GridAspectRatio.ratio1x1:
+        return '1:1';
+      case GridAspectRatio.ratio3x2:
+        return '3:2';
+      case GridAspectRatio.ratio4x3:
+        return '4:3';
+      case GridAspectRatio.ratio16x9:
+        return '16:9';
+    }
+  }
+}
+
 class WindowsContextMenuSettings {
   final bool supported;
   final bool enabled;
@@ -63,6 +93,7 @@ class ViewerSettings {
   final int maxCacheSize; // in MB
   final TimeDisplaySource timeDisplaySource;
   final AppLanguage appLanguage;
+  final GridAspectRatio gridAspectRatio;
   final WindowsContextMenuSettings windowsContextMenu;
 
   const ViewerSettings({
@@ -71,6 +102,7 @@ class ViewerSettings {
     this.maxCacheSize = 512,
     this.timeDisplaySource = TimeDisplaySource.capturedAt,
     this.appLanguage = AppLanguage.system,
+    this.gridAspectRatio = GridAspectRatio.ratio3x2,
     this.windowsContextMenu = const WindowsContextMenuSettings(),
   });
 
@@ -80,6 +112,7 @@ class ViewerSettings {
     int? maxCacheSize,
     TimeDisplaySource? timeDisplaySource,
     AppLanguage? appLanguage,
+    GridAspectRatio? gridAspectRatio,
     WindowsContextMenuSettings? windowsContextMenu,
   }) {
     return ViewerSettings(
@@ -90,6 +123,7 @@ class ViewerSettings {
       maxCacheSize: maxCacheSize ?? this.maxCacheSize,
       timeDisplaySource: timeDisplaySource ?? this.timeDisplaySource,
       appLanguage: appLanguage ?? this.appLanguage,
+      gridAspectRatio: gridAspectRatio ?? this.gridAspectRatio,
       windowsContextMenu: windowsContextMenu ?? this.windowsContextMenu,
     );
   }
@@ -231,6 +265,38 @@ class _SettingsPageState extends State<SettingsPage> {
                             );
                           });
                           widget.onAppLanguageChanged?.call(value);
+                        },
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                l10n.gridAspectRatioSectionTitle,
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            ExcludeSemantics(
+              child: Column(
+                children: GridAspectRatio.values
+                    .map(
+                      (ratio) => RadioListTile<GridAspectRatio>(
+                        title: Text(ratio.label),
+                        value: ratio,
+                        groupValue: _currentSettings.gridAspectRatio,
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() {
+                            _currentSettings = _currentSettings.copyWith(
+                              gridAspectRatio: value,
+                            );
+                          });
                         },
                       ),
                     )
