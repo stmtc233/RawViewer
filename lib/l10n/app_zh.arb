@@ -52,6 +52,7 @@
   "homeEmptyState": "打开或拖放 RAW 与图片文件/文件夹",
   "openFolder": "打开文件夹",
   "openFiles": "打开文件",
+  "moreActionsTooltip": "更多操作",
   "settingsTooltip": "设置",
   "closeSettingsTooltip": "关闭设置",
   "largerThumbnailsTooltip": "放大缩略图",

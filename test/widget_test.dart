@@ -376,4 +376,50 @@ void main() {
     expect(zoomOutPosition.dx, greaterThan(600));
     expect(zoomOutPosition.dy, greaterThan(400));
   });
+
+  testWidgets('gallery actions menu contains file and folder open actions',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(800, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    final actionsButton = find.byIcon(Icons.more_vert);
+    expect(actionsButton, findsOneWidget);
+    expect(tester.getTopLeft(actionsButton).dx, lessThan(60));
+    expect(
+      tester.getTopLeft(find.byIcon(Icons.folder_open_outlined)).dy,
+      greaterThan(100),
+    );
+    expect(
+      tester.getTopLeft(find.byIcon(Icons.file_open_outlined)).dy,
+      greaterThan(100),
+    );
+
+    await tester.tap(actionsButton);
+    await tester.pumpAndSettle();
+
+    final popupMenuItems = find.byWidgetPredicate(
+      (widget) => widget is PopupMenuItem,
+    );
+    expect(popupMenuItems, findsNWidgets(2));
+    expect(
+      find.ancestor(
+        of: find.byIcon(Icons.file_open_outlined).last,
+        matching: popupMenuItems,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.ancestor(
+        of: find.byIcon(Icons.folder_open_outlined).last,
+        matching: popupMenuItems,
+      ),
+      findsOneWidget,
+    );
+  });
 }

@@ -926,6 +926,7 @@ class _HomePageState extends State<HomePage> {
               title: _currentTitle(l10n),
               openFolderLabel: l10n.openFolder,
               openFilesLabel: l10n.openFiles,
+              moreActionsTooltip: l10n.moreActionsTooltip,
               settingsTooltip: l10n.settingsTooltip,
               selectedMediaFilter: _mediaFilter,
               adaptiveCount: adaptiveMediaGroups.length,
@@ -1049,6 +1050,7 @@ class _DesktopCommandBar extends StatelessWidget {
   final String title;
   final String openFolderLabel;
   final String openFilesLabel;
+  final String moreActionsTooltip;
   final String settingsTooltip;
   final MediaFilter selectedMediaFilter;
   final int adaptiveCount;
@@ -1063,6 +1065,7 @@ class _DesktopCommandBar extends StatelessWidget {
     required this.title,
     required this.openFolderLabel,
     required this.openFilesLabel,
+    required this.moreActionsTooltip,
     required this.settingsTooltip,
     required this.selectedMediaFilter,
     required this.adaptiveCount,
@@ -1088,6 +1091,14 @@ class _DesktopCommandBar extends StatelessWidget {
           ),
           child: Row(
             children: [
+              _GalleryActionsMenu(
+                tooltip: moreActionsTooltip,
+                openFolderLabel: openFolderLabel,
+                openFilesLabel: openFilesLabel,
+                onOpenFiles: onOpenFiles,
+                onOpenFolder: onOpenFolder,
+              ),
+              const SizedBox(width: 4),
               const Icon(Icons.photo_library_outlined,
                   color: RawViewerColors.accent, size: 19),
               if (!compact) ...[
@@ -1137,17 +1148,6 @@ class _DesktopCommandBar extends StatelessWidget {
                 ),
               if (!compact) const SizedBox(width: 8),
               DesktopIconButton(
-                icon: Icons.folder_open_outlined,
-                tooltip: openFolderLabel,
-                onPressed: onOpenFolder,
-              ),
-              DesktopIconButton(
-                icon: Icons.file_open_outlined,
-                tooltip: openFilesLabel,
-                onPressed: onOpenFiles,
-              ),
-              const SizedBox(width: 6),
-              DesktopIconButton(
                 icon: Icons.tune,
                 tooltip: settingsTooltip,
                 onPressed: onOpenSettings,
@@ -1156,6 +1156,90 @@ class _DesktopCommandBar extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+enum _GalleryAction { openFiles, openFolder }
+
+class _GalleryActionsMenu extends StatelessWidget {
+  final String tooltip;
+  final String openFolderLabel;
+  final String openFilesLabel;
+  final VoidCallback onOpenFiles;
+  final VoidCallback onOpenFolder;
+
+  const _GalleryActionsMenu({
+    required this.tooltip,
+    required this.openFolderLabel,
+    required this.openFilesLabel,
+    required this.onOpenFiles,
+    required this.onOpenFolder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_GalleryAction>(
+      tooltip: tooltip,
+      padding: EdgeInsets.zero,
+      offset: const Offset(0, 36),
+      color: RawViewerColors.surface,
+      onSelected: (action) {
+        switch (action) {
+          case _GalleryAction.openFiles:
+            onOpenFiles();
+            break;
+          case _GalleryAction.openFolder:
+            onOpenFolder();
+            break;
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: _GalleryAction.openFiles,
+          child: _GalleryActionMenuItem(
+            icon: Icons.file_open_outlined,
+            label: openFilesLabel,
+          ),
+        ),
+        PopupMenuItem(
+          value: _GalleryAction.openFolder,
+          child: _GalleryActionMenuItem(
+            icon: Icons.folder_open_outlined,
+            label: openFolderLabel,
+          ),
+        ),
+      ],
+      child: const SizedBox(
+        width: 34,
+        height: 34,
+        child: Icon(
+          Icons.more_vert,
+          color: RawViewerColors.mutedText,
+          size: 19,
+        ),
+      ),
+    );
+  }
+}
+
+class _GalleryActionMenuItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _GalleryActionMenuItem({
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: RawViewerColors.mutedText),
+        const SizedBox(width: 10),
+        Text(label),
+      ],
     );
   }
 }

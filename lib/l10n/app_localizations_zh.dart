@@ -127,6 +127,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get openFiles => '打开文件';
 
   @override
+  String get moreActionsTooltip => '更多操作';
+
+  @override
   String get settingsTooltip => '设置';
 
   @override

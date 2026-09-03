@@ -52,6 +52,7 @@
   "homeEmptyState": "Open or drop RAW and image files/folders",
   "openFolder": "Open folder",
   "openFiles": "Open files",
+  "moreActionsTooltip": "More actions",
   "settingsTooltip": "Settings",
   "closeSettingsTooltip": "Close settings",
   "largerThumbnailsTooltip": "Larger thumbnails",

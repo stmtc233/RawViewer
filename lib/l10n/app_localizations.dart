@@ -323,6 +323,12 @@ abstract class AppLocalizations {
   /// **'Open files'**
   String get openFiles;
 
+  /// No description provided for @moreActionsTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'More actions'**
+  String get moreActionsTooltip;
+
   /// No description provided for @settingsTooltip.
   ///
   /// In en, this message translates to:
@@ -377,17 +383,17 @@ abstract class AppLocalizations {
   /// **'Filter image type'**
   String get mediaFilterTooltip;
 
-  /// No description provided for @mediaFilterAll.
-  ///
-  /// In en, this message translates to:
-  /// **'All ({count})'**
-  String mediaFilterAll(int count);
-
   /// No description provided for @mediaFilterAdaptive.
   ///
   /// In en, this message translates to:
   /// **'Adaptive ({count})'**
   String mediaFilterAdaptive(int count);
+
+  /// No description provided for @mediaFilterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All ({count})'**
+  String mediaFilterAll(int count);
 
   /// No description provided for @mediaFilterRaw.
   ///

@@ -127,6 +127,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get openFiles => 'Open files';
 
   @override
+  String get moreActionsTooltip => 'More actions';
+
+  @override
   String get settingsTooltip => 'Settings';
 
   @override
