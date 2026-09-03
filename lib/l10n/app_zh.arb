@@ -125,5 +125,6 @@
   "mediaFilterEmptyState": "没有符合当前筛选条件的图片",
   "fastPreviewShortLabel": "FAST",
   "rawShortLabel": "RAW",
+  "rawJpegShortLabel": "R&J",
   "imageShortLabel": "IMG"
 }

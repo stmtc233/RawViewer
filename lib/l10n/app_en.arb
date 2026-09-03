@@ -125,5 +125,6 @@
   "mediaFilterEmptyState": "No images match the current filter",
   "fastPreviewShortLabel": "FAST",
   "rawShortLabel": "RAW",
+  "rawJpegShortLabel": "R&J",
   "imageShortLabel": "IMG"
 }

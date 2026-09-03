@@ -212,5 +212,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get rawShortLabel => 'RAW';
 
   @override
+  String get rawJpegShortLabel => 'R&J';
+
+  @override
   String get imageShortLabel => 'IMG';
 }

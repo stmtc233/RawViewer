@@ -774,6 +774,7 @@ class _HomePageState extends State<HomePage> {
     return _MediaThumbnailTile(
       key: ValueKey(filePath),
       mediaFile: mediaFile,
+      hasPairedJpeg: mediaGroup.hasPairedJpeg,
       settings: _settings,
       timestampRepository: _timestampRepository,
       resizeWidth: thumbnailResizeWidth,
@@ -1391,6 +1392,7 @@ class _GalleryStatusBar extends StatelessWidget {
 
 class _MediaThumbnailTile extends StatefulWidget {
   final MediaFile mediaFile;
+  final bool hasPairedJpeg;
   final ViewerSettings settings;
   final _TimestampRepository timestampRepository;
   final int resizeWidth;
@@ -1401,6 +1403,7 @@ class _MediaThumbnailTile extends StatefulWidget {
   const _MediaThumbnailTile({
     super.key,
     required this.mediaFile,
+    required this.hasPairedJpeg,
     required this.settings,
     required this.timestampRepository,
     required this.resizeWidth,
@@ -1640,7 +1643,9 @@ class _MediaThumbnailTileState extends State<_MediaThumbnailTile> {
                         borderRadius: BorderRadius.circular(3),
                       ),
                       child: Text(
-                        AppLocalizations.of(context)!.rawShortLabel,
+                        widget.hasPairedJpeg
+                            ? AppLocalizations.of(context)!.rawJpegShortLabel
+                            : AppLocalizations.of(context)!.rawShortLabel,
                         style: const TextStyle(
                           color: Color(0xFFE5E9EC),
                           fontSize: 9,

@@ -425,6 +425,12 @@ abstract class AppLocalizations {
   /// **'RAW'**
   String get rawShortLabel;
 
+  /// No description provided for @rawJpegShortLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'R&J'**
+  String get rawJpegShortLabel;
+
   /// No description provided for @imageShortLabel.
   ///
   /// In en, this message translates to:
