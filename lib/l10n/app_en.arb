@@ -89,6 +89,14 @@
     }
   },
   "mediaFilterTooltip": "Filter image type",
+  "mediaFilterAdaptive": "Adaptive ({count})",
+  "@mediaFilterAdaptive": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "mediaFilterAll": "All ({count})",
   "@mediaFilterAll": {
     "placeholders": {

@@ -180,6 +180,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mediaFilterTooltip => 'Filter image type';
 
   @override
+  String mediaFilterAdaptive(int count) {
+    return 'Adaptive ($count)';
+  }
+
+  @override
   String mediaFilterAll(int count) {
     return 'All ($count)';
   }

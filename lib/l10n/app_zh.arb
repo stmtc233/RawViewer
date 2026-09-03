@@ -89,6 +89,14 @@
     }
   },
   "mediaFilterTooltip": "筛选图片类型",
+  "mediaFilterAdaptive": "自适应（{count}）",
+  "@mediaFilterAdaptive": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "mediaFilterAll": "全部（{count}）",
   "@mediaFilterAll": {
     "placeholders": {

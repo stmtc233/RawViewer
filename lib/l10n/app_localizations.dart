@@ -383,6 +383,12 @@ abstract class AppLocalizations {
   /// **'All ({count})'**
   String mediaFilterAll(int count);
 
+  /// No description provided for @mediaFilterAdaptive.
+  ///
+  /// In en, this message translates to:
+  /// **'Adaptive ({count})'**
+  String mediaFilterAdaptive(int count);
+
   /// No description provided for @mediaFilterRaw.
   ///
   /// In en, this message translates to:

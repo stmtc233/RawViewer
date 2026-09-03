@@ -19,6 +19,7 @@ import 'l10n/app_localizations.dart';
 import 'image_store.dart';
 import 'justified_grid_layout.dart';
 import 'media_filter.dart';
+import 'media_group.dart';
 import 'native_lib.dart';
 import 'settings_page.dart';
 import 'lru_cache.dart';
@@ -50,23 +51,6 @@ const List<String> _supportedExtensions = [
   ..._rawExtensions,
   ..._bitmapExtensions,
 ];
-
-// File classification only.
-//
-// The displayed image source has one more layer of meaning:
-// - bitmap files display the file itself
-// - RAW files first display a fast preview layer
-// - RAW files may then display a decoded RAW layer
-enum _MediaKind { raw, bitmap }
-
-class _MediaFile {
-  final String path;
-  final _MediaKind kind;
-
-  const _MediaFile({required this.path, required this.kind});
-
-  bool get isRaw => kind == _MediaKind.raw;
-}
 
 final DateFormat _timestampFormatter = DateFormat('yyyy-MM-dd HH:mm:ss');
 
@@ -358,14 +342,14 @@ class _HomePageState extends State<HomePage> {
   String? _currentDirectoryPath;
   int? _openedDirectoryCount;
   String? _lastSyncedWindowsContextMenuText;
-  List<_MediaFile> _files = [];
+  List<MediaFile> _files = [];
   _OpenedSourceKind _openedSourceKind = _OpenedSourceKind.none;
   // Use LRU Cache to limit memory usage.
   late LruCache<String, ViewerImage> _imageCache;
   late ImageStore _imageStore;
   final _TimestampRepository _timestampRepository = _TimestampRepository();
   ViewerSettings _settings = const ViewerSettings();
-  MediaFilter _mediaFilter = MediaFilter.all;
+  MediaFilter _mediaFilter = defaultMediaFilter;
   int _crossAxisCount = 4;
   bool _hasUserConfiguredGridAspectRatio = false;
   final Map<String, double> _mediaAspectRatios = <String, double>{};
@@ -623,7 +607,7 @@ class _HomePageState extends State<HomePage> {
     }
 
     final directories = <String>[];
-    final files = <_MediaFile>[];
+    final files = <MediaFile>[];
 
     for (final openPath in normalizedPaths) {
       final entityType = FileSystemEntity.typeSync(openPath);
@@ -669,7 +653,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _applyOpenedFiles({
-    required List<_MediaFile> files,
+    required List<MediaFile> files,
     required _OpenedSourceKind sourceKind,
     required bool clearCache,
     String? openedDirectoryPath,
@@ -694,39 +678,39 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  List<_MediaFile> _listRawFilesInDirectory(String directoryPath) {
+  List<MediaFile> _listRawFilesInDirectory(String directoryPath) {
     final files = Directory(directoryPath)
         .listSync()
         .whereType<File>()
         .map((file) => _mediaFileFromPath(file.path))
-        .whereType<_MediaFile>()
+        .whereType<MediaFile>()
         .toList()
       ..sort((a, b) => a.path.compareTo(b.path));
     return files;
   }
 
-  List<_MediaFile> _deduplicateMediaFiles(Iterable<_MediaFile> files) {
+  List<MediaFile> _deduplicateMediaFiles(Iterable<MediaFile> files) {
     final seen = <String>{};
-    final result = <_MediaFile>[];
+    final result = <MediaFile>[];
 
     for (final mediaFile in files) {
       final normalizedPath = path.normalize(path.absolute(mediaFile.path));
       if (seen.add(normalizedPath)) {
-        result.add(_MediaFile(path: normalizedPath, kind: mediaFile.kind));
+        result.add(MediaFile(path: normalizedPath, kind: mediaFile.kind));
       }
     }
 
     return result;
   }
 
-  _MediaFile? _mediaFileFromPath(String filePath) {
+  MediaFile? _mediaFileFromPath(String filePath) {
     final normalizedPath = path.normalize(path.absolute(filePath));
     final extension = path.extension(normalizedPath).toLowerCase();
     if (_rawExtensions.contains(extension)) {
-      return _MediaFile(path: normalizedPath, kind: _MediaKind.raw);
+      return MediaFile(path: normalizedPath, kind: MediaKind.raw);
     }
     if (_bitmapExtensions.contains(extension)) {
-      return _MediaFile(path: normalizedPath, kind: _MediaKind.bitmap);
+      return MediaFile(path: normalizedPath, kind: MediaKind.bitmap);
     }
     return null;
   }
@@ -780,11 +764,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildThumbnailTile(
-    List<_MediaFile> files,
+    List<MediaGroup> mediaGroups,
     int index,
     int thumbnailResizeWidth,
   ) {
-    final mediaFile = files[index];
+    final mediaGroup = mediaGroups[index];
+    final mediaFile = mediaGroup.primary;
     final filePath = mediaFile.path;
     return _MediaThumbnailTile(
       key: ValueKey(filePath),
@@ -805,7 +790,7 @@ class _HomePageState extends State<HomePage> {
                 child: FadeTransition(
                   opacity: animation,
                   child: _ImagePreviewPage(
-                    files: files,
+                    mediaGroups: mediaGroups,
                     initialIndex: index,
                     thumbnailResizeWidth: thumbnailResizeWidth,
                     imageStore: _imageStore,
@@ -825,7 +810,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildAdaptiveGrid(
-    List<_MediaFile> files,
+    List<MediaGroup> mediaGroups,
     int thumbnailResizeWidth,
   ) {
     const gridPadding = EdgeInsets.all(12);
@@ -840,10 +825,10 @@ class _HomePageState extends State<HomePage> {
               (width - gridSpacing * (_crossAxisCount - 1)) / _crossAxisCount;
           final targetRowHeight = nominalCellWidth / (3 / 2);
           final rows = buildJustifiedGridRows(
-            aspectRatios: files
+            aspectRatios: mediaGroups
                 .map(
-                  (file) =>
-                      _mediaAspectRatios[file.path] ??
+                  (mediaGroup) =>
+                      _mediaAspectRatios[mediaGroup.primary.path] ??
                       GridAspectRatio.adaptive.aspectRatio,
                 )
                 .toList(growable: false),
@@ -874,7 +859,7 @@ class _HomePageState extends State<HomePage> {
                           child: SizedBox(
                             width: row.widths[itemIndex],
                             child: _buildThumbnailTile(
-                              files,
+                              mediaGroups,
                               row.indices[itemIndex],
                               thumbnailResizeWidth,
                             ),
@@ -897,9 +882,20 @@ class _HomePageState extends State<HomePage> {
     final l10n = AppLocalizations.of(context)!;
     final rawCount = _files.where((file) => file.isRaw).length;
     final imageCount = _files.length - rawCount;
-    final filteredFiles = _files
-        .where((file) => _mediaFilter.includes(isRaw: file.isRaw))
-        .toList(growable: false);
+    final adaptiveMediaGroups = buildAdaptiveMediaGroups(_files);
+    final visibleMediaGroups = switch (_mediaFilter) {
+      MediaFilter.adaptive => adaptiveMediaGroups,
+      MediaFilter.all =>
+        _files.map((file) => MediaGroup(primary: file)).toList(growable: false),
+      MediaFilter.raw => _files
+          .where((file) => file.isRaw)
+          .map((file) => MediaGroup(primary: file))
+          .toList(growable: false),
+      MediaFilter.images => _files
+          .where((file) => !file.isRaw)
+          .map((file) => MediaGroup(primary: file))
+          .toList(growable: false),
+    };
 
     // Calculate dynamic thumbnail resize width based on grid cell size, then
     // snap it to a bucket. Without bucketing, dragging the window by one pixel
@@ -931,6 +927,7 @@ class _HomePageState extends State<HomePage> {
               smallerThumbnailsTooltip: l10n.smallerThumbnailsTooltip,
               gridColumnsTooltip: l10n.gridColumnsTooltip(_crossAxisCount),
               selectedMediaFilter: _mediaFilter,
+              adaptiveCount: adaptiveMediaGroups.length,
               rawCount: rawCount,
               imageCount: imageCount,
               onMediaFilterSelected: (filter) {
@@ -956,11 +953,11 @@ class _HomePageState extends State<HomePage> {
                         onOpenFiles: _openFiles,
                         onOpenFolder: _openFolder,
                       )
-                    : filteredFiles.isEmpty
+                    : visibleMediaGroups.isEmpty
                         ? Center(child: Text(l10n.mediaFilterEmptyState))
                         : _settings.gridAspectRatio.isAdaptive
                             ? _buildAdaptiveGrid(
-                                filteredFiles,
+                                visibleMediaGroups,
                                 thumbnailResizeWidth,
                               )
                             : GridView.builder(
@@ -976,10 +973,10 @@ class _HomePageState extends State<HomePage> {
                                   childAspectRatio:
                                       _settings.gridAspectRatio.aspectRatio,
                                 ),
-                                itemCount: filteredFiles.length,
+                                itemCount: visibleMediaGroups.length,
                                 itemBuilder: (context, index) {
                                   return _buildThumbnailTile(
-                                    filteredFiles,
+                                    visibleMediaGroups,
                                     index,
                                     thumbnailResizeWidth,
                                   );
@@ -988,7 +985,7 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             _GalleryStatusBar(
-              itemCountLabel: l10n.galleryItemCount(filteredFiles.length),
+              itemCountLabel: l10n.galleryItemCount(visibleMediaGroups.length),
               gridColumnsLabel: l10n.gridColumnsTooltip(_crossAxisCount),
             ),
           ],
@@ -1038,6 +1035,7 @@ class _DesktopCommandBar extends StatelessWidget {
   final String smallerThumbnailsTooltip;
   final String gridColumnsTooltip;
   final MediaFilter selectedMediaFilter;
+  final int adaptiveCount;
   final int rawCount;
   final int imageCount;
   final ValueChanged<MediaFilter> onMediaFilterSelected;
@@ -1057,6 +1055,7 @@ class _DesktopCommandBar extends StatelessWidget {
     required this.smallerThumbnailsTooltip,
     required this.gridColumnsTooltip,
     required this.selectedMediaFilter,
+    required this.adaptiveCount,
     required this.rawCount,
     required this.imageCount,
     required this.onMediaFilterSelected,
@@ -1132,6 +1131,7 @@ class _DesktopCommandBar extends StatelessWidget {
               ],
               MediaFilterButton(
                 selectedFilter: selectedMediaFilter,
+                adaptiveCount: adaptiveCount,
                 rawCount: rawCount,
                 imageCount: imageCount,
                 onSelected: onMediaFilterSelected,
@@ -1290,7 +1290,7 @@ class _GalleryStatusBar extends StatelessWidget {
 }
 
 class _MediaThumbnailTile extends StatefulWidget {
-  final _MediaFile mediaFile;
+  final MediaFile mediaFile;
   final ViewerSettings settings;
   final _TimestampRepository timestampRepository;
   final int resizeWidth;
@@ -1610,7 +1610,7 @@ class _MediaThumbnailTileState extends State<_MediaThumbnailTile> {
 }
 
 class _ImagePreviewPage extends StatefulWidget {
-  final List<_MediaFile> files;
+  final List<MediaGroup> mediaGroups;
   final int initialIndex;
   final int thumbnailResizeWidth;
   final ImageStore imageStore;
@@ -1619,7 +1619,7 @@ class _ImagePreviewPage extends StatefulWidget {
   final VoidCallback onClose;
 
   const _ImagePreviewPage({
-    required this.files,
+    required this.mediaGroups,
     required this.initialIndex,
     required this.thumbnailResizeWidth,
     required this.imageStore,
@@ -1651,8 +1651,9 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
     _currentIndex = widget.initialIndex;
     _targetPage = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
-    _currentTimestampFuture =
-        widget.timestampRepository.load(widget.files[_currentIndex].path);
+    _currentTimestampFuture = widget.timestampRepository.load(
+      widget.mediaGroups[_currentIndex].primary.path,
+    );
   }
 
   @override
@@ -1666,8 +1667,9 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
   void _onPageChanged(int index) {
     setState(() {
       _currentIndex = index;
-      _currentTimestampFuture =
-          widget.timestampRepository.load(widget.files[_currentIndex].path);
+      _currentTimestampFuture = widget.timestampRepository.load(
+        widget.mediaGroups[_currentIndex].primary.path,
+      );
       if ((_targetPage - index).abs() <= 1) {
         _targetPage = index;
       }
@@ -1686,9 +1688,9 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
   }
 
   void _preloadIndex(int index) {
-    if (index < 0 || index >= widget.files.length) return;
+    if (index < 0 || index >= widget.mediaGroups.length) return;
 
-    final mediaFile = widget.files[index];
+    final mediaFile = widget.mediaGroups[index].primary;
     final String filePath = mediaFile.path;
 
     if (mediaFile.isRaw) {
@@ -1715,7 +1717,9 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
   void _switchPage(int delta) {
     int newTarget = _targetPage + delta;
     if (newTarget < 0) newTarget = 0;
-    if (newTarget >= widget.files.length) newTarget = widget.files.length - 1;
+    if (newTarget >= widget.mediaGroups.length) {
+      newTarget = widget.mediaGroups.length - 1;
+    }
 
     if (newTarget == _targetPage && newTarget == _currentIndex) {
       return;
@@ -1767,7 +1771,7 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
 
   @override
   Widget build(BuildContext context) {
-    final currentFilePath = widget.files[_currentIndex].path;
+    final currentFilePath = widget.mediaGroups[_currentIndex].primary.path;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -1779,14 +1783,14 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
                 : const FastPageScrollPhysics(),
             allowImplicitScrolling: true,
             padEnds: true,
-            itemCount: widget.files.length,
+            itemCount: widget.mediaGroups.length,
             onPageChanged: _onPageChanged,
             itemBuilder: (context, index) {
-              final mediaFile = widget.files[index];
-              final filePath = mediaFile.path;
+              final mediaGroup = widget.mediaGroups[index];
+              final filePath = mediaGroup.primary.path;
               return _SingleImagePreview(
                 key: ValueKey(filePath),
-                mediaFile: mediaFile,
+                mediaGroup: mediaGroup,
                 thumbnailResizeWidth: widget.thumbnailResizeWidth,
                 imageStore: widget.imageStore,
                 settings: widget.settings,
@@ -1844,8 +1848,10 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
   }
 }
 
+enum _PreviewSource { fastPreview, decodedRaw, jpeg }
+
 class _SingleImagePreview extends StatefulWidget {
-  final _MediaFile mediaFile;
+  final MediaGroup mediaGroup;
   final int thumbnailResizeWidth;
   final ImageStore imageStore;
   final ViewerSettings settings;
@@ -1856,7 +1862,7 @@ class _SingleImagePreview extends StatefulWidget {
 
   const _SingleImagePreview({
     super.key,
-    required this.mediaFile,
+    required this.mediaGroup,
     required this.thumbnailResizeWidth,
     required this.imageStore,
     required this.settings,
@@ -1866,8 +1872,9 @@ class _SingleImagePreview extends StatefulWidget {
     this.onScaleStateChanged,
   });
 
-  String get filePath => mediaFile.path;
-  bool get isRaw => mediaFile.isRaw;
+  String get filePath => mediaGroup.primary.path;
+  bool get isRaw => mediaGroup.isRaw;
+  bool get hasPairedJpeg => mediaGroup.hasPairedJpeg;
 
   @override
   State<_SingleImagePreview> createState() => _SingleImagePreviewState();
@@ -1877,6 +1884,7 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
   ViewerImage? _fastPreviewImage;
   ViewerImage? _decodedRawPreviewImage;
   bool _isLoadingDecodedRawPreview = false;
+  bool _isShowingPairedJpeg = false;
   late bool _preferFastPreviewForRaw;
   late int _rawDecodeHalfSize;
   final TransformationController _transformationController =
@@ -2052,22 +2060,38 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
     });
   }
 
-  void _toggleRawPreviewSource() {
-    if (!widget.isRaw) return;
+  void _selectPreviewSource(_PreviewSource source) {
+    if (!widget.isRaw) {
+      return;
+    }
 
-    final nextPreferFastPreviewForRaw = !_preferFastPreviewForRaw;
-    if (nextPreferFastPreviewForRaw && _fastPreviewImage != null) {
+    if (source == _PreviewSource.jpeg) {
+      if (!widget.hasPairedJpeg) {
+        return;
+      }
+      _decodedRawTask?.cancel();
+      _decodedRawTask = null;
+      setState(() {
+        _isShowingPairedJpeg = true;
+        _isLoadingDecodedRawPreview = false;
+      });
+      return;
+    }
+
+    final preferFastPreview = source == _PreviewSource.fastPreview;
+    if (preferFastPreview && _fastPreviewImage != null) {
       // Switching to the fast preview: abandon the full decode in flight.
       _decodedRawTask?.cancel();
       _decodedRawTask = null;
     }
     setState(() {
-      _preferFastPreviewForRaw = nextPreferFastPreviewForRaw;
-      if (_preferFastPreviewForRaw) {
+      _isShowingPairedJpeg = false;
+      _preferFastPreviewForRaw = preferFastPreview;
+      if (preferFastPreview) {
         _isLoadingDecodedRawPreview = false;
       }
     });
-    if (!_preferFastPreviewForRaw && _decodedRawPreviewImage == null) {
+    if (!preferFastPreview && _decodedRawPreviewImage == null) {
       unawaited(_loadRawDisplayLayers());
     }
   }
@@ -2171,35 +2195,55 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
               maxScale: 5.0,
               panEnabled: _panEnabled,
               scaleEnabled: _scaleEnabled,
-              child: widget.isRaw
-                  ? _buildRawPreview()
-                  : Stack(
-                      fit: StackFit.expand,
-                      children: [_buildBitmapPreview()],
-                    ),
+              child: _isShowingPairedJpeg
+                  ? _buildBitmapPreview(widget.mediaGroup.pairedJpeg!.path)
+                  : widget.isRaw
+                      ? _buildRawPreview()
+                      : Stack(
+                          fit: StackFit.expand,
+                          children: [_buildBitmapPreview(widget.filePath)],
+                        ),
             ),
           ),
         ),
-        // Overlay controls
-        Positioned(
-          top: kToolbarHeight + 20, // Below the main AppBar
-          right: 10,
-          child: TextButton(
-            onPressed: _toggleRawPreviewSource,
-            style: TextButton.styleFrom(backgroundColor: Colors.black54),
-            child: Text(
-              widget.isRaw
-                  ? (_preferFastPreviewForRaw
-                      ? l10n.fastPreviewShortLabel
-                      : l10n.rawShortLabel)
-                  : l10n.imageShortLabel,
-              style: const TextStyle(
+        if (widget.isRaw)
+          Positioned(
+            top: kToolbarHeight + 20, // Below the main AppBar
+            right: 10,
+            child: PopupMenuButton<_PreviewSource>(
+              tooltip: l10n.rawPreviewSourceSectionTitle,
+              initialValue: _isShowingPairedJpeg
+                  ? _PreviewSource.jpeg
+                  : _preferFastPreviewForRaw
+                      ? _PreviewSource.fastPreview
+                      : _PreviewSource.decodedRaw,
+              onSelected: _selectPreviewSource,
+              icon: Icon(
+                _isShowingPairedJpeg
+                    ? Icons.image_outlined
+                    : Icons.camera_alt_outlined,
                 color: Colors.white,
-                fontWeight: FontWeight.bold,
               ),
+              itemBuilder: (context) => [
+                CheckedPopupMenuItem(
+                  value: _PreviewSource.fastPreview,
+                  checked: !_isShowingPairedJpeg && _preferFastPreviewForRaw,
+                  child: Text(l10n.fastPreviewShortLabel),
+                ),
+                CheckedPopupMenuItem(
+                  value: _PreviewSource.decodedRaw,
+                  checked: !_isShowingPairedJpeg && !_preferFastPreviewForRaw,
+                  child: Text(l10n.rawShortLabel),
+                ),
+                if (widget.hasPairedJpeg)
+                  CheckedPopupMenuItem(
+                    value: _PreviewSource.jpeg,
+                    checked: _isShowingPairedJpeg,
+                    child: const Text('JPG'),
+                  ),
+              ],
             ),
           ),
-        ),
       ],
     );
   }
@@ -2247,8 +2291,8 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
     );
   }
 
-  Widget _buildBitmapPreview() {
-    final file = File(widget.filePath);
+  Widget _buildBitmapPreview(String filePath) {
+    final file = File(filePath);
 
     // Decoding a bitmap at full resolution costs width*height*4 bytes no matter
     // how small the window is — an 8000x6000 JPEG is ~192 MB. Cap the decode at

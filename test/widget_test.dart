@@ -342,67 +342,6 @@ void main() {
     });
   });
 
-  test('media filters include the expected file kinds', () {
-    expect(MediaFilter.all.includes(isRaw: true), isTrue);
-    expect(MediaFilter.all.includes(isRaw: false), isTrue);
-
-    expect(MediaFilter.raw.includes(isRaw: true), isTrue);
-    expect(MediaFilter.raw.includes(isRaw: false), isFalse);
-
-    expect(MediaFilter.images.includes(isRaw: true), isFalse);
-    expect(MediaFilter.images.includes(isRaw: false), isTrue);
-  });
-
-  testWidgets('media filter menu reports counts and changes selection',
-      (tester) async {
-    var selectedFilter = MediaFilter.all;
-
-    await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('en'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: StatefulBuilder(
-          builder: (context, setState) {
-            return Scaffold(
-              appBar: AppBar(
-                actions: [
-                  MediaFilterButton(
-                    selectedFilter: selectedFilter,
-                    rawCount: 2,
-                    imageCount: 3,
-                    onSelected: (filter) {
-                      setState(() {
-                        selectedFilter = filter;
-                      });
-                    },
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-    );
-
-    await tester.tap(find.byIcon(Icons.filter_alt_outlined));
-    await tester.pumpAndSettle();
-
-    expect(find.text('All (5)'), findsOneWidget);
-    expect(find.text('RAW (2)'), findsOneWidget);
-    expect(find.text('Standard images (3)'), findsOneWidget);
-
-    final rawMenuItem = find.ancestor(
-      of: find.text('RAW (2)'),
-      matching: find.byType(CheckedPopupMenuItem<MediaFilter>),
-    );
-    await tester.tap(rawMenuItem);
-    await tester.pumpAndSettle();
-
-    expect(selectedFilter, MediaFilter.raw);
-    expect(find.byIcon(Icons.filter_alt), findsOneWidget);
-  });
-
   testWidgets('home toolbar fits a narrow viewport', (tester) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(360, 800);

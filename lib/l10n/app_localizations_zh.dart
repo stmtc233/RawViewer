@@ -174,6 +174,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mediaFilterTooltip => '筛选图片类型';
 
   @override
+  String mediaFilterAdaptive(int count) {
+    return '自适应（$count）';
+  }
+
+  @override
   String mediaFilterAll(int count) {
     return '全部（$count）';
   }

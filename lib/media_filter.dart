@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'l10n/app_localizations.dart';
 
 enum MediaFilter {
+  adaptive,
   all,
   raw,
   images;
 
   bool includes({required bool isRaw}) {
     return switch (this) {
+      MediaFilter.adaptive => true,
       MediaFilter.all => true,
       MediaFilter.raw => isRaw,
       MediaFilter.images => !isRaw,
@@ -16,8 +18,11 @@ enum MediaFilter {
   }
 }
 
+const defaultMediaFilter = MediaFilter.adaptive;
+
 class MediaFilterButton extends StatelessWidget {
   final MediaFilter selectedFilter;
+  final int adaptiveCount;
   final int rawCount;
   final int imageCount;
   final ValueChanged<MediaFilter> onSelected;
@@ -25,6 +30,7 @@ class MediaFilterButton extends StatelessWidget {
   const MediaFilterButton({
     super.key,
     required this.selectedFilter,
+    required this.adaptiveCount,
     required this.rawCount,
     required this.imageCount,
     required this.onSelected,
@@ -46,6 +52,11 @@ class MediaFilterButton extends StatelessWidget {
       ),
       onSelected: onSelected,
       itemBuilder: (context) => [
+        CheckedPopupMenuItem(
+          value: MediaFilter.adaptive,
+          checked: selectedFilter == MediaFilter.adaptive,
+          child: Text(l10n.mediaFilterAdaptive(adaptiveCount)),
+        ),
         CheckedPopupMenuItem(
           value: MediaFilter.all,
           checked: selectedFilter == MediaFilter.all,
