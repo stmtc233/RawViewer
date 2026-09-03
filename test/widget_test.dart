@@ -95,11 +95,8 @@ void main() {
       expect(updatedSettings!.gridAspectRatio, GridAspectRatio.ratio16x9);
 
       final adaptiveGrid = find.byKey(const ValueKey('grid-aspect-adaptive'));
-      await tester.scrollUntilVisible(
-        adaptiveGrid,
-        300,
-        scrollable: settingsList,
-      );
+      await tester.ensureVisible(adaptiveGrid);
+      await tester.pumpAndSettle();
       await tester.tap(adaptiveGrid);
       await tester.pump();
       expect(updatedSettings!.gridAspectRatio, GridAspectRatio.adaptive);
