@@ -41,6 +41,9 @@ flutter build windows --release
 
 - Follow the existing Dart and Flutter patterns before introducing new
   abstractions or dependencies.
+- Prefer the newer compatible version when resolving dependency version
+  conflicts or compatibility issues. Keep dependencies and toolchain versions
+  current where practical, while preserving supported-platform compatibility.
 - Keep UI work responsive by leaving RAW decoding and other expensive work off
   the main isolate.
 - Update both `lib/l10n/app_en.arb` and `lib/l10n/app_zh.arb` for user-facing
@@ -50,5 +53,20 @@ flutter build windows --release
   upstream update or patch.
 - Preserve behavior across Windows, macOS, Linux, Android, and iOS. Guard
   platform-specific code and validate the affected platform integration.
+- Treat C and C++ native changes as cross-platform changes: update every
+  corresponding platform implementation together, unless a platform has no
+  equivalent integration. Document and confirm any intentional exception.
 - Add focused tests for behavior changes and run `flutter analyze` and
   `flutter test` before committing.
+
+## Completion and Collaboration
+
+- Do not consider a task complete until the applicable checks have passed.
+  At minimum, run `flutter analyze` and `flutter test` for Dart or Flutter
+  changes; also run relevant platform builds for native or platform changes
+  when the required toolchain is available.
+- When a requirement, tradeoff, or intended behavior needs confirmation, ask
+  the user before choosing an implementation. Do not make that decision
+  unilaterally.
+- When resolving multiple independent problems, keep their changes and Git
+  commits separate so each commit addresses one coherent problem.
