@@ -542,7 +542,7 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
+    final selectedDirectory = await FilePicker.getDirectoryPath();
 
     if (selectedDirectory != null) {
       await _handleIncomingPaths([selectedDirectory]);
@@ -550,16 +550,18 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _openFiles() async {
-    final result = await FilePicker.platform.pickFiles(
-      allowMultiple: true,
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: _supportedExtensions
           .map((extension) => extension.replaceFirst('.', ''))
           .toList(),
     );
 
-    final selectedFiles = result?.paths.whereType<String>().toList();
-    if (selectedFiles == null || selectedFiles.isEmpty) {
+    final selectedFiles = result
+        .map((file) => file.path)
+        .whereType<String>()
+        .toList();
+    if (selectedFiles.isEmpty) {
       return;
     }
 
