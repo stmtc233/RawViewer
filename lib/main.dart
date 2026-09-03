@@ -557,10 +557,8 @@ class _HomePageState extends State<HomePage> {
           .toList(),
     );
 
-    final selectedFiles = result
-        .map((file) => file.path)
-        .whereType<String>()
-        .toList();
+    final selectedFiles =
+        result.map((file) => file.path).whereType<String>().toList();
     if (selectedFiles.isEmpty) {
       return;
     }
@@ -815,7 +813,7 @@ class _HomePageState extends State<HomePage> {
     List<MediaGroup> mediaGroups,
     int thumbnailResizeWidth,
   ) {
-    const gridPadding = EdgeInsets.all(12);
+    const gridPadding = EdgeInsets.fromLTRB(12, 12, 12, 88);
     const gridSpacing = 10.0;
 
     return Padding(
@@ -846,24 +844,29 @@ class _HomePageState extends State<HomePage> {
                 itemCount: rows.length,
                 itemBuilder: (context, rowIndex) {
                   final row = rows[rowIndex];
-                  return SizedBox(
-                    height: row.height,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: List<Widget>.generate(
-                        row.indices.length,
-                        (itemIndex) => Padding(
-                          padding: EdgeInsets.only(
-                            right: itemIndex == row.indices.length - 1
-                                ? 0
-                                : gridSpacing,
-                          ),
-                          child: SizedBox(
-                            width: row.widths[itemIndex],
-                            child: _buildThumbnailTile(
-                              mediaGroups,
-                              row.indices[itemIndex],
-                              thumbnailResizeWidth,
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      bottom: rowIndex == rows.length - 1 ? 0 : gridSpacing,
+                    ),
+                    child: SizedBox(
+                      height: row.height,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: List<Widget>.generate(
+                          row.indices.length,
+                          (itemIndex) => Padding(
+                            padding: EdgeInsets.only(
+                              right: itemIndex == row.indices.length - 1
+                                  ? 0
+                                  : gridSpacing,
+                            ),
+                            child: SizedBox(
+                              width: row.widths[itemIndex],
+                              child: _buildThumbnailTile(
+                                mediaGroups,
+                                row.indices[itemIndex],
+                                thumbnailResizeWidth,
+                              ),
                             ),
                           ),
                         ),
@@ -921,13 +924,9 @@ class _HomePageState extends State<HomePage> {
           children: [
             _DesktopCommandBar(
               title: _currentTitle(l10n),
-              crossAxisCount: _crossAxisCount,
               openFolderLabel: l10n.openFolder,
               openFilesLabel: l10n.openFiles,
               settingsTooltip: l10n.settingsTooltip,
-              largerThumbnailsTooltip: l10n.largerThumbnailsTooltip,
-              smallerThumbnailsTooltip: l10n.smallerThumbnailsTooltip,
-              gridColumnsTooltip: l10n.gridColumnsTooltip(_crossAxisCount),
               selectedMediaFilter: _mediaFilter,
               adaptiveCount: adaptiveMediaGroups.length,
               rawCount: rawCount,
@@ -937,53 +936,72 @@ class _HomePageState extends State<HomePage> {
                   _mediaFilter = filter;
                 });
               },
-              onDecreaseThumbnailSize:
-                  _crossAxisCount > 1 ? () => _updateCrossAxisCount(-1) : null,
-              onIncreaseThumbnailSize:
-                  _crossAxisCount < 10 ? () => _updateCrossAxisCount(1) : null,
               onOpenSettings: _showSettings,
               onOpenFiles: _openFiles,
               onOpenFolder: _openFolder,
             ),
             Expanded(
-              child: ExcludeSemantics(
-                child: _files.isEmpty
-                    ? _EmptyGallery(
-                        message: l10n.homeEmptyState,
-                        openFolderLabel: l10n.openFolder,
-                        openFilesLabel: l10n.openFiles,
-                        onOpenFiles: _openFiles,
-                        onOpenFolder: _openFolder,
-                      )
-                    : visibleMediaGroups.isEmpty
-                        ? Center(child: Text(l10n.mediaFilterEmptyState))
-                        : _settings.gridAspectRatio.isAdaptive
-                            ? _buildAdaptiveGrid(
-                                visibleMediaGroups,
-                                thumbnailResizeWidth,
-                              )
-                            : GridView.builder(
-                                addAutomaticKeepAlives: false,
-                                scrollCacheExtent:
-                                    const ScrollCacheExtent.pixels(200),
-                                padding: const EdgeInsets.all(12),
-                                gridDelegate:
-                                    SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: _crossAxisCount,
-                                  crossAxisSpacing: 10,
-                                  mainAxisSpacing: 10,
-                                  childAspectRatio:
-                                      _settings.gridAspectRatio.aspectRatio,
-                                ),
-                                itemCount: visibleMediaGroups.length,
-                                itemBuilder: (context, index) {
-                                  return _buildThumbnailTile(
+              child: Stack(
+                children: [
+                  ExcludeSemantics(
+                    child: _files.isEmpty
+                        ? _EmptyGallery(
+                            message: l10n.homeEmptyState,
+                            openFolderLabel: l10n.openFolder,
+                            openFilesLabel: l10n.openFiles,
+                            onOpenFiles: _openFiles,
+                            onOpenFolder: _openFolder,
+                          )
+                        : visibleMediaGroups.isEmpty
+                            ? Center(child: Text(l10n.mediaFilterEmptyState))
+                            : _settings.gridAspectRatio.isAdaptive
+                                ? _buildAdaptiveGrid(
                                     visibleMediaGroups,
-                                    index,
                                     thumbnailResizeWidth,
-                                  );
-                                },
-                              ),
+                                  )
+                                : GridView.builder(
+                                    addAutomaticKeepAlives: false,
+                                    scrollCacheExtent:
+                                        const ScrollCacheExtent.pixels(200),
+                                    padding: const EdgeInsets.fromLTRB(
+                                      12,
+                                      12,
+                                      12,
+                                      88,
+                                    ),
+                                    gridDelegate:
+                                        SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: _crossAxisCount,
+                                      crossAxisSpacing: 10,
+                                      mainAxisSpacing: 10,
+                                      childAspectRatio:
+                                          _settings.gridAspectRatio.aspectRatio,
+                                    ),
+                                    itemCount: visibleMediaGroups.length,
+                                    itemBuilder: (context, index) {
+                                      return _buildThumbnailTile(
+                                        visibleMediaGroups,
+                                        index,
+                                        thumbnailResizeWidth,
+                                      );
+                                    },
+                                  ),
+                  ),
+                  Positioned(
+                    right: 12,
+                    bottom: 12,
+                    child: _ThumbnailSizeControls(
+                      largerThumbnailsTooltip: l10n.largerThumbnailsTooltip,
+                      smallerThumbnailsTooltip: l10n.smallerThumbnailsTooltip,
+                      onDecreaseThumbnailSize: _crossAxisCount > 1
+                          ? () => _updateCrossAxisCount(-1)
+                          : null,
+                      onIncreaseThumbnailSize: _crossAxisCount < 10
+                          ? () => _updateCrossAxisCount(1)
+                          : null,
+                    ),
+                  ),
+                ],
               ),
             ),
             _GalleryStatusBar(
@@ -1029,40 +1047,28 @@ class _HomePageState extends State<HomePage> {
 
 class _DesktopCommandBar extends StatelessWidget {
   final String title;
-  final int crossAxisCount;
   final String openFolderLabel;
   final String openFilesLabel;
   final String settingsTooltip;
-  final String largerThumbnailsTooltip;
-  final String smallerThumbnailsTooltip;
-  final String gridColumnsTooltip;
   final MediaFilter selectedMediaFilter;
   final int adaptiveCount;
   final int rawCount;
   final int imageCount;
   final ValueChanged<MediaFilter> onMediaFilterSelected;
-  final VoidCallback? onDecreaseThumbnailSize;
-  final VoidCallback? onIncreaseThumbnailSize;
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenFiles;
   final VoidCallback onOpenFolder;
 
   const _DesktopCommandBar({
     required this.title,
-    required this.crossAxisCount,
     required this.openFolderLabel,
     required this.openFilesLabel,
     required this.settingsTooltip,
-    required this.largerThumbnailsTooltip,
-    required this.smallerThumbnailsTooltip,
-    required this.gridColumnsTooltip,
     required this.selectedMediaFilter,
     required this.adaptiveCount,
     required this.rawCount,
     required this.imageCount,
     required this.onMediaFilterSelected,
-    required this.onDecreaseThumbnailSize,
-    required this.onIncreaseThumbnailSize,
     required this.onOpenSettings,
     required this.onOpenFiles,
     required this.onOpenFolder,
@@ -1116,38 +1122,12 @@ class _DesktopCommandBar extends StatelessWidget {
                 )
               else
                 const Spacer(),
-              if (!compact) ...[
-                Tooltip(
-                  message: gridColumnsTooltip,
-                  child: const SizedBox(
-                    width: 34,
-                    height: 34,
-                    child: Icon(
-                      Icons.grid_view_outlined,
-                      color: RawViewerColors.mutedText,
-                      size: 19,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-              ],
               MediaFilterButton(
                 selectedFilter: selectedMediaFilter,
                 adaptiveCount: adaptiveCount,
                 rawCount: rawCount,
                 imageCount: imageCount,
                 onSelected: onMediaFilterSelected,
-              ),
-              const SizedBox(width: 4),
-              DesktopIconButton(
-                icon: Icons.zoom_in,
-                tooltip: largerThumbnailsTooltip,
-                onPressed: onDecreaseThumbnailSize,
-              ),
-              DesktopIconButton(
-                icon: Icons.zoom_out,
-                tooltip: smallerThumbnailsTooltip,
-                onPressed: onIncreaseThumbnailSize,
               ),
               const SizedBox(width: 8),
               if (!compact)
@@ -1176,6 +1156,40 @@ class _DesktopCommandBar extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _ThumbnailSizeControls extends StatelessWidget {
+  final String largerThumbnailsTooltip;
+  final String smallerThumbnailsTooltip;
+  final VoidCallback? onDecreaseThumbnailSize;
+  final VoidCallback? onIncreaseThumbnailSize;
+
+  const _ThumbnailSizeControls({
+    required this.largerThumbnailsTooltip,
+    required this.smallerThumbnailsTooltip,
+    required this.onDecreaseThumbnailSize,
+    required this.onIncreaseThumbnailSize,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        DesktopIconButton(
+          icon: Icons.zoom_in,
+          tooltip: largerThumbnailsTooltip,
+          onPressed: onDecreaseThumbnailSize,
+        ),
+        const SizedBox(height: 4),
+        DesktopIconButton(
+          icon: Icons.zoom_out,
+          tooltip: smallerThumbnailsTooltip,
+          onPressed: onIncreaseThumbnailSize,
+        ),
+      ],
     );
   }
 }

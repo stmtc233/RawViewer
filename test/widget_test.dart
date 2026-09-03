@@ -355,4 +355,25 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byType(MediaFilterButton), findsOneWidget);
   });
+
+  testWidgets('home puts thumbnail controls in the lower-right corner',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(800, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.grid_view_outlined), findsNothing);
+
+    final zoomInPosition = tester.getTopLeft(find.byIcon(Icons.zoom_in));
+    final zoomOutPosition = tester.getTopLeft(find.byIcon(Icons.zoom_out));
+    expect(zoomInPosition.dx, greaterThan(600));
+    expect(zoomInPosition.dy, greaterThan(400));
+    expect(zoomOutPosition.dx, greaterThan(600));
+    expect(zoomOutPosition.dy, greaterThan(400));
+  });
 }
