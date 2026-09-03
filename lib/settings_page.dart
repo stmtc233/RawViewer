@@ -22,11 +22,16 @@ extension AppLanguageLocale on AppLanguage {
   }
 }
 
-enum GridAspectRatio { ratio1x1, ratio3x2, ratio4x3, ratio16x9 }
+enum GridAspectRatio { adaptive, ratio1x1, ratio3x2, ratio4x3, ratio16x9 }
 
 extension GridAspectRatioValue on GridAspectRatio {
+  bool get isAdaptive => this == GridAspectRatio.adaptive;
+
   double get aspectRatio {
     switch (this) {
+      case GridAspectRatio.adaptive:
+        // Used as the placeholder ratio until a thumbnail reports its size.
+        return 3 / 2;
       case GridAspectRatio.ratio1x1:
         return 1.0;
       case GridAspectRatio.ratio3x2:
@@ -40,6 +45,8 @@ extension GridAspectRatioValue on GridAspectRatio {
 
   String get label {
     switch (this) {
+      case GridAspectRatio.adaptive:
+        return 'Adaptive';
       case GridAspectRatio.ratio1x1:
         return '1:1';
       case GridAspectRatio.ratio3x2:
@@ -298,7 +305,9 @@ class _SettingsPageState extends State<SettingsPage> {
                         .map(
                           (ratio) => DesktopSettingsOption(
                             key: ValueKey('grid-aspect-${ratio.name}'),
-                            title: ratio.label,
+                            title: ratio.isAdaptive
+                                ? l10n.gridAspectRatioAdaptive
+                                : ratio.label,
                             selected: _currentSettings.gridAspectRatio == ratio,
                             onTap: () => _updateSettings(
                               _currentSettings.copyWith(

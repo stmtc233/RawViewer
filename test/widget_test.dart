@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:rawviewer/image_store.dart';
+import 'package:rawviewer/justified_grid_layout.dart';
 import 'package:rawviewer/lru_cache.dart';
 import 'package:rawviewer/l10n/app_localizations.dart';
 import 'package:rawviewer/main.dart';
@@ -15,8 +16,8 @@ void main() {
   group('bucketDecodeWidth', () {
     test('snaps up to the next bucket', () {
       expect(bucketDecodeWidth(1), kDecodeWidthBucket);
-      expect(bucketDecodeWidth(kDecodeWidthBucket.toDouble()),
-          kDecodeWidthBucket);
+      expect(
+          bucketDecodeWidth(kDecodeWidthBucket.toDouble()), kDecodeWidthBucket);
       expect(bucketDecodeWidth(kDecodeWidthBucket + 1), kDecodeWidthBucket * 2);
       expect(bucketDecodeWidth(300), 384);
     });
@@ -47,6 +48,15 @@ void main() {
 
       expect(updated.gridAspectRatio, GridAspectRatio.ratio16x9);
       expect(updated.maxCacheSize, original.maxCacheSize);
+    });
+
+    test('supports adaptive grid sizing', () {
+      const settings = ViewerSettings(
+        gridAspectRatio: GridAspectRatio.adaptive,
+      );
+
+      expect(settings.gridAspectRatio.isAdaptive, isTrue);
+      expect(settings.gridAspectRatio.aspectRatio, 3 / 2);
     });
 
     testWidgets('publishes each setting change immediately', (tester) async {
@@ -84,8 +94,14 @@ void main() {
       await tester.pump();
       expect(updatedSettings!.gridAspectRatio, GridAspectRatio.ratio16x9);
 
-      final decodedPreview =
-          find.byKey(const ValueKey('raw-preview-decoded'));
+      final adaptiveGrid = find.byKey(const ValueKey('grid-aspect-adaptive'));
+      await tester.ensureVisible(adaptiveGrid);
+      await tester.pumpAndSettle();
+      await tester.tap(adaptiveGrid);
+      await tester.pump();
+      expect(updatedSettings!.gridAspectRatio, GridAspectRatio.adaptive);
+
+      final decodedPreview = find.byKey(const ValueKey('raw-preview-decoded'));
       await tester.scrollUntilVisible(
         decodedPreview,
         300,
@@ -95,6 +111,39 @@ void main() {
       await tester.tap(decodedPreview);
       await tester.pump();
       expect(updatedSettings!.preferFastPreviewForRaw, isFalse);
+    });
+  });
+
+  group('buildJustifiedGridRows', () {
+    test('fills every row while retaining each image proportion', () {
+      final rows = buildJustifiedGridRows(
+        aspectRatios: const [1, 2, 1, 1.5, 0.75],
+        availableWidth: 600,
+        targetRowHeight: 200,
+      );
+
+      expect(rows, isNotEmpty);
+      expect(rows.map((row) => row.indices).expand((indices) => indices),
+          orderedEquals([0, 1, 2, 3, 4]));
+      for (final row in rows) {
+        expect(row.widths.reduce((sum, width) => sum + width),
+            closeTo(600, 0.001));
+        for (var index = 0; index < row.indices.length; index++) {
+          final ratio = [1, 2, 1, 1.5, 0.75][row.indices[index]];
+          expect(row.widths[index] / row.height, closeTo(ratio, 0.001));
+        }
+      }
+    });
+
+    test('justifies the final row instead of leaving empty grid cells', () {
+      final rows = buildJustifiedGridRows(
+        aspectRatios: const [1, 1, 1, 1],
+        availableWidth: 400,
+        targetRowHeight: 150,
+      );
+
+      expect(rows.last.widths.reduce((sum, width) => sum + width),
+          closeTo(400, 0.001));
     });
   });
 

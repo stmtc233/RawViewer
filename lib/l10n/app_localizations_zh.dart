@@ -18,6 +18,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get gridAspectRatioSectionTitle => '预览网格比例';
 
   @override
+  String get gridAspectRatioAdaptive => '自适应';
+
+  @override
   String get languageSectionTitle => '语言';
 
   @override
