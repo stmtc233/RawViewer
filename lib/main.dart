@@ -19,6 +19,8 @@ import 'image_store.dart';
 import 'native_lib.dart';
 import 'settings_page.dart';
 import 'lru_cache.dart';
+import 'ui/app_theme.dart';
+import 'ui/desktop_controls.dart';
 import 'viewer_image.dart';
 import 'worker_service.dart';
 
@@ -330,11 +332,7 @@ class _MyAppState extends State<MyApp> with WindowListener {
           Locale('en'),
           Locale('zh'),
         ],
-        theme: ThemeData(
-          brightness: Brightness.dark,
-          primarySwatch: Colors.blue,
-          fontFamily: 'NotoSansSC',
-        ),
+        theme: rawViewerTheme,
         home: HomePage(onAppLanguageChanged: _handleAppLanguageChanged),
       ),
     );
@@ -378,9 +376,8 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedGridAspectRatio = GridAspectRatio.values.asNameMap()[
-      prefs.getString('grid_aspect_ratio')
-    ];
+    final savedGridAspectRatio = GridAspectRatio.values
+        .asNameMap()[prefs.getString('grid_aspect_ratio')];
     if (!mounted) {
       return;
     }
@@ -763,135 +760,375 @@ class _HomePageState extends State<HomePage> {
     });
 
     return Scaffold(
-        appBar: AppBar(
-          title: Text(_currentTitle(l10n)),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.zoom_in),
-              tooltip: 'Zoom In',
-              onPressed:
+      body: SafeArea(
+        child: Column(
+          children: [
+            _DesktopCommandBar(
+              title: _currentTitle(l10n),
+              crossAxisCount: _crossAxisCount,
+              openFolderLabel: l10n.openFolder,
+              openFilesLabel: l10n.openFiles,
+              settingsTooltip: l10n.settingsTooltip,
+              largerThumbnailsTooltip: l10n.largerThumbnailsTooltip,
+              smallerThumbnailsTooltip: l10n.smallerThumbnailsTooltip,
+              gridColumnsTooltip: l10n.gridColumnsTooltip(_crossAxisCount),
+              onDecreaseThumbnailSize:
                   _crossAxisCount > 1 ? () => _updateCrossAxisCount(-1) : null,
-            ),
-            IconButton(
-              icon: const Icon(Icons.zoom_out),
-              tooltip: 'Zoom Out',
-              onPressed:
+              onIncreaseThumbnailSize:
                   _crossAxisCount < 10 ? () => _updateCrossAxisCount(1) : null,
+              onOpenSettings: _showSettings,
+              onOpenFiles: _openFiles,
+              onOpenFolder: _openFolder,
             ),
-            IconButton(
-              icon: const Icon(Icons.settings),
-              onPressed: () async {
-                await _refreshWindowsContextMenuState();
-                if (!mounted || !context.mounted) {
-                  return;
-                }
-
-                await Navigator.push<void>(
-                  context,
-                  PageRouteBuilder(
-                    opaque: false,
-                    barrierColor: Colors.black54,
-                    barrierDismissible: true,
-                    pageBuilder: (context, animation, secondaryAnimation) {
-                      return ExcludeSemantics(
-                        child: FadeTransition(
-                          opacity: animation,
-                          child: Center(
-                            child: Container(
-                                width: 500,
-                                height: 600,
-                                clipBehavior: Clip.antiAlias,
-                                decoration: BoxDecoration(
-                                  color:
-                                      Theme.of(context).scaffoldBackgroundColor,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: SettingsPage(
-                                  settings: _settings,
-                                  onSettingsChanged: _updateSettings,
-                                  onWindowsContextMenuChanged:
-                                      Platform.isWindows
-                                          ? _setWindowsContextMenuEnabled
-                                          : null,
-                                  onClose: () {
-                                    Navigator.pop(context);
-                                  },
-                                )),
-                          ),
+            Expanded(
+              child: ExcludeSemantics(
+                child: _files.isEmpty
+                    ? _EmptyGallery(
+                        message: l10n.homeEmptyState,
+                        openFolderLabel: l10n.openFolder,
+                        openFilesLabel: l10n.openFiles,
+                        onOpenFiles: _openFiles,
+                        onOpenFolder: _openFolder,
+                      )
+                    : GridView.builder(
+                        addAutomaticKeepAlives: false,
+                        cacheExtent: 200,
+                        padding: const EdgeInsets.all(12),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: _crossAxisCount,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                          childAspectRatio:
+                              _settings.gridAspectRatio.aspectRatio,
                         ),
-                      );
-                    },
-                  ),
-                );
-
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.file_open),
-              onPressed: _openFiles,
-            ),
-            IconButton(
-              icon: const Icon(Icons.folder_open),
-              onPressed: _openFolder,
-            ),
-          ],
-        ),
-        body: ExcludeSemantics(
-          child: _files.isEmpty
-              ? Center(
-                  child: Text(l10n.homeEmptyState),
-                )
-              : GridView.builder(
-                  addAutomaticKeepAlives: false,
-                  cacheExtent: 200,
-                  padding: const EdgeInsets.all(8),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: _crossAxisCount,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
-                    childAspectRatio: _settings.gridAspectRatio.aspectRatio,
-                  ),
-                  itemCount: _files.length,
-                  itemBuilder: (context, index) {
-                    final mediaFile = _files[index];
-                    final filePath = mediaFile.path;
-                    return _MediaThumbnailTile(
-                      key: ValueKey(filePath),
-                      mediaFile: mediaFile,
-                      settings: _settings,
-                      timestampRepository: _timestampRepository,
-                      resizeWidth: thumbnailResizeWidth,
-                      imageStore: _imageStore,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          PageRouteBuilder(
-                            pageBuilder:
-                                (context, animation, secondaryAnimation) {
-                              return ExcludeSemantics(
-                                child: FadeTransition(
-                                  opacity: animation,
-                                  child: _ImagePreviewPage(
-                                    files: _files,
-                                    initialIndex: index,
-                                    thumbnailResizeWidth: thumbnailResizeWidth,
-                                    imageStore: _imageStore,
-                                    timestampRepository: _timestampRepository,
-                                    settings: _settings,
-                                    onClose: () {
-                                      Navigator.pop(context);
-                                    },
-                                  ),
+                        itemCount: _files.length,
+                        itemBuilder: (context, index) {
+                          final mediaFile = _files[index];
+                          final filePath = mediaFile.path;
+                          return _MediaThumbnailTile(
+                            key: ValueKey(filePath),
+                            mediaFile: mediaFile,
+                            settings: _settings,
+                            timestampRepository: _timestampRepository,
+                            resizeWidth: thumbnailResizeWidth,
+                            imageStore: _imageStore,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                PageRouteBuilder(
+                                  pageBuilder:
+                                      (context, animation, secondaryAnimation) {
+                                    return ExcludeSemantics(
+                                      child: FadeTransition(
+                                        opacity: animation,
+                                        child: _ImagePreviewPage(
+                                          files: _files,
+                                          initialIndex: index,
+                                          thumbnailResizeWidth:
+                                              thumbnailResizeWidth,
+                                          imageStore: _imageStore,
+                                          timestampRepository:
+                                              _timestampRepository,
+                                          settings: _settings,
+                                          onClose: () {
+                                            Navigator.pop(context);
+                                          },
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                               );
                             },
-                          ),
-                        );
-                      },
-                    );
-                  },
+                          );
+                        },
+                      ),
+              ),
+            ),
+            _GalleryStatusBar(
+              itemCountLabel: l10n.galleryItemCount(_files.length),
+              gridColumnsLabel: l10n.gridColumnsTooltip(_crossAxisCount),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showSettings() async {
+    await _refreshWindowsContextMenuState();
+    if (!mounted || !context.mounted) {
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.68),
+      builder: (dialogContext) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(24),
+          child: SizedBox(
+            width: 640,
+            height: 720,
+            child: SettingsPage(
+              settings: _settings,
+              onSettingsChanged: _updateSettings,
+              onWindowsContextMenuChanged:
+                  Platform.isWindows ? _setWindowsContextMenuEnabled : null,
+              onClose: () {
+                Navigator.pop(dialogContext);
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DesktopCommandBar extends StatelessWidget {
+  final String title;
+  final int crossAxisCount;
+  final String openFolderLabel;
+  final String openFilesLabel;
+  final String settingsTooltip;
+  final String largerThumbnailsTooltip;
+  final String smallerThumbnailsTooltip;
+  final String gridColumnsTooltip;
+  final VoidCallback? onDecreaseThumbnailSize;
+  final VoidCallback? onIncreaseThumbnailSize;
+  final VoidCallback onOpenSettings;
+  final VoidCallback onOpenFiles;
+  final VoidCallback onOpenFolder;
+
+  const _DesktopCommandBar({
+    required this.title,
+    required this.crossAxisCount,
+    required this.openFolderLabel,
+    required this.openFilesLabel,
+    required this.settingsTooltip,
+    required this.largerThumbnailsTooltip,
+    required this.smallerThumbnailsTooltip,
+    required this.gridColumnsTooltip,
+    required this.onDecreaseThumbnailSize,
+    required this.onIncreaseThumbnailSize,
+    required this.onOpenSettings,
+    required this.onOpenFiles,
+    required this.onOpenFolder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 640;
+        return Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: const BoxDecoration(
+            color: RawViewerColors.surface,
+            border: Border(bottom: BorderSide(color: RawViewerColors.border)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.photo_library_outlined,
+                  color: RawViewerColors.accent, size: 19),
+              if (!compact) ...[
+                const SizedBox(width: 8),
+                const Text(
+                  'RAW VIEWER',
+                  style: TextStyle(
+                    color: RawViewerColors.text,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
                 ),
-        ));
+                const SizedBox(width: 16),
+                const SizedBox(
+                  height: 20,
+                  child: VerticalDivider(color: RawViewerColors.border),
+                ),
+                const SizedBox(width: 12),
+              ],
+              if (!compact)
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: RawViewerColors.mutedText,
+                      fontSize: 12,
+                    ),
+                  ),
+                )
+              else
+                const Spacer(),
+              if (!compact) ...[
+                Tooltip(
+                  message: gridColumnsTooltip,
+                  child: const SizedBox(
+                    width: 34,
+                    height: 34,
+                    child: Icon(
+                      Icons.grid_view_outlined,
+                      color: RawViewerColors.mutedText,
+                      size: 19,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+              ],
+              DesktopIconButton(
+                icon: Icons.zoom_in,
+                tooltip: largerThumbnailsTooltip,
+                onPressed: onDecreaseThumbnailSize,
+              ),
+              DesktopIconButton(
+                icon: Icons.zoom_out,
+                tooltip: smallerThumbnailsTooltip,
+                onPressed: onIncreaseThumbnailSize,
+              ),
+              const SizedBox(width: 8),
+              if (!compact)
+                const SizedBox(
+                  height: 20,
+                  child: VerticalDivider(color: RawViewerColors.border),
+                ),
+              if (!compact) const SizedBox(width: 8),
+              DesktopIconButton(
+                icon: Icons.folder_open_outlined,
+                tooltip: openFolderLabel,
+                onPressed: onOpenFolder,
+              ),
+              DesktopIconButton(
+                icon: Icons.file_open_outlined,
+                tooltip: openFilesLabel,
+                onPressed: onOpenFiles,
+              ),
+              const SizedBox(width: 6),
+              DesktopIconButton(
+                icon: Icons.tune,
+                tooltip: settingsTooltip,
+                onPressed: onOpenSettings,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _EmptyGallery extends StatelessWidget {
+  final String message;
+  final String openFolderLabel;
+  final String openFilesLabel;
+  final VoidCallback onOpenFiles;
+  final VoidCallback onOpenFolder;
+
+  const _EmptyGallery({
+    required this.message,
+    required this.openFolderLabel,
+    required this.openFilesLabel,
+    required this.onOpenFiles,
+    required this.onOpenFolder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                color: RawViewerColors.surface,
+                border: Border.all(color: RawViewerColors.border),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(
+                Icons.add_photo_alternate_outlined,
+                color: RawViewerColors.mutedText,
+                size: 26,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: RawViewerColors.mutedText,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              children: [
+                DesktopCommandButton(
+                  icon: Icons.folder_open_outlined,
+                  label: openFolderLabel,
+                  onPressed: onOpenFolder,
+                  emphasized: true,
+                ),
+                DesktopCommandButton(
+                  icon: Icons.file_open_outlined,
+                  label: openFilesLabel,
+                  onPressed: onOpenFiles,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GalleryStatusBar extends StatelessWidget {
+  final String itemCountLabel;
+  final String gridColumnsLabel;
+
+  const _GalleryStatusBar({
+    required this.itemCountLabel,
+    required this.gridColumnsLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: const BoxDecoration(
+        color: RawViewerColors.surface,
+        border: Border(top: BorderSide(color: RawViewerColors.mutedBorder)),
+      ),
+      child: Row(
+        children: [
+          Text(
+            itemCountLabel,
+            style: const TextStyle(
+              color: RawViewerColors.mutedText,
+              fontSize: 11,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            gridColumnsLabel,
+            style: const TextStyle(
+              color: RawViewerColors.mutedText,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1016,68 +1253,82 @@ class _MediaThumbnailTileState extends State<_MediaThumbnailTile> {
       child: ExcludeSemantics(
         child: GestureDetector(
           onTap: widget.onTap,
-          child: GridTile(
-            footer: Container(
-              color: Colors.black45,
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    path.basename(widget.filePath),
-                    style: const TextStyle(
-                      fontSize: 10,
-                      height: 1.05,
-                      color: Colors.white,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  FutureBuilder<_MediaTimestampInfo>(
-                    future: _timestampFuture,
-                    builder: (context, snapshot) {
-                      final text = snapshot.hasData
-                          ? snapshot.data!
-                              .format(widget.settings.timeDisplaySource)
-                          : '---- -- -- --:--:--';
-                      return Text(
-                        text,
-                        style: const TextStyle(
-                          fontSize: 9,
-                          height: 1.0,
-                          color: Colors.white70,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(5),
             child: Stack(
               fit: StackFit.expand,
               children: [
                 _buildContent(),
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.transparent, Color(0xCC000000)],
+                      stops: [0.55, 1],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: 8,
+                  right: 8,
+                  bottom: 7,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        path.basename(widget.filePath),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          height: 1.1,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      FutureBuilder<_MediaTimestampInfo>(
+                        future: _timestampFuture,
+                        builder: (context, snapshot) {
+                          final text = snapshot.hasData
+                              ? snapshot.data!
+                                  .format(widget.settings.timeDisplaySource)
+                              : '---- -- -- --:--:--';
+                          return Text(
+                            text,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              height: 1,
+                              color: Color(0xFFD2D9DD),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
                 if (widget.mediaFile.isRaw)
                   Positioned(
                     top: 8,
                     right: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
+                      width: 30,
+                      height: 20,
+                      alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.28),
-                        borderRadius: BorderRadius.circular(999),
+                        color: const Color(0xE6171A1E),
+                        border: Border.all(color: const Color(0xFF525A62)),
+                        borderRadius: BorderRadius.circular(3),
                       ),
                       child: Text(
                         AppLocalizations.of(context)!.rawShortLabel,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
+                        style: const TextStyle(
+                          color: Color(0xFFE5E9EC),
+                          fontSize: 9,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.3,
                         ),
@@ -1746,8 +1997,7 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
   Widget _buildRawPreview() {
     final showDecoded =
         _decodedRawPreviewImage != null && !_preferFastPreviewForRaw;
-    final displayed =
-        showDecoded ? _decodedRawPreviewImage : _fastPreviewImage;
+    final displayed = showDecoded ? _decodedRawPreviewImage : _fastPreviewImage;
 
     return Stack(
       fit: StackFit.expand,

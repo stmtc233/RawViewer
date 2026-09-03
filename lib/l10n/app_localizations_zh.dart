@@ -89,12 +89,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get windowsContextMenuToggleTitle => '显示“在 RawView 中打开”';
 
   @override
-  String get windowsContextMenuEnabledSubtitle =>
-      '已安装到当前用户。支持文件、多个文件、文件夹，以及文件夹空白处右键打开。';
+  String get windowsContextMenuEnabledSubtitle => '已安装到当前用户。支持文件、多个文件、文件夹，以及文件夹空白处右键打开。';
 
   @override
-  String get windowsContextMenuDisabledSubtitle =>
-      '启用后可在资源管理器中通过右键“在 RawView 中打开”直接打开文件、多个文件、文件夹或当前目录。';
+  String get windowsContextMenuDisabledSubtitle => '启用后可在资源管理器中通过右键“在 RawView 中打开”直接打开文件、多个文件、文件夹或当前目录。';
 
   @override
   String get installScopeTitle => '安装范围';
@@ -118,6 +116,34 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get homeEmptyState => '打开或拖放 RAW 与图片文件/文件夹';
+
+  @override
+  String get openFolder => '打开文件夹';
+
+  @override
+  String get openFiles => '打开文件';
+
+  @override
+  String get settingsTooltip => '设置';
+
+  @override
+  String get closeSettingsTooltip => '关闭设置';
+
+  @override
+  String get largerThumbnailsTooltip => '放大缩略图';
+
+  @override
+  String get smallerThumbnailsTooltip => '缩小缩略图';
+
+  @override
+  String gridColumnsTooltip(int count) {
+    return '$count 列';
+  }
+
+  @override
+  String galleryItemCount(int count) {
+    return '$count 个项目';
+  }
 
   @override
   String fileSelectionTitle(int count) {

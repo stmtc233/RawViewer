@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'l10n/app_localizations.dart';
+import 'ui/app_theme.dart';
+import 'ui/desktop_controls.dart';
 
 enum TimeDisplaySource { capturedAt, modifiedAt }
 
@@ -118,8 +120,7 @@ class ViewerSettings {
     return ViewerSettings(
       preferFastPreviewForRaw:
           preferFastPreviewForRaw ?? this.preferFastPreviewForRaw,
-      useHalfSizeRawDecode:
-          useHalfSizeRawDecode ?? this.useHalfSizeRawDecode,
+      useHalfSizeRawDecode: useHalfSizeRawDecode ?? this.useHalfSizeRawDecode,
       maxCacheSize: maxCacheSize ?? this.maxCacheSize,
       timeDisplaySource: timeDisplaySource ?? this.timeDisplaySource,
       appLanguage: appLanguage ?? this.appLanguage,
@@ -178,6 +179,15 @@ class _SettingsPageState extends State<SettingsPage> {
   bool get _showWindowsContextMenuSection =>
       Platform.isWindows && widget.onWindowsContextMenuChanged != null;
 
+  List<Widget> _withDividers(List<Widget> children) {
+    return [
+      for (var index = 0; index < children.length; index++) ...[
+        if (index > 0) const Divider(height: 1),
+        children[index],
+      ],
+    ];
+  }
+
   Future<void> _handleWindowsContextMenuChanged(bool enabled) async {
     final onWindowsContextMenuChanged = widget.onWindowsContextMenuChanged;
     if (onWindowsContextMenuChanged == null || _isUpdatingWindowsContextMenu) {
@@ -232,248 +242,225 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
 
-    return ExcludeSemantics(
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(l10n.settingsTitle),
-          leading: IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: () {
-              widget.onClose();
-            },
-          ),
-        ),
-        body: ListView(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                l10n.languageSectionTitle,
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+    return Scaffold(
+      body: Column(
+        children: [
+          Container(
+            height: 56,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: const BoxDecoration(
+              color: RawViewerColors.raisedSurface,
+              border: Border(bottom: BorderSide(color: RawViewerColors.border)),
             ),
-            ExcludeSemantics(
-              child: RadioGroup<AppLanguage>(
-                groupValue: _currentSettings.appLanguage,
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-                  _updateSettings(
-                    _currentSettings.copyWith(appLanguage: value),
-                  );
-                },
-                child: Column(
-                  children: AppLanguage.values
-                      .map(
-                        (language) => RadioListTile<AppLanguage>(
-                          title: Text(_languageLabel(language, l10n)),
-                          value: language,
-                        ),
-                      )
-                      .toList(),
+            child: Row(
+              children: [
+                DesktopIconButton(
+                  icon: Icons.close,
+                  tooltip: l10n.closeSettingsTooltip,
+                  onPressed: widget.onClose,
                 ),
-              ),
-            ),
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                l10n.gridAspectRatioSectionTitle,
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            ExcludeSemantics(
-              child: RadioGroup<GridAspectRatio>(
-                groupValue: _currentSettings.gridAspectRatio,
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-                  _updateSettings(
-                    _currentSettings.copyWith(gridAspectRatio: value),
-                  );
-                },
-                child: Column(
-                  children: GridAspectRatio.values
-                      .map(
-                        (ratio) => RadioListTile<GridAspectRatio>(
-                          key: ValueKey('grid-aspect-${ratio.name}'),
-                          title: Text(ratio.label),
-                          value: ratio,
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-            ),
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                l10n.rawPreviewSourceSectionTitle,
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            ExcludeSemantics(
-              child: RadioGroup<bool>(
-                groupValue: _currentSettings.preferFastPreviewForRaw,
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-                  _updateSettings(
-                    _currentSettings.copyWith(
-                      preferFastPreviewForRaw: value,
-                    ),
-                  );
-                },
-                child: Column(
-                  children: [
-                    RadioListTile<bool>(
-                      title: Text(l10n.fastPreviewTitle),
-                      subtitle: Text(l10n.fastPreviewSubtitle),
-                      value: true,
-                    ),
-                    RadioListTile<bool>(
-                      key: const ValueKey('raw-preview-decoded'),
-                      title: Text(l10n.decodedRawPreviewTitle),
-                      subtitle: Text(l10n.decodedRawPreviewSubtitle),
-                      value: false,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                l10n.rawProcessingSectionTitle,
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            ExcludeSemantics(
-              child: SwitchListTile(
-                title: Text(l10n.halfSizeRawDecodeTitle),
-                subtitle: Text(l10n.halfSizeRawDecodeSubtitle),
-                value: _currentSettings.useHalfSizeRawDecode,
-                onChanged: (value) {
-                  _updateSettings(
-                    _currentSettings.copyWith(useHalfSizeRawDecode: value),
-                  );
-                },
-              ),
-            ),
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                l10n.timeDisplaySectionTitle,
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            ExcludeSemantics(
-              child: RadioGroup<TimeDisplaySource>(
-                groupValue: _currentSettings.timeDisplaySource,
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-                  _updateSettings(
-                    _currentSettings.copyWith(timeDisplaySource: value),
-                  );
-                },
-                child: Column(
-                  children: [
-                    RadioListTile<TimeDisplaySource>(
-                      title: Text(l10n.captureTimeTitle),
-                      subtitle: Text(l10n.captureTimeSubtitle),
-                      value: TimeDisplaySource.capturedAt,
-                    ),
-                    RadioListTile<TimeDisplaySource>(
-                      title: Text(l10n.fileModifiedTimeTitle),
-                      subtitle: Text(l10n.fileModifiedTimeSubtitle),
-                      value: TimeDisplaySource.modifiedAt,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                l10n.cacheSectionTitle,
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            ListTile(
-              title: Text(l10n.maxCacheSizeTitle),
-              subtitle: Text(l10n.cacheSizeMb(_currentSettings.maxCacheSize)),
-            ),
-            ExcludeSemantics(
-              child: Slider(
-                value: _currentSettings.maxCacheSize.toDouble(),
-                min: 64,
-                max: 4096,
-                divisions: (4096 - 64) ~/ 64,
-                label: l10n.cacheSizeMb(_currentSettings.maxCacheSize),
-                onChanged: (value) {
-                  _updateSettings(
-                    _currentSettings.copyWith(maxCacheSize: value.toInt()),
-                  );
-                },
-              ),
-            ),
-            if (_showWindowsContextMenuSection) ...[
-              const Divider(),
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  l10n.windowsExplorerSectionTitle,
+                const SizedBox(width: 10),
+                Text(
+                  l10n.settingsTitle,
                   style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ),
-              ExcludeSemantics(
-                child: SwitchListTile(
-                  secondary: _isUpdatingWindowsContextMenu
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.desktop_windows),
-                  title: Text(l10n.windowsContextMenuToggleTitle),
-                  subtitle: Text(
-                    _currentSettings.windowsContextMenu.enabled
-                        ? l10n.windowsContextMenuEnabledSubtitle
-                        : l10n.windowsContextMenuDisabledSubtitle,
+                    color: RawViewerColors.text,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
                   ),
-                  value: _currentSettings.windowsContextMenu.enabled,
-                  onChanged: _isUpdatingWindowsContextMenu
-                      ? null
-                      : _handleWindowsContextMenuChanged,
                 ),
-              ),
-              ListTile(
-                title: Text(l10n.installScopeTitle),
-                subtitle: Text(
-                  _currentSettings.windowsContextMenu.enabled
-                      ? l10n.installScopeCurrentUser
-                      : l10n.installScopeNotInstalled,
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+              children: [
+                DesktopSettingsSection(
+                  title: l10n.languageSectionTitle,
+                  children: _withDividers(
+                    AppLanguage.values
+                        .map(
+                          (language) => DesktopSettingsOption(
+                            title: _languageLabel(language, l10n),
+                            selected: _currentSettings.appLanguage == language,
+                            onTap: () => _updateSettings(
+                              _currentSettings.copyWith(appLanguage: language),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
                 ),
-              ),
-            ],
-          ],
-        ),
+                DesktopSettingsSection(
+                  title: l10n.gridAspectRatioSectionTitle,
+                  children: _withDividers(
+                    GridAspectRatio.values
+                        .map(
+                          (ratio) => DesktopSettingsOption(
+                            key: ValueKey('grid-aspect-${ratio.name}'),
+                            title: ratio.label,
+                            selected: _currentSettings.gridAspectRatio == ratio,
+                            onTap: () => _updateSettings(
+                              _currentSettings.copyWith(
+                                gridAspectRatio: ratio,
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+                DesktopSettingsSection(
+                  title: l10n.rawPreviewSourceSectionTitle,
+                  children: _withDividers([
+                    DesktopSettingsOption(
+                      title: l10n.fastPreviewTitle,
+                      subtitle: l10n.fastPreviewSubtitle,
+                      selected: _currentSettings.preferFastPreviewForRaw,
+                      onTap: () => _updateSettings(
+                        _currentSettings.copyWith(
+                          preferFastPreviewForRaw: true,
+                        ),
+                      ),
+                    ),
+                    DesktopSettingsOption(
+                      key: const ValueKey('raw-preview-decoded'),
+                      title: l10n.decodedRawPreviewTitle,
+                      subtitle: l10n.decodedRawPreviewSubtitle,
+                      selected: !_currentSettings.preferFastPreviewForRaw,
+                      onTap: () => _updateSettings(
+                        _currentSettings.copyWith(
+                          preferFastPreviewForRaw: false,
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
+                DesktopSettingsSection(
+                  title: l10n.rawProcessingSectionTitle,
+                  children: [
+                    DesktopSettingsRow(
+                      title: l10n.halfSizeRawDecodeTitle,
+                      subtitle: l10n.halfSizeRawDecodeSubtitle,
+                      control: Switch(
+                        value: _currentSettings.useHalfSizeRawDecode,
+                        onChanged: (value) => _updateSettings(
+                          _currentSettings.copyWith(
+                            useHalfSizeRawDecode: value,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                DesktopSettingsSection(
+                  title: l10n.timeDisplaySectionTitle,
+                  children: _withDividers([
+                    DesktopSettingsOption(
+                      title: l10n.captureTimeTitle,
+                      subtitle: l10n.captureTimeSubtitle,
+                      selected: _currentSettings.timeDisplaySource ==
+                          TimeDisplaySource.capturedAt,
+                      onTap: () => _updateSettings(
+                        _currentSettings.copyWith(
+                          timeDisplaySource: TimeDisplaySource.capturedAt,
+                        ),
+                      ),
+                    ),
+                    DesktopSettingsOption(
+                      title: l10n.fileModifiedTimeTitle,
+                      subtitle: l10n.fileModifiedTimeSubtitle,
+                      selected: _currentSettings.timeDisplaySource ==
+                          TimeDisplaySource.modifiedAt,
+                      onTap: () => _updateSettings(
+                        _currentSettings.copyWith(
+                          timeDisplaySource: TimeDisplaySource.modifiedAt,
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
+                DesktopSettingsSection(
+                  title: l10n.cacheSectionTitle,
+                  children: [
+                    DesktopSettingsRow(
+                      title: l10n.maxCacheSizeTitle,
+                      control: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: RawViewerColors.canvas,
+                          border: Border.all(color: RawViewerColors.border),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          l10n.cacheSizeMb(_currentSettings.maxCacheSize),
+                          style: const TextStyle(
+                            color: RawViewerColors.text,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+                      child: Slider(
+                        value: _currentSettings.maxCacheSize.toDouble(),
+                        min: 64,
+                        max: 4096,
+                        divisions: (4096 - 64) ~/ 64,
+                        label: l10n.cacheSizeMb(_currentSettings.maxCacheSize),
+                        onChanged: (value) => _updateSettings(
+                          _currentSettings.copyWith(
+                              maxCacheSize: value.toInt()),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_showWindowsContextMenuSection)
+                  DesktopSettingsSection(
+                    title: l10n.windowsExplorerSectionTitle,
+                    children: _withDividers([
+                      DesktopSettingsRow(
+                        title: l10n.windowsContextMenuToggleTitle,
+                        subtitle: _currentSettings.windowsContextMenu.enabled
+                            ? l10n.windowsContextMenuEnabledSubtitle
+                            : l10n.windowsContextMenuDisabledSubtitle,
+                        control: _isUpdatingWindowsContextMenu
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Switch(
+                                value:
+                                    _currentSettings.windowsContextMenu.enabled,
+                                onChanged: _handleWindowsContextMenuChanged,
+                              ),
+                      ),
+                      DesktopSettingsRow(
+                        title: l10n.installScopeTitle,
+                        control: Text(
+                          _currentSettings.windowsContextMenu.enabled
+                              ? l10n.installScopeCurrentUser
+                              : l10n.installScopeNotInstalled,
+                          style: const TextStyle(
+                            color: RawViewerColors.mutedText,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ]),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
