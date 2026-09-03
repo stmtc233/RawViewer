@@ -20,11 +20,16 @@ extension AppLanguageLocale on AppLanguage {
   }
 }
 
-enum GridAspectRatio { ratio1x1, ratio3x2, ratio4x3, ratio16x9 }
+enum GridAspectRatio { adaptive, ratio1x1, ratio3x2, ratio4x3, ratio16x9 }
 
 extension GridAspectRatioValue on GridAspectRatio {
+  bool get isAdaptive => this == GridAspectRatio.adaptive;
+
   double get aspectRatio {
     switch (this) {
+      case GridAspectRatio.adaptive:
+        // Used as the placeholder ratio until a thumbnail reports its size.
+        return 3 / 2;
       case GridAspectRatio.ratio1x1:
         return 1.0;
       case GridAspectRatio.ratio3x2:
@@ -38,6 +43,8 @@ extension GridAspectRatioValue on GridAspectRatio {
 
   String get label {
     switch (this) {
+      case GridAspectRatio.adaptive:
+        return 'Adaptive';
       case GridAspectRatio.ratio1x1:
         return '1:1';
       case GridAspectRatio.ratio3x2:
@@ -118,8 +125,7 @@ class ViewerSettings {
     return ViewerSettings(
       preferFastPreviewForRaw:
           preferFastPreviewForRaw ?? this.preferFastPreviewForRaw,
-      useHalfSizeRawDecode:
-          useHalfSizeRawDecode ?? this.useHalfSizeRawDecode,
+      useHalfSizeRawDecode: useHalfSizeRawDecode ?? this.useHalfSizeRawDecode,
       maxCacheSize: maxCacheSize ?? this.maxCacheSize,
       timeDisplaySource: timeDisplaySource ?? this.timeDisplaySource,
       appLanguage: appLanguage ?? this.appLanguage,
@@ -301,7 +307,11 @@ class _SettingsPageState extends State<SettingsPage> {
                       .map(
                         (ratio) => RadioListTile<GridAspectRatio>(
                           key: ValueKey('grid-aspect-${ratio.name}'),
-                          title: Text(ratio.label),
+                          title: Text(
+                            ratio.isAdaptive
+                                ? l10n.gridAspectRatioAdaptive
+                                : ratio.label,
+                          ),
                           value: ratio,
                         ),
                       )

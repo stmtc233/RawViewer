@@ -16,6 +16,7 @@ import 'dart:collection';
 
 import 'l10n/app_localizations.dart';
 import 'image_store.dart';
+import 'justified_grid_layout.dart';
 import 'native_lib.dart';
 import 'settings_page.dart';
 import 'lru_cache.dart';
@@ -366,6 +367,9 @@ class _HomePageState extends State<HomePage> {
   ViewerSettings _settings = const ViewerSettings();
   int _crossAxisCount = 4;
   bool _hasUserConfiguredGridAspectRatio = false;
+  final Map<String, double> _mediaAspectRatios = <String, double>{};
+  final Map<String, double> _pendingMediaAspectRatios = <String, double>{};
+  bool _mediaAspectRatioUpdateScheduled = false;
 
   @override
   void initState() {
@@ -378,9 +382,8 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedGridAspectRatio = GridAspectRatio.values.asNameMap()[
-      prefs.getString('grid_aspect_ratio')
-    ];
+    final savedGridAspectRatio = GridAspectRatio.values
+        .asNameMap()[prefs.getString('grid_aspect_ratio')];
     if (!mounted) {
       return;
     }
@@ -678,6 +681,8 @@ class _HomePageState extends State<HomePage> {
     if (clearCache) {
       _imageCache.clear();
       _timestampRepository.clear();
+      _mediaAspectRatios.clear();
+      _pendingMediaAspectRatios.clear();
     }
 
     setState(() {
@@ -740,6 +745,127 @@ class _HomePageState extends State<HomePage> {
     }
 
     return l10n.appTitle;
+  }
+
+  void _updateMediaAspectRatio(String filePath, double aspectRatio) {
+    if (!aspectRatio.isFinite || aspectRatio <= 0) {
+      return;
+    }
+
+    final previous =
+        _pendingMediaAspectRatios[filePath] ?? _mediaAspectRatios[filePath];
+    if (previous != null && (previous - aspectRatio).abs() < 0.001) {
+      return;
+    }
+
+    _pendingMediaAspectRatios[filePath] = aspectRatio;
+    if (_mediaAspectRatioUpdateScheduled) {
+      return;
+    }
+
+    _mediaAspectRatioUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _mediaAspectRatioUpdateScheduled = false;
+      if (!mounted || _pendingMediaAspectRatios.isEmpty) {
+        return;
+      }
+
+      final updates = Map<String, double>.from(_pendingMediaAspectRatios);
+      _pendingMediaAspectRatios.clear();
+      setState(() {
+        _mediaAspectRatios.addAll(updates);
+      });
+    });
+  }
+
+  Widget _buildThumbnailTile(int index, int thumbnailResizeWidth) {
+    final mediaFile = _files[index];
+    final filePath = mediaFile.path;
+    return _MediaThumbnailTile(
+      key: ValueKey(filePath),
+      mediaFile: mediaFile,
+      settings: _settings,
+      timestampRepository: _timestampRepository,
+      resizeWidth: thumbnailResizeWidth,
+      imageStore: _imageStore,
+      onAspectRatioChanged: _settings.gridAspectRatio.isAdaptive
+          ? (ratio) => _updateMediaAspectRatio(filePath, ratio)
+          : null,
+      onTap: () {
+        Navigator.push(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) {
+              return ExcludeSemantics(
+                child: FadeTransition(
+                  opacity: animation,
+                  child: _ImagePreviewPage(
+                    files: _files,
+                    initialIndex: index,
+                    thumbnailResizeWidth: thumbnailResizeWidth,
+                    imageStore: _imageStore,
+                    timestampRepository: _timestampRepository,
+                    settings: _settings,
+                    onClose: () {
+                      Navigator.pop(context);
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAdaptiveGrid(int thumbnailResizeWidth) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final nominalCellWidth = width / _crossAxisCount;
+        final targetRowHeight = nominalCellWidth / (3 / 2);
+        final rows = buildJustifiedGridRows(
+          aspectRatios: _files
+              .map(
+                (file) =>
+                    _mediaAspectRatios[file.path] ??
+                    GridAspectRatio.adaptive.aspectRatio,
+              )
+              .toList(growable: false),
+          availableWidth: width,
+          targetRowHeight: targetRowHeight,
+        );
+
+        return CustomScrollView(
+          cacheExtent: 200,
+          slivers: [
+            SliverList.builder(
+              itemCount: rows.length,
+              itemBuilder: (context, rowIndex) {
+                final row = rows[rowIndex];
+                return SizedBox(
+                  height: row.height,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: List<Widget>.generate(
+                      row.indices.length,
+                      (itemIndex) => SizedBox(
+                        width: row.widths[itemIndex],
+                        child: _buildThumbnailTile(
+                          row.indices[itemIndex],
+                          thumbnailResizeWidth,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -823,7 +949,6 @@ class _HomePageState extends State<HomePage> {
                     },
                   ),
                 );
-
               },
             ),
             IconButton(
@@ -841,56 +966,23 @@ class _HomePageState extends State<HomePage> {
               ? Center(
                   child: Text(l10n.homeEmptyState),
                 )
-              : GridView.builder(
-                  addAutomaticKeepAlives: false,
-                  cacheExtent: 200,
-                  padding: const EdgeInsets.all(8),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: _crossAxisCount,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
-                    childAspectRatio: _settings.gridAspectRatio.aspectRatio,
-                  ),
-                  itemCount: _files.length,
-                  itemBuilder: (context, index) {
-                    final mediaFile = _files[index];
-                    final filePath = mediaFile.path;
-                    return _MediaThumbnailTile(
-                      key: ValueKey(filePath),
-                      mediaFile: mediaFile,
-                      settings: _settings,
-                      timestampRepository: _timestampRepository,
-                      resizeWidth: thumbnailResizeWidth,
-                      imageStore: _imageStore,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          PageRouteBuilder(
-                            pageBuilder:
-                                (context, animation, secondaryAnimation) {
-                              return ExcludeSemantics(
-                                child: FadeTransition(
-                                  opacity: animation,
-                                  child: _ImagePreviewPage(
-                                    files: _files,
-                                    initialIndex: index,
-                                    thumbnailResizeWidth: thumbnailResizeWidth,
-                                    imageStore: _imageStore,
-                                    timestampRepository: _timestampRepository,
-                                    settings: _settings,
-                                    onClose: () {
-                                      Navigator.pop(context);
-                                    },
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        );
+              : _settings.gridAspectRatio.isAdaptive
+                  ? _buildAdaptiveGrid(thumbnailResizeWidth)
+                  : GridView.builder(
+                      addAutomaticKeepAlives: false,
+                      cacheExtent: 200,
+                      padding: const EdgeInsets.all(8),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: _crossAxisCount,
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                        childAspectRatio: _settings.gridAspectRatio.aspectRatio,
+                      ),
+                      itemCount: _files.length,
+                      itemBuilder: (context, index) {
+                        return _buildThumbnailTile(index, thumbnailResizeWidth);
                       },
-                    );
-                  },
-                ),
+                    ),
         ));
   }
 }
@@ -901,6 +993,7 @@ class _MediaThumbnailTile extends StatefulWidget {
   final _TimestampRepository timestampRepository;
   final int resizeWidth;
   final ImageStore imageStore;
+  final ValueChanged<double>? onAspectRatioChanged;
   final VoidCallback onTap;
 
   const _MediaThumbnailTile({
@@ -910,6 +1003,7 @@ class _MediaThumbnailTile extends StatefulWidget {
     required this.timestampRepository,
     required this.resizeWidth,
     required this.imageStore,
+    this.onAspectRatioChanged,
     required this.onTap,
   });
 
@@ -922,6 +1016,8 @@ class _MediaThumbnailTile extends StatefulWidget {
 class _MediaThumbnailTileState extends State<_MediaThumbnailTile> {
   ViewerImage? _fastPreview;
   bool _failed = false;
+  ImageStream? _bitmapImageStream;
+  ImageStreamListener? _bitmapImageListener;
 
   /// Incremented whenever this tile is recycled or disposed, so a load that
   /// completes afterwards can tell that its result is no longer wanted.
@@ -942,6 +1038,7 @@ class _MediaThumbnailTileState extends State<_MediaThumbnailTile> {
         widget.resizeWidth != oldWidget.resizeWidth) {
       _generation++;
       _clearPreview();
+      _stopBitmapAspectRatioLoad();
       _failed = false;
       _startLoad();
       if (widget.filePath != oldWidget.filePath) {
@@ -956,6 +1053,7 @@ class _MediaThumbnailTileState extends State<_MediaThumbnailTile> {
   @override
   void dispose() {
     _generation++; // Discard any in-flight result for this tile.
+    _stopBitmapAspectRatioLoad();
     _clearPreview();
     super.dispose();
   }
@@ -967,7 +1065,10 @@ class _MediaThumbnailTileState extends State<_MediaThumbnailTile> {
 
   void _startLoad() {
     // Bitmap files go through Flutter's own file/image pipeline.
-    if (!widget.mediaFile.isRaw) return;
+    if (!widget.mediaFile.isRaw) {
+      _startBitmapAspectRatioLoad();
+      return;
+    }
 
     // A cache hit resolves synchronously, so the very first frame already has
     // the image rather than flashing a placeholder.
@@ -975,6 +1076,7 @@ class _MediaThumbnailTileState extends State<_MediaThumbnailTile> {
         targetWidth: widget.resizeWidth);
     if (cached != null) {
       _fastPreview = cached;
+      _reportAspectRatio(cached.width / cached.height);
       return;
     }
 
@@ -1005,6 +1107,41 @@ class _MediaThumbnailTileState extends State<_MediaThumbnailTile> {
       _fastPreview = image;
       _failed = image == null;
     });
+    if (image != null) {
+      _reportAspectRatio(image.width / image.height);
+    }
+  }
+
+  void _startBitmapAspectRatioLoad() {
+    if (widget.onAspectRatioChanged == null) {
+      return;
+    }
+
+    final imageProvider = ResizeImage(
+      FileImage(File(widget.filePath)),
+      width: widget.resizeWidth,
+    );
+    final imageStream = imageProvider.resolve(ImageConfiguration.empty);
+    final listener = ImageStreamListener((imageInfo, _) {
+      _reportAspectRatio(imageInfo.image.width / imageInfo.image.height);
+    });
+    _bitmapImageStream = imageStream;
+    _bitmapImageListener = listener;
+    imageStream.addListener(listener);
+  }
+
+  void _stopBitmapAspectRatioLoad() {
+    final imageStream = _bitmapImageStream;
+    final listener = _bitmapImageListener;
+    if (imageStream != null && listener != null) {
+      imageStream.removeListener(listener);
+    }
+    _bitmapImageStream = null;
+    _bitmapImageListener = null;
+  }
+
+  void _reportAspectRatio(double aspectRatio) {
+    widget.onAspectRatioChanged?.call(aspectRatio);
   }
 
   @override
@@ -1746,8 +1883,7 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
   Widget _buildRawPreview() {
     final showDecoded =
         _decodedRawPreviewImage != null && !_preferFastPreviewForRaw;
-    final displayed =
-        showDecoded ? _decodedRawPreviewImage : _fastPreviewImage;
+    final displayed = showDecoded ? _decodedRawPreviewImage : _fastPreviewImage;
 
     return Stack(
       fit: StackFit.expand,
