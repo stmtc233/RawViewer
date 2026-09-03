@@ -49,6 +49,28 @@
     }
   },
   "homeEmptyState": "Open or drop RAW and image files/folders",
+  "openFolder": "Open folder",
+  "openFiles": "Open files",
+  "settingsTooltip": "Settings",
+  "closeSettingsTooltip": "Close settings",
+  "largerThumbnailsTooltip": "Larger thumbnails",
+  "smallerThumbnailsTooltip": "Smaller thumbnails",
+  "gridColumnsTooltip": "{count} columns",
+  "@gridColumnsTooltip": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "galleryItemCount": "{count, plural, =1{1 item} other{{count} items}}",
+  "@galleryItemCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "fileSelectionTitle": "{count, plural, =1{1 file} other{{count} files}}",
   "@fileSelectionTitle": {
     "placeholders": {
