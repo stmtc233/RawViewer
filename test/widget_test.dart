@@ -34,6 +34,39 @@ void main() {
     });
   });
 
+  group('image preview motion', () {
+    test('keeps preview opening and discrete navigation responsive', () {
+      expect(
+        kImagePreviewOpenTransitionDuration,
+        const Duration(milliseconds: 100),
+      );
+      expect(
+        kImagePreviewCloseTransitionDuration,
+        const Duration(milliseconds: 80),
+      );
+      expect(
+        kImagePreviewPageSwitchDuration,
+        const Duration(milliseconds: 90),
+      );
+      expect(
+        kImagePreviewRapidSwitchThreshold,
+        const Duration(milliseconds: 180),
+      );
+      expect(
+        kImagePreviewRapidSwitchSettleDelay,
+        const Duration(milliseconds: 140),
+      );
+    });
+
+    test('settles swipe navigation with a stiff critically damped spring', () {
+      final spring = const FastPageScrollPhysics().spring;
+
+      expect(spring.mass, 0.8);
+      expect(spring.stiffness, 1100.0);
+      expect(spring.damping, closeTo(59.33, 0.01));
+    });
+  });
+
   group('ViewerSettings', () {
     test('defaults the grid to 3:2', () {
       const settings = ViewerSettings();

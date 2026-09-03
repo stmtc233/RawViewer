@@ -173,6 +173,20 @@ DateTime? _parseExifDateTime(String value) {
 /// Granularity of decode-target widths, in physical pixels.
 const int kDecodeWidthBucket = 128;
 
+/// Motion timings for entering and navigating the full-screen image preview.
+///
+/// These are intentionally brief: the preview should acknowledge a selection
+/// or navigation command immediately, while still giving the user spatial
+/// feedback that the active image changed.
+const Duration kImagePreviewOpenTransitionDuration =
+    Duration(milliseconds: 100);
+const Duration kImagePreviewCloseTransitionDuration =
+    Duration(milliseconds: 80);
+const Duration kImagePreviewPageSwitchDuration = Duration(milliseconds: 90);
+const Duration kImagePreviewRapidSwitchThreshold = Duration(milliseconds: 180);
+const Duration kImagePreviewRapidSwitchSettleDelay =
+    Duration(milliseconds: 140);
+
 /// Rounds a desired decode width up to the next [kDecodeWidthBucket] step.
 ///
 /// Decode targets double as cache keys, so a continuously-varying width (window
@@ -783,25 +797,35 @@ class _HomePageState extends State<HomePage> {
           ? (ratio) => _updateMediaAspectRatio(filePath, ratio)
           : null,
       onTap: () {
-        Navigator.push(
+        Navigator.push<void>(
           context,
           PageRouteBuilder(
+            transitionDuration: kImagePreviewOpenTransitionDuration,
+            reverseTransitionDuration: kImagePreviewCloseTransitionDuration,
             pageBuilder: (context, animation, secondaryAnimation) {
               return ExcludeSemantics(
-                child: FadeTransition(
-                  opacity: animation,
-                  child: _ImagePreviewPage(
-                    mediaGroups: mediaGroups,
-                    initialIndex: index,
-                    thumbnailResizeWidth: thumbnailResizeWidth,
-                    imageStore: _imageStore,
-                    timestampRepository: _timestampRepository,
-                    settings: _settings,
-                    onClose: () {
-                      Navigator.pop(context);
-                    },
-                  ),
+                child: _ImagePreviewPage(
+                  mediaGroups: mediaGroups,
+                  initialIndex: index,
+                  thumbnailResizeWidth: thumbnailResizeWidth,
+                  imageStore: _imageStore,
+                  timestampRepository: _timestampRepository,
+                  settings: _settings,
+                  onClose: () {
+                    Navigator.pop(context);
+                  },
                 ),
+              );
+            },
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+              return FadeTransition(
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                  reverseCurve: Curves.easeInCubic,
+                ),
+                child: child,
               );
             },
           ),
@@ -1841,7 +1865,8 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
     final now = DateTime.now();
     bool fastScroll = isAnimating ||
         (_lastSwitchTime != null &&
-            now.difference(_lastSwitchTime!).inMilliseconds < 400);
+            now.difference(_lastSwitchTime!) <
+                kImagePreviewRapidSwitchThreshold);
     _lastSwitchTime = now;
 
     _targetPage = newTarget;
@@ -1852,7 +1877,7 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
     void startFastScrollTimer() {
       _isFastScrolling.value = true;
       _scrollStopTimer?.cancel();
-      _scrollStopTimer = Timer(const Duration(milliseconds: 300), () {
+      _scrollStopTimer = Timer(kImagePreviewRapidSwitchSettleDelay, () {
         if (!mounted) return;
         _isFastScrolling.value = false;
         // Also ensure we correctly update target/index when stopping
@@ -1868,8 +1893,8 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
     } else {
       _pageController.animateToPage(
         _targetPage,
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOut,
+        duration: kImagePreviewPageSwitchDuration,
+        curve: Curves.easeOutCubic,
       );
     }
   }
@@ -1886,6 +1911,7 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
             physics: _isLocked
                 ? const NeverScrollableScrollPhysics()
                 : const FastPageScrollPhysics(),
+            dragStartBehavior: DragStartBehavior.down,
             allowImplicitScrolling: true,
             padEnds: true,
             itemCount: widget.mediaGroups.length,
@@ -2506,8 +2532,8 @@ class FastPageScrollPhysics extends PageScrollPhysics {
 
   @override
   SpringDescription get spring => SpringDescription.withDampingRatio(
-        mass: 1.0,
-        stiffness: 500.0,
+        mass: 0.8,
+        stiffness: 1100.0,
         ratio: 1.0,
       );
 }
