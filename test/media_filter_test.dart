@@ -62,7 +62,7 @@ void main() {
 
     final rawMenuItem = find.ancestor(
       of: find.text('RAW (2)'),
-      matching: find.byType(CheckedPopupMenuItem<MediaFilter>),
+      matching: find.byType(PopupMenuItem<MediaFilter>),
     );
     await tester.tap(rawMenuItem);
     await tester.pumpAndSettle();

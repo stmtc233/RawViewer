@@ -2,6 +2,163 @@ import 'package:flutter/material.dart';
 
 import 'app_theme.dart';
 
+const double desktopControlSize = 34;
+
+class DesktopPopupMenuButton<T> extends StatelessWidget {
+  final String tooltip;
+  final PopupMenuItemBuilder<T> itemBuilder;
+  final PopupMenuItemSelected<T>? onSelected;
+  final Widget child;
+  final T? initialValue;
+  final Offset offset;
+  final bool enabled;
+
+  const DesktopPopupMenuButton({
+    super.key,
+    required this.tooltip,
+    required this.itemBuilder,
+    required this.child,
+    this.onSelected,
+    this.initialValue,
+    this.offset = Offset.zero,
+    this.enabled = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<T>(
+      tooltip: tooltip,
+      itemBuilder: itemBuilder,
+      initialValue: initialValue,
+      onSelected: onSelected,
+      enabled: enabled,
+      padding: EdgeInsets.zero,
+      offset: offset,
+      color: RawViewerColors.raisedSurface,
+      shape: rawViewerPopupMenuShape,
+      elevation: 14,
+      shadowColor: Colors.black87,
+      surfaceTintColor: Colors.transparent,
+      menuPadding: const EdgeInsets.symmetric(vertical: 4),
+      popUpAnimationStyle: rawViewerPopupMenuAnimationStyle,
+      borderRadius: BorderRadius.circular(5),
+      child: child,
+    );
+  }
+}
+
+class DesktopPopupMenuTrigger extends StatelessWidget {
+  final IconData icon;
+  final bool selected;
+
+  const DesktopPopupMenuTrigger({
+    super.key,
+    required this.icon,
+    this.selected = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: desktopControlSize,
+      height: desktopControlSize,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: selected ? RawViewerColors.accentMuted : Colors.transparent,
+          borderRadius: BorderRadius.circular(5),
+        ),
+        child: Icon(
+          icon,
+          color: selected ? RawViewerColors.accent : RawViewerColors.mutedText,
+          size: 19,
+        ),
+      ),
+    );
+  }
+}
+
+PopupMenuItem<T> desktopPopupMenuItem<T>({
+  required T value,
+  required String label,
+  IconData? icon,
+  bool selected = false,
+  bool enabled = true,
+}) {
+  return PopupMenuItem<T>(
+    value: value,
+    enabled: enabled,
+    height: 36,
+    padding: EdgeInsets.zero,
+    child: _DesktopPopupMenuItemContent(
+      icon: icon,
+      label: label,
+      selected: selected,
+      enabled: enabled,
+    ),
+  );
+}
+
+class _DesktopPopupMenuItemContent extends StatelessWidget {
+  final IconData? icon;
+  final String label;
+  final bool selected;
+  final bool enabled;
+
+  const _DesktopPopupMenuItemContent({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.enabled,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground =
+        enabled ? RawViewerColors.text : RawViewerColors.mutedBorder;
+    final iconColor =
+        enabled ? RawViewerColors.mutedText : RawViewerColors.mutedBorder;
+
+    return Container(
+      height: 36,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: selected ? const Color(0xFF1B292A) : Colors.transparent,
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 22,
+            child: icon == null ? null : Icon(icon, size: 17, color: iconColor),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: foreground,
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+          ),
+          if (selected) ...[
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.check,
+              size: 16,
+              color: RawViewerColors.accent,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class DesktopIconButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
@@ -28,8 +185,8 @@ class DesktopIconButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: SizedBox(
-        width: 34,
-        height: 34,
+        width: desktopControlSize,
+        height: desktopControlSize,
         child: Material(
           color: selected ? RawViewerColors.accentMuted : Colors.transparent,
           borderRadius: BorderRadius.circular(5),

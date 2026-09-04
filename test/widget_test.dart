@@ -12,6 +12,7 @@ import 'package:rawviewer/main.dart';
 import 'package:rawviewer/media_filter.dart';
 import 'package:rawviewer/native_lib.dart';
 import 'package:rawviewer/settings_page.dart';
+import 'package:rawviewer/ui/app_theme.dart';
 import 'package:rawviewer/viewer_image.dart';
 
 void main() {
@@ -44,6 +45,7 @@ void main() {
         kImagePreviewCloseTransitionDuration,
         const Duration(milliseconds: 80),
       );
+      expect(kImagePreviewToolbarHeight, 52);
       expect(
         kImagePreviewPageSwitchDuration,
         const Duration(milliseconds: 90),
@@ -64,6 +66,28 @@ void main() {
       expect(spring.mass, 0.8);
       expect(spring.stiffness, 1100.0);
       expect(spring.damping, closeTo(59.33, 0.01));
+    });
+  });
+
+  group('desktop popup menu styling', () {
+    test('uses the compact Raw Viewer menu motion and theme', () {
+      expect(
+        rawViewerPopupMenuAnimationStyle.duration,
+        const Duration(milliseconds: 100),
+      );
+      expect(
+        rawViewerPopupMenuAnimationStyle.reverseDuration,
+        const Duration(milliseconds: 70),
+      );
+      expect(rawViewerTheme.useMaterial3, isFalse);
+      expect(
+        rawViewerTheme.popupMenuTheme.color,
+        RawViewerColors.raisedSurface,
+      );
+      expect(
+        rawViewerTheme.popupMenuTheme.surfaceTintColor,
+        Colors.transparent,
+      );
     });
   });
 

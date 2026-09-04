@@ -182,6 +182,7 @@ const Duration kImagePreviewOpenTransitionDuration =
     Duration(milliseconds: 100);
 const Duration kImagePreviewCloseTransitionDuration =
     Duration(milliseconds: 80);
+const double kImagePreviewToolbarHeight = 52;
 const Duration kImagePreviewPageSwitchDuration = Duration(milliseconds: 90);
 const Duration kImagePreviewRapidSwitchThreshold = Duration(milliseconds: 180);
 const Duration kImagePreviewRapidSwitchSettleDelay =
@@ -1263,11 +1264,9 @@ class _GalleryActionsMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<_GalleryAction>(
+    return DesktopPopupMenuButton<_GalleryAction>(
       tooltip: tooltip,
-      padding: EdgeInsets.zero,
       offset: const Offset(0, 36),
-      color: RawViewerColors.surface,
       onSelected: (action) {
         switch (action) {
           case _GalleryAction.openFiles:
@@ -1282,77 +1281,26 @@ class _GalleryActionsMenu extends StatelessWidget {
         }
       },
       itemBuilder: (context) => [
-        PopupMenuItem(
+        desktopPopupMenuItem(
           value: _GalleryAction.openFiles,
-          child: _GalleryActionMenuItem(
-            icon: Icons.file_open_outlined,
-            label: openFilesLabel,
-          ),
+          icon: Icons.file_open_outlined,
+          label: openFilesLabel,
         ),
-        PopupMenuItem(
+        desktopPopupMenuItem(
           value: _GalleryAction.openFolder,
-          child: _GalleryActionMenuItem(
-            icon: Icons.folder_open_outlined,
-            label: openFolderLabel,
-          ),
+          icon: Icons.folder_open_outlined,
+          label: openFolderLabel,
         ),
-        PopupMenuItem(
+        desktopPopupMenuItem(
           value: _GalleryAction.openCurrentFolder,
           enabled: onOpenCurrentFolder != null,
-          child: _GalleryActionMenuItem(
-            icon: Icons.open_in_new,
-            label: openCurrentFolderLabel,
-            enabled: onOpenCurrentFolder != null,
-          ),
+          icon: Icons.open_in_new,
+          label: openCurrentFolderLabel,
         ),
       ],
-      child: const SizedBox(
-        width: 34,
-        height: 34,
-        child: Icon(
-          Icons.more_vert,
-          color: RawViewerColors.mutedText,
-          size: 19,
-        ),
+      child: const DesktopPopupMenuTrigger(
+        icon: Icons.more_vert,
       ),
-    );
-  }
-}
-
-class _GalleryActionMenuItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool enabled;
-
-  const _GalleryActionMenuItem({
-    required this.icon,
-    required this.label,
-    this.enabled = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 18,
-          color:
-              enabled ? RawViewerColors.mutedText : RawViewerColors.mutedBorder,
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color:
-                  enabled ? RawViewerColors.text : RawViewerColors.mutedBorder,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1990,41 +1938,46 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
   @override
   Widget build(BuildContext context) {
     final currentFilePath = widget.mediaGroups[_currentIndex].primary.path;
+    final previewTop =
+        MediaQuery.paddingOf(context).top + kImagePreviewToolbarHeight;
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          PageView.builder(
-            controller: _pageController,
-            physics: _isLocked
-                ? const NeverScrollableScrollPhysics()
-                : const FastPageScrollPhysics(),
-            dragStartBehavior: DragStartBehavior.down,
-            allowImplicitScrolling: true,
-            padEnds: true,
-            itemCount: widget.mediaGroups.length,
-            onPageChanged: _onPageChanged,
-            itemBuilder: (context, index) {
-              final mediaGroup = widget.mediaGroups[index];
-              final filePath = mediaGroup.primary.path;
-              return _SingleImagePreview(
-                key: ValueKey(filePath),
-                mediaGroup: mediaGroup,
-                thumbnailResizeWidth: widget.thumbnailResizeWidth,
-                imageStore: widget.imageStore,
-                settings: widget.settings,
-                onSwitchRequest: _switchPage,
-                isActive: index == _currentIndex,
-                isFastScrolling: _isFastScrolling,
-                onScaleStateChanged: (isScaling) {
-                  if (_isLocked != isScaling) {
-                    setState(() {
-                      _isLocked = isScaling;
-                    });
-                  }
-                },
-              );
-            },
+          Positioned.fill(
+            top: previewTop,
+            child: PageView.builder(
+              controller: _pageController,
+              physics: _isLocked
+                  ? const NeverScrollableScrollPhysics()
+                  : const FastPageScrollPhysics(),
+              dragStartBehavior: DragStartBehavior.down,
+              allowImplicitScrolling: true,
+              padEnds: true,
+              itemCount: widget.mediaGroups.length,
+              onPageChanged: _onPageChanged,
+              itemBuilder: (context, index) {
+                final mediaGroup = widget.mediaGroups[index];
+                final filePath = mediaGroup.primary.path;
+                return _SingleImagePreview(
+                  key: ValueKey(filePath),
+                  mediaGroup: mediaGroup,
+                  thumbnailResizeWidth: widget.thumbnailResizeWidth,
+                  imageStore: widget.imageStore,
+                  settings: widget.settings,
+                  onSwitchRequest: _switchPage,
+                  isActive: index == _currentIndex,
+                  isFastScrolling: _isFastScrolling,
+                  onScaleStateChanged: (isScaling) {
+                    if (_isLocked != isScaling) {
+                      setState(() {
+                        _isLocked = isScaling;
+                      });
+                    }
+                  },
+                );
+              },
+            ),
           ),
           Positioned(
             top: 0,
@@ -2036,26 +1989,59 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
                 final timestampText = snapshot.hasData
                     ? snapshot.data!.format(widget.settings.timeDisplaySource)
                     : '---- -- -- --:--:--';
-                return AppBar(
-                  title: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(path.basename(currentFilePath)),
-                      Text(
-                        timestampText,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Colors.white70,
+                return Container(
+                  decoration: BoxDecoration(
+                    color: RawViewerColors.surface.withValues(alpha: 0.94),
+                    border: const Border(
+                      bottom: BorderSide(color: RawViewerColors.border),
+                    ),
+                  ),
+                  child: SafeArea(
+                    bottom: false,
+                    child: SizedBox(
+                      height: kImagePreviewToolbarHeight,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Row(
+                          children: [
+                            DesktopIconButton(
+                              icon: Icons.arrow_back,
+                              tooltip: MaterialLocalizations.of(context)
+                                  .backButtonTooltip,
+                              onPressed: widget.onClose,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    path.basename(currentFilePath),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: RawViewerColors.text,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  Text(
+                                    timestampText,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: RawViewerColors.mutedText,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  leading: IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: widget.onClose,
+                    ),
                   ),
                 );
               },
@@ -2427,38 +2413,36 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
         ),
         if (widget.isRaw)
           Positioned(
-            top: kToolbarHeight + 20, // Below the main AppBar
+            top: 12,
             right: 10,
-            child: PopupMenuButton<_PreviewSource>(
+            child: DesktopPopupMenuButton<_PreviewSource>(
               tooltip: l10n.rawPreviewSourceSectionTitle,
-              initialValue: _isShowingPairedJpeg
-                  ? _PreviewSource.jpeg
-                  : _preferFastPreviewForRaw
-                      ? _PreviewSource.fastPreview
-                      : _PreviewSource.decodedRaw,
               onSelected: _selectPreviewSource,
-              icon: Icon(
-                _isShowingPairedJpeg
+              child: DesktopPopupMenuTrigger(
+                icon: _isShowingPairedJpeg
                     ? Icons.image_outlined
                     : Icons.camera_alt_outlined,
-                color: Colors.white,
+                selected: true,
               ),
               itemBuilder: (context) => [
-                CheckedPopupMenuItem(
+                desktopPopupMenuItem(
                   value: _PreviewSource.fastPreview,
-                  checked: !_isShowingPairedJpeg && _preferFastPreviewForRaw,
-                  child: Text(l10n.fastPreviewShortLabel),
+                  icon: Icons.bolt_outlined,
+                  selected: !_isShowingPairedJpeg && _preferFastPreviewForRaw,
+                  label: l10n.fastPreviewShortLabel,
                 ),
-                CheckedPopupMenuItem(
+                desktopPopupMenuItem(
                   value: _PreviewSource.decodedRaw,
-                  checked: !_isShowingPairedJpeg && !_preferFastPreviewForRaw,
-                  child: Text(l10n.rawShortLabel),
+                  icon: Icons.camera_alt_outlined,
+                  selected: !_isShowingPairedJpeg && !_preferFastPreviewForRaw,
+                  label: l10n.rawShortLabel,
                 ),
                 if (widget.hasPairedJpeg)
-                  CheckedPopupMenuItem(
+                  desktopPopupMenuItem(
                     value: _PreviewSource.jpeg,
-                    checked: _isShowingPairedJpeg,
-                    child: const Text('JPG'),
+                    icon: Icons.image_outlined,
+                    selected: _isShowingPairedJpeg,
+                    label: 'JPG',
                   ),
               ],
             ),
@@ -2493,7 +2477,7 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
         else if (_isLoadingDecodedRawPreview && !showDecoded)
           // Sharpening in the background; keep showing the fast preview.
           const Positioned(
-            top: kToolbarHeight + 24,
+            top: 24,
             left: 16,
             child: ExcludeSemantics(
               child: SizedBox(

@@ -13,6 +13,18 @@ abstract final class RawViewerColors {
   static const danger = Color(0xFFE18C87);
 }
 
+const AnimationStyle rawViewerPopupMenuAnimationStyle = AnimationStyle(
+  duration: Duration(milliseconds: 100),
+  reverseDuration: Duration(milliseconds: 70),
+  curve: Curves.easeOutCubic,
+  reverseCurve: Curves.easeInCubic,
+);
+
+final ShapeBorder rawViewerPopupMenuShape = RoundedRectangleBorder(
+  borderRadius: BorderRadius.circular(5),
+  side: const BorderSide(color: RawViewerColors.border),
+);
+
 final ThemeData rawViewerTheme = ThemeData(
   useMaterial3: false,
   brightness: Brightness.dark,
@@ -37,6 +49,19 @@ final ThemeData rawViewerTheme = ThemeData(
       color: RawViewerColors.text,
       fontSize: 14,
       fontWeight: FontWeight.w600,
+    ),
+  ),
+  popupMenuTheme: PopupMenuThemeData(
+    color: RawViewerColors.raisedSurface,
+    shape: rawViewerPopupMenuShape,
+    menuPadding: const EdgeInsets.symmetric(vertical: 4),
+    elevation: 14,
+    shadowColor: Colors.black87,
+    surfaceTintColor: Colors.transparent,
+    textStyle: const TextStyle(
+      color: RawViewerColors.text,
+      fontSize: 12,
+      fontWeight: FontWeight.w500,
     ),
   ),
   dividerTheme: const DividerThemeData(

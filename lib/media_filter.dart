@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'l10n/app_localizations.dart';
+import 'ui/desktop_controls.dart';
 
 enum MediaFilter {
   adaptive,
@@ -41,38 +42,42 @@ class MediaFilterButton extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final totalCount = rawCount + imageCount;
 
-    return PopupMenuButton<MediaFilter>(
-      initialValue: selectedFilter,
+    return DesktopPopupMenuButton<MediaFilter>(
       enabled: totalCount > 0,
       tooltip: l10n.mediaFilterTooltip,
-      icon: Icon(
-        selectedFilter == MediaFilter.all
-            ? Icons.filter_alt_outlined
-            : Icons.filter_alt,
-      ),
       onSelected: onSelected,
       itemBuilder: (context) => [
-        CheckedPopupMenuItem(
+        desktopPopupMenuItem(
           value: MediaFilter.adaptive,
-          checked: selectedFilter == MediaFilter.adaptive,
-          child: Text(l10n.mediaFilterAdaptive(adaptiveCount)),
+          icon: Icons.auto_awesome_motion_outlined,
+          selected: selectedFilter == MediaFilter.adaptive,
+          label: l10n.mediaFilterAdaptive(adaptiveCount),
         ),
-        CheckedPopupMenuItem(
+        desktopPopupMenuItem(
           value: MediaFilter.all,
-          checked: selectedFilter == MediaFilter.all,
-          child: Text(l10n.mediaFilterAll(totalCount)),
+          icon: Icons.collections_outlined,
+          selected: selectedFilter == MediaFilter.all,
+          label: l10n.mediaFilterAll(totalCount),
         ),
-        CheckedPopupMenuItem(
+        desktopPopupMenuItem(
           value: MediaFilter.raw,
-          checked: selectedFilter == MediaFilter.raw,
-          child: Text(l10n.mediaFilterRaw(rawCount)),
+          icon: Icons.camera_alt_outlined,
+          selected: selectedFilter == MediaFilter.raw,
+          label: l10n.mediaFilterRaw(rawCount),
         ),
-        CheckedPopupMenuItem(
+        desktopPopupMenuItem(
           value: MediaFilter.images,
-          checked: selectedFilter == MediaFilter.images,
-          child: Text(l10n.mediaFilterImages(imageCount)),
+          icon: Icons.image_outlined,
+          selected: selectedFilter == MediaFilter.images,
+          label: l10n.mediaFilterImages(imageCount),
         ),
       ],
+      child: DesktopPopupMenuTrigger(
+        icon: selectedFilter == MediaFilter.all
+            ? Icons.filter_alt_outlined
+            : Icons.filter_alt,
+        selected: selectedFilter != MediaFilter.all,
+      ),
     );
   }
 }
