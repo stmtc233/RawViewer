@@ -119,6 +119,24 @@ abstract class AppLocalizations {
   /// **'Adaptive'**
   String get gridAspectRatioAdaptive;
 
+  /// No description provided for @navigationSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigation'**
+  String get navigationSectionTitle;
+
+  /// No description provided for @pageSwitchAnimationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Page Switch Animation'**
+  String get pageSwitchAnimationTitle;
+
+  /// No description provided for @pageSwitchAnimationSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Animate mouse-wheel page changes. Touch and trackpad swipes remain direct and follow the finger.'**
+  String get pageSwitchAnimationSubtitle;
+
   /// No description provided for @languageSectionTitle.
   ///
   /// In en, this message translates to:

@@ -21,6 +21,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get gridAspectRatioAdaptive => '自适应';
 
   @override
+  String get navigationSectionTitle => '切换';
+
+  @override
+  String get pageSwitchAnimationTitle => '切换动画';
+
+  @override
+  String get pageSwitchAnimationSubtitle => '控制鼠标滚轮触发的切换动画；触控和触控板滑动始终保持跟手。';
+
+  @override
   String get languageSectionTitle => '语言';
 
   @override

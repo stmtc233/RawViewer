@@ -48,7 +48,7 @@ void main() {
       expect(kImagePreviewToolbarHeight, 52);
       expect(
         kImagePreviewPageSwitchDuration,
-        const Duration(milliseconds: 90),
+        const Duration(milliseconds: 55),
       );
       expect(
         kImagePreviewRapidSwitchThreshold,
@@ -63,9 +63,9 @@ void main() {
     test('settles swipe navigation with a stiff critically damped spring', () {
       final spring = const FastPageScrollPhysics().spring;
 
-      expect(spring.mass, 0.8);
-      expect(spring.stiffness, 1100.0);
-      expect(spring.damping, closeTo(59.33, 0.01));
+      expect(spring.mass, 0.7);
+      expect(spring.stiffness, 1600.0);
+      expect(spring.damping, closeTo(66.93, 0.01));
     });
   });
 
@@ -107,6 +107,15 @@ void main() {
 
       expect(updated.gridAspectRatio, GridAspectRatio.ratio16x9);
       expect(updated.maxCacheSize, original.maxCacheSize);
+    });
+
+    test('defaults page switch animation to enabled and can disable it', () {
+      const original = ViewerSettings();
+      final updated = original.copyWith(pageSwitchAnimationEnabled: false);
+
+      expect(original.pageSwitchAnimationEnabled, isTrue);
+      expect(updated.pageSwitchAnimationEnabled, isFalse);
+      expect(updated.gridAspectRatio, original.gridAspectRatio);
     });
 
     test('supports adaptive grid sizing', () {
@@ -170,6 +179,23 @@ void main() {
       await tester.tap(decodedPreview);
       await tester.pump();
       expect(updatedSettings!.preferFastPreviewForRaw, isFalse);
+
+      final pageSwitchAnimation =
+          find.byKey(const ValueKey('page-switch-animation'));
+      await tester.scrollUntilVisible(
+        pageSwitchAnimation,
+        -300,
+        scrollable: settingsList,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: pageSwitchAnimation,
+          matching: find.byType(Switch),
+        ),
+      );
+      await tester.pump();
+      expect(updatedSettings!.pageSwitchAnimationEnabled, isFalse);
     });
   });
 

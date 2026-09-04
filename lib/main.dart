@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' as math;
 import 'package:exif/exif.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -183,10 +184,30 @@ const Duration kImagePreviewOpenTransitionDuration =
 const Duration kImagePreviewCloseTransitionDuration =
     Duration(milliseconds: 80);
 const double kImagePreviewToolbarHeight = 52;
-const Duration kImagePreviewPageSwitchDuration = Duration(milliseconds: 90);
+const Duration kImagePreviewPageSwitchDuration = Duration(milliseconds: 55);
 const Duration kImagePreviewRapidSwitchThreshold = Duration(milliseconds: 180);
 const Duration kImagePreviewRapidSwitchSettleDelay =
     Duration(milliseconds: 140);
+const double _gridZoomScrollStep = 20;
+const double _gridZoomLogScaleStep = 0.12;
+const double _previewTrackpadScaleSlop = 0.015;
+const double _trackpadPageDragSensitivity = 2.5;
+const double _trackpadFlingMinVelocity = 350;
+const double _minPreviewScale = 1.0;
+const double _maxPreviewScale = 5.0;
+
+bool _isZoomModifierPressed() {
+  final keysPressed = HardwareKeyboard.instance.logicalKeysPressed;
+  final isCtrlPressed = keysPressed.contains(LogicalKeyboardKey.controlLeft) ||
+      keysPressed.contains(LogicalKeyboardKey.controlRight);
+  if (!Platform.isMacOS) {
+    return isCtrlPressed;
+  }
+
+  return isCtrlPressed ||
+      keysPressed.contains(LogicalKeyboardKey.metaLeft) ||
+      keysPressed.contains(LogicalKeyboardKey.metaRight);
+}
 
 /// Rounds a desired decode width up to the next [kDecodeWidthBucket] step.
 ///
@@ -367,6 +388,10 @@ class _HomePageState extends State<HomePage> {
   MediaFilter _mediaFilter = defaultMediaFilter;
   int _crossAxisCount = 4;
   bool _hasUserConfiguredGridAspectRatio = false;
+  double _gridZoomScrollRemainder = 0;
+  double _gridZoomLogScaleRemainder = 0;
+  double _lastGridTrackpadScale = 1;
+  Timer? _gridZoomResetTimer;
   final Map<String, double> _mediaAspectRatios = <String, double>{};
   final Map<String, double> _pendingMediaAspectRatios = <String, double>{};
   bool _mediaAspectRatioUpdateScheduled = false;
@@ -380,10 +405,18 @@ class _HomePageState extends State<HomePage> {
     unawaited(_refreshWindowsContextMenuState());
   }
 
+  @override
+  void dispose() {
+    _gridZoomResetTimer?.cancel();
+    super.dispose();
+  }
+
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     final savedGridAspectRatio = GridAspectRatio.values
         .asNameMap()[prefs.getString('grid_aspect_ratio')];
+    final pageSwitchAnimationEnabled =
+        prefs.getBool('page_switch_animation_enabled') ?? true;
     if (!mounted) {
       return;
     }
@@ -394,6 +427,9 @@ class _HomePageState extends State<HomePage> {
           gridAspectRatio: savedGridAspectRatio ?? GridAspectRatio.ratio3x2,
         );
       }
+      _settings = _settings.copyWith(
+        pageSwitchAnimationEnabled: pageSwitchAnimationEnabled,
+      );
     });
   }
 
@@ -409,9 +445,79 @@ class _HomePageState extends State<HomePage> {
     await prefs.setInt('grid_cross_axis_count', newCount);
   }
 
+  void _handleGridPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent || !_isZoomModifierPressed()) {
+      return;
+    }
+
+    final delta = event.scrollDelta.dy;
+    if (delta == 0) {
+      return;
+    }
+
+    GestureBinding.instance.pointerSignalResolver.register(event, (event) {
+      event.respond(allowPlatformDefault: false);
+      _updateGridColumnsFromScrollDelta(
+        (event as PointerScrollEvent).scrollDelta.dy,
+      );
+    });
+  }
+
+  void _updateGridColumnsFromScrollDelta(double delta) {
+    _gridZoomScrollRemainder += delta;
+    _gridZoomResetTimer?.cancel();
+    _gridZoomResetTimer = Timer(const Duration(milliseconds: 160), () {
+      _gridZoomScrollRemainder = 0;
+    });
+
+    var columnChange = 0;
+    while (_gridZoomScrollRemainder.abs() >= _gridZoomScrollStep) {
+      final direction = _gridZoomScrollRemainder.isNegative ? -1 : 1;
+      columnChange += direction;
+      _gridZoomScrollRemainder -= direction * _gridZoomScrollStep;
+    }
+    if (columnChange != 0) {
+      unawaited(_updateCrossAxisCount(columnChange));
+    }
+  }
+
+  void _handleGridTrackpadPanZoomStart(PointerPanZoomStartEvent event) {
+    _lastGridTrackpadScale = 1;
+    _gridZoomLogScaleRemainder = 0;
+  }
+
+  void _handleGridTrackpadPanZoomUpdate(PointerPanZoomUpdateEvent event) {
+    if (event.scale <= 0 || !event.scale.isFinite) {
+      return;
+    }
+
+    final scaleChange = event.scale / _lastGridTrackpadScale;
+    _lastGridTrackpadScale = event.scale;
+    if (scaleChange <= 0 || !scaleChange.isFinite) {
+      return;
+    }
+
+    _gridZoomLogScaleRemainder += math.log(scaleChange);
+    var columnChange = 0;
+    while (_gridZoomLogScaleRemainder.abs() >= _gridZoomLogScaleStep) {
+      // Opening the pinch increases thumbnail size, so reduce the column count.
+      final direction = _gridZoomLogScaleRemainder.isNegative ? 1 : -1;
+      columnChange += direction;
+      _gridZoomLogScaleRemainder += direction * _gridZoomLogScaleStep;
+    }
+    if (columnChange != 0) {
+      unawaited(_updateCrossAxisCount(columnChange));
+    }
+  }
+
   Future<void> _persistGridAspectRatio(GridAspectRatio ratio) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('grid_aspect_ratio', ratio.name);
+  }
+
+  Future<void> _persistPageSwitchAnimationEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('page_switch_animation_enabled', enabled);
   }
 
   void _updateSettings(ViewerSettings settings) {
@@ -419,6 +525,8 @@ class _HomePageState extends State<HomePage> {
     final appLanguageChanged = _settings.appLanguage != settings.appLanguage;
     final gridAspectRatioChanged =
         _settings.gridAspectRatio != settings.gridAspectRatio;
+    final pageSwitchAnimationChanged = _settings.pageSwitchAnimationEnabled !=
+        settings.pageSwitchAnimationEnabled;
 
     setState(() {
       _settings = settings;
@@ -433,6 +541,13 @@ class _HomePageState extends State<HomePage> {
     if (gridAspectRatioChanged) {
       _hasUserConfiguredGridAspectRatio = true;
       unawaited(_persistGridAspectRatio(settings.gridAspectRatio));
+    }
+    if (pageSwitchAnimationChanged) {
+      unawaited(
+        _persistPageSwitchAnimationEnabled(
+          settings.pageSwitchAnimationEnabled,
+        ),
+      );
     }
   }
 
@@ -950,6 +1065,50 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildGalleryGrid(
+    List<MediaGroup> mediaGroups,
+    int thumbnailResizeWidth,
+  ) {
+    final grid = _settings.gridAspectRatio.isAdaptive
+        ? _buildAdaptiveGrid(mediaGroups, thumbnailResizeWidth)
+        : GridView.builder(
+            addAutomaticKeepAlives: false,
+            scrollCacheExtent: const ScrollCacheExtent.pixels(200),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: _crossAxisCount,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: _settings.gridAspectRatio.aspectRatio,
+            ),
+            itemCount: mediaGroups.length,
+            itemBuilder: (context, index) {
+              return _buildThumbnailTile(
+                mediaGroups,
+                index,
+                thumbnailResizeWidth,
+              );
+            },
+          );
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        grid,
+        Positioned.fill(
+          // This sits before the scrollable in the hit-test path, allowing
+          // Ctrl+wheel to claim its signal before the grid scrolls.
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerSignal: _handleGridPointerSignal,
+            onPointerPanZoomStart: _handleGridTrackpadPanZoomStart,
+            onPointerPanZoomUpdate: _handleGridTrackpadPanZoomUpdate,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -1030,38 +1189,10 @@ class _HomePageState extends State<HomePage> {
                           )
                         : visibleMediaGroups.isEmpty
                             ? Center(child: Text(l10n.mediaFilterEmptyState))
-                            : _settings.gridAspectRatio.isAdaptive
-                                ? _buildAdaptiveGrid(
-                                    visibleMediaGroups,
-                                    thumbnailResizeWidth,
-                                  )
-                                : GridView.builder(
-                                    addAutomaticKeepAlives: false,
-                                    scrollCacheExtent:
-                                        const ScrollCacheExtent.pixels(200),
-                                    padding: const EdgeInsets.fromLTRB(
-                                      12,
-                                      12,
-                                      12,
-                                      88,
-                                    ),
-                                    gridDelegate:
-                                        SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: _crossAxisCount,
-                                      crossAxisSpacing: 10,
-                                      mainAxisSpacing: 10,
-                                      childAspectRatio:
-                                          _settings.gridAspectRatio.aspectRatio,
-                                    ),
-                                    itemCount: visibleMediaGroups.length,
-                                    itemBuilder: (context, index) {
-                                      return _buildThumbnailTile(
-                                        visibleMediaGroups,
-                                        index,
-                                        thumbnailResizeWidth,
-                                      );
-                                    },
-                                  ),
+                            : _buildGalleryGrid(
+                                visibleMediaGroups,
+                                thumbnailResizeWidth,
+                              ),
                   ),
                   Positioned(
                     right: 12,
@@ -1805,6 +1936,11 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
 
   DateTime? _lastSwitchTime;
   Timer? _scrollStopTimer;
+  Drag? _trackpadPageDrag;
+  VelocityTracker? _trackpadVelocityTracker;
+  Offset _lastTrackpadPan = Offset.zero;
+  Duration? _lastTrackpadPanTimestamp;
+  double _trackpadFlingVelocity = 0;
   // A notifier rather than setState: flipping this must not rebuild the whole
   // PageView (and every page in it) on each scroll burst.
   final ValueNotifier<bool> _isFastScrolling = ValueNotifier<bool>(false);
@@ -1824,6 +1960,8 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
   @override
   void dispose() {
     _scrollStopTimer?.cancel();
+    _trackpadPageDrag?.cancel();
+    _trackpadVelocityTracker = null;
     _isFastScrolling.dispose();
     _pageController.dispose();
     super.dispose();
@@ -1842,6 +1980,91 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
 
     // We also preload here to cover cases where user swiped manually instead of mouse wheel
     _preloadThumbnails(index);
+  }
+
+  void _startTrackpadPageDrag(PointerPanZoomStartEvent event) {
+    _trackpadPageDrag?.cancel();
+    _trackpadVelocityTracker = VelocityTracker.withKind(event.kind)
+      ..addPosition(event.timeStamp, Offset.zero);
+    _lastTrackpadPan = Offset.zero;
+    _lastTrackpadPanTimestamp = event.timeStamp;
+    _trackpadFlingVelocity = 0;
+    if (!_pageController.hasClients) {
+      return;
+    }
+
+    _trackpadPageDrag = _pageController.position.drag(
+      DragStartDetails(
+        globalPosition: event.position,
+        localPosition: event.localPosition,
+        sourceTimeStamp: event.timeStamp,
+        kind: event.kind,
+      ),
+      () => _trackpadPageDrag = null,
+    );
+  }
+
+  void _updateTrackpadPageDrag(PointerPanZoomUpdateEvent event) {
+    final panDelta = event.localPanDelta.dx * _trackpadPageDragSensitivity;
+    final panPosition = event.localPan * _trackpadPageDragSensitivity;
+    _trackpadVelocityTracker?.addPosition(event.timeStamp, panPosition);
+    final previousTimestamp = _lastTrackpadPanTimestamp;
+    if (previousTimestamp != null) {
+      final elapsed = event.timeStamp - previousTimestamp;
+      if (elapsed > Duration.zero && elapsed.inMilliseconds <= 100) {
+        final instantaneousVelocity = (panPosition.dx - _lastTrackpadPan.dx) /
+            elapsed.inMicroseconds *
+            Duration.microsecondsPerSecond;
+        if (instantaneousVelocity.isFinite) {
+          _trackpadFlingVelocity = _trackpadFlingVelocity == 0
+              ? instantaneousVelocity
+              : _trackpadFlingVelocity * 0.35 + instantaneousVelocity * 0.65;
+        }
+      }
+    }
+    _lastTrackpadPan = panPosition;
+    _lastTrackpadPanTimestamp = event.timeStamp;
+    if (panDelta == 0) {
+      return;
+    }
+
+    _trackpadPageDrag?.update(
+      DragUpdateDetails(
+        globalPosition: event.position,
+        localPosition: event.localPosition,
+        sourceTimeStamp: event.timeStamp,
+        delta: Offset(panDelta, 0),
+        primaryDelta: panDelta,
+        kind: event.kind,
+      ),
+    );
+  }
+
+  void _endTrackpadPageDrag(PointerPanZoomEndEvent event) {
+    final drag = _trackpadPageDrag;
+    _trackpadPageDrag = null;
+    final trackedVelocity =
+        _trackpadVelocityTracker?.getVelocity().pixelsPerSecond.dx ?? 0;
+    _trackpadVelocityTracker = null;
+    final velocity = trackedVelocity.abs() >= _trackpadFlingMinVelocity
+        ? trackedVelocity
+        : _trackpadFlingVelocity.abs() >= _trackpadFlingMinVelocity
+            ? _trackpadFlingVelocity
+            : 0.0;
+    drag?.end(
+      DragEndDetails(
+        globalPosition: event.position,
+        localPosition: event.localPosition,
+        velocity: Velocity(pixelsPerSecond: Offset(velocity, 0)),
+        primaryVelocity: velocity,
+      ),
+    );
+  }
+
+  void _cancelTrackpadPageDrag() {
+    _trackpadPageDrag?.cancel();
+    _trackpadPageDrag = null;
+    _trackpadVelocityTracker = null;
   }
 
   void _preloadThumbnails(int centerIndex, {bool isFastScrolling = false}) {
@@ -1910,6 +2133,16 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
     _preloadThumbnails(_targetPage,
         isFastScrolling: fastScroll || _isFastScrolling.value);
 
+    // Touch and trackpad swipes move the PageView directly and never take this
+    // branch. Disabling the setting therefore only removes animation from
+    // discrete mouse-wheel navigation.
+    if (!widget.settings.pageSwitchAnimationEnabled) {
+      _scrollStopTimer?.cancel();
+      _isFastScrolling.value = false;
+      _pageController.jumpToPage(_targetPage);
+      return;
+    }
+
     void startFastScrollTimer() {
       _isFastScrolling.value = true;
       _scrollStopTimer?.cancel();
@@ -1940,6 +2173,9 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
     final currentFilePath = widget.mediaGroups[_currentIndex].primary.path;
     final previewTop =
         MediaQuery.paddingOf(context).top + kImagePreviewToolbarHeight;
+    final pageDragDevices =
+        Set<PointerDeviceKind>.from(ScrollConfiguration.of(context).dragDevices)
+          ..remove(PointerDeviceKind.trackpad);
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -1948,6 +2184,11 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
             top: previewTop,
             child: PageView.builder(
               controller: _pageController,
+              // Trackpad pages are moved from raw pan deltas so their position
+              // remains directly coupled to the user's fingers.
+              scrollBehavior: ScrollConfiguration.of(context).copyWith(
+                dragDevices: pageDragDevices,
+              ),
               physics: _isLocked
                   ? const NeverScrollableScrollPhysics()
                   : const FastPageScrollPhysics(),
@@ -1966,6 +2207,10 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
                   imageStore: widget.imageStore,
                   settings: widget.settings,
                   onSwitchRequest: _switchPage,
+                  onTrackpadPanStart: _startTrackpadPageDrag,
+                  onTrackpadPanUpdate: _updateTrackpadPageDrag,
+                  onTrackpadPanEnd: _endTrackpadPageDrag,
+                  onTrackpadPanCancel: _cancelTrackpadPageDrag,
                   isActive: index == _currentIndex,
                   isFastScrolling: _isFastScrolling,
                   onScaleStateChanged: (isScaling) {
@@ -2060,7 +2305,11 @@ class _SingleImagePreview extends StatefulWidget {
   final int thumbnailResizeWidth;
   final ImageStore imageStore;
   final ViewerSettings settings;
-  final Function(int) onSwitchRequest;
+  final ValueChanged<int> onSwitchRequest;
+  final ValueChanged<PointerPanZoomStartEvent> onTrackpadPanStart;
+  final ValueChanged<PointerPanZoomUpdateEvent> onTrackpadPanUpdate;
+  final ValueChanged<PointerPanZoomEndEvent> onTrackpadPanEnd;
+  final VoidCallback onTrackpadPanCancel;
   final bool isActive;
   final ValueNotifier<bool> isFastScrolling;
   final ValueChanged<bool>? onScaleStateChanged;
@@ -2072,6 +2321,10 @@ class _SingleImagePreview extends StatefulWidget {
     required this.imageStore,
     required this.settings,
     required this.onSwitchRequest,
+    required this.onTrackpadPanStart,
+    required this.onTrackpadPanUpdate,
+    required this.onTrackpadPanEnd,
+    required this.onTrackpadPanCancel,
     required this.isActive,
     required this.isFastScrolling,
     this.onScaleStateChanged,
@@ -2095,11 +2348,14 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
   final TransformationController _transformationController =
       TransformationController();
   bool _panEnabled = false;
-  // InteractiveViewer scaleEnabled defaults to true.
-  // We want to disable it for Mouse (to prevent default zoom on scroll)
-  // but keep it enabled for Touch (pinch zoom).
+  // Mouse-wheel zoom is explicit so it does not conflict with navigation.
+  // Touch keeps InteractiveViewer's pinch flow, while trackpad pinch is
+  // handled from raw pan/zoom updates.
   bool _scaleEnabled = false;
   final Set<int> _activePointers = {};
+  double _lastTrackpadScale = 1;
+  bool _isTrackpadScaling = false;
+  bool _isTrackpadPageDrag = false;
 
   /// Only the expensive decoded-RAW task is tracked for cancellation.
   ///
@@ -2301,41 +2557,112 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
     }
   }
 
+  void _applyScale(double scaleChange, Offset focalPoint) {
+    if (scaleChange <= 0 || !scaleChange.isFinite) {
+      return;
+    }
+
+    final matrix = _transformationController.value.clone();
+    final currentScale = matrix.getMaxScaleOnAxis();
+    final targetScale = (currentScale * scaleChange)
+        .clamp(_minPreviewScale, _maxPreviewScale)
+        .toDouble();
+    final effectiveScaleChange = targetScale / currentScale;
+    if ((effectiveScaleChange - 1).abs() < 0.0001) {
+      return;
+    }
+
+    final scaleMatrix = Matrix4.identity()
+      ..translateByDouble(focalPoint.dx, focalPoint.dy, 0, 1)
+      ..scaleByDouble(
+        effectiveScaleChange,
+        effectiveScaleChange,
+        effectiveScaleChange,
+        1,
+      )
+      ..translateByDouble(-focalPoint.dx, -focalPoint.dy, 0, 1);
+    _transformationController.value = scaleMatrix * matrix;
+  }
+
   void _handlePointerSignal(PointerSignalEvent event) {
-    if (event is PointerScrollEvent) {
-      final keysPressed = HardwareKeyboard.instance.logicalKeysPressed;
-      final isCtrlPressed =
-          keysPressed.contains(LogicalKeyboardKey.controlLeft) ||
-              keysPressed.contains(LogicalKeyboardKey.controlRight);
-      final isMetaPressed = keysPressed.contains(LogicalKeyboardKey.metaLeft) ||
-          keysPressed.contains(LogicalKeyboardKey.metaRight);
-      final isZoomModifierPressed =
-          Platform.isMacOS ? (isMetaPressed || isCtrlPressed) : isCtrlPressed;
+    if (event is PointerScaleEvent) {
+      GestureBinding.instance.pointerSignalResolver.register(event, (event) {
+        final scaleEvent = event as PointerScaleEvent;
+        _applyScale(scaleEvent.scale, scaleEvent.localPosition);
+      });
+      return;
+    }
 
-      if (isZoomModifierPressed) {
-        // Zoom centered on mouse pointer
-        final double scaleChange = event.scrollDelta.dy < 0 ? 1.1 : 0.9;
-        final Offset focalPoint = event.localPosition;
+    if (event is! PointerScrollEvent) {
+      return;
+    }
 
-        final Matrix4 matrix = _transformationController.value.clone();
+    final scrollDelta = event.scrollDelta;
+    final primaryDelta = scrollDelta.dx.abs() > scrollDelta.dy.abs()
+        ? scrollDelta.dx
+        : scrollDelta.dy;
+    if (primaryDelta == 0) {
+      return;
+    }
 
-        final Matrix4 scaleMatrix = Matrix4.identity()
-          ..translateByDouble(focalPoint.dx, focalPoint.dy, 0, 1)
-          ..scaleByDouble(scaleChange, scaleChange, scaleChange, 1)
-          ..translateByDouble(-focalPoint.dx, -focalPoint.dy, 0, 1);
-
-        final Matrix4 newMatrix = scaleMatrix * matrix;
-
-        _transformationController.value = newMatrix;
+    final shouldZoom = _isZoomModifierPressed();
+    if (event.kind == PointerDeviceKind.trackpad && !shouldZoom) {
+      // Let PageView consume trackpad scroll signals directly. On platforms
+      // that emit these instead of pan/zoom events, this preserves follow.
+      return;
+    }
+    GestureBinding.instance.pointerSignalResolver.register(event, (event) {
+      final scrollEvent = event as PointerScrollEvent;
+      scrollEvent.respond(allowPlatformDefault: false);
+      if (shouldZoom) {
+        _applyScale(
+          primaryDelta < 0 ? 1.1 : 0.9,
+          scrollEvent.localPosition,
+        );
       } else {
-        // Switch image
-        if (event.scrollDelta.dy > 0) {
-          widget.onSwitchRequest(1);
-        } else if (event.scrollDelta.dy < 0) {
-          widget.onSwitchRequest(-1);
+        widget.onSwitchRequest(primaryDelta > 0 ? 1 : -1);
+      }
+    });
+  }
+
+  void _handleTrackpadPanZoomStart(PointerPanZoomStartEvent event) {
+    _lastTrackpadScale = 1;
+    _isTrackpadScaling = false;
+    // Once zoomed, InteractiveViewer owns two-finger panning of the image.
+    // At the fit scale, drive PageView with the same drag activity used by
+    // touch so page position stays directly under the gesture.
+    _isTrackpadPageDrag = !_panEnabled;
+    if (_isTrackpadPageDrag) {
+      widget.onTrackpadPanStart(event);
+    }
+  }
+
+  void _handleTrackpadPanZoomUpdate(PointerPanZoomUpdateEvent event) {
+    if (event.scale > 0 && event.scale.isFinite) {
+      final scaleChange = event.scale / _lastTrackpadScale;
+      _lastTrackpadScale = event.scale;
+      if (_isTrackpadScaling ||
+          (event.scale - 1).abs() >= _previewTrackpadScaleSlop) {
+        if (!_isTrackpadScaling && _isTrackpadPageDrag) {
+          widget.onTrackpadPanCancel();
+          _isTrackpadPageDrag = false;
         }
+        _isTrackpadScaling = true;
+        _applyScale(scaleChange, event.localPosition);
+        return;
       }
     }
+
+    if (_isTrackpadPageDrag) {
+      widget.onTrackpadPanUpdate(event);
+    }
+  }
+
+  void _handleTrackpadPanZoomEnd(PointerPanZoomEndEvent event) {
+    if (_isTrackpadPageDrag && !_isTrackpadScaling) {
+      widget.onTrackpadPanEnd(event);
+    }
+    _isTrackpadPageDrag = false;
   }
 
   void _onPointerDown(PointerDownEvent event) {
@@ -2389,6 +2716,9 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
       children: [
         Listener(
           onPointerSignal: _handlePointerSignal,
+          onPointerPanZoomStart: _handleTrackpadPanZoomStart,
+          onPointerPanZoomUpdate: _handleTrackpadPanZoomUpdate,
+          onPointerPanZoomEnd: _handleTrackpadPanZoomEnd,
           onPointerDown: _onPointerDown,
           onPointerUp: _onPointerUp,
           onPointerCancel: _onPointerCancel,
@@ -2396,8 +2726,8 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
           child: Center(
             child: InteractiveViewer(
               transformationController: _transformationController,
-              minScale: 1.0, // Prevent zooming out smaller than screen
-              maxScale: 5.0,
+              minScale: _minPreviewScale,
+              maxScale: _maxPreviewScale,
               panEnabled: _panEnabled,
               scaleEnabled: _scaleEnabled,
               child: _isShowingPairedJpeg
@@ -2604,8 +2934,8 @@ class FastPageScrollPhysics extends PageScrollPhysics {
 
   @override
   SpringDescription get spring => SpringDescription.withDampingRatio(
-        mass: 0.8,
-        stiffness: 1100.0,
+        mass: 0.7,
+        stiffness: 1600.0,
         ratio: 1.0,
       );
 }

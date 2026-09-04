@@ -103,6 +103,9 @@ class ViewerSettings {
   final TimeDisplaySource timeDisplaySource;
   final AppLanguage appLanguage;
   final GridAspectRatio gridAspectRatio;
+  // Applies to discrete mouse-wheel page changes. Touch and trackpad
+  // navigation remain directly controlled by the PageView.
+  final bool pageSwitchAnimationEnabled;
   final WindowsContextMenuSettings windowsContextMenu;
 
   const ViewerSettings({
@@ -112,6 +115,7 @@ class ViewerSettings {
     this.timeDisplaySource = TimeDisplaySource.capturedAt,
     this.appLanguage = AppLanguage.system,
     this.gridAspectRatio = GridAspectRatio.ratio3x2,
+    this.pageSwitchAnimationEnabled = true,
     this.windowsContextMenu = const WindowsContextMenuSettings(),
   });
 
@@ -122,6 +126,7 @@ class ViewerSettings {
     TimeDisplaySource? timeDisplaySource,
     AppLanguage? appLanguage,
     GridAspectRatio? gridAspectRatio,
+    bool? pageSwitchAnimationEnabled,
     WindowsContextMenuSettings? windowsContextMenu,
   }) {
     return ViewerSettings(
@@ -132,6 +137,8 @@ class ViewerSettings {
       timeDisplaySource: timeDisplaySource ?? this.timeDisplaySource,
       appLanguage: appLanguage ?? this.appLanguage,
       gridAspectRatio: gridAspectRatio ?? this.gridAspectRatio,
+      pageSwitchAnimationEnabled:
+          pageSwitchAnimationEnabled ?? this.pageSwitchAnimationEnabled,
       windowsContextMenu: windowsContextMenu ?? this.windowsContextMenu,
     );
   }
@@ -318,6 +325,24 @@ class _SettingsPageState extends State<SettingsPage> {
                         )
                         .toList(),
                   ),
+                ),
+                DesktopSettingsSection(
+                  title: l10n.navigationSectionTitle,
+                  children: [
+                    DesktopSettingsRow(
+                      key: const ValueKey('page-switch-animation'),
+                      title: l10n.pageSwitchAnimationTitle,
+                      subtitle: l10n.pageSwitchAnimationSubtitle,
+                      control: Switch(
+                        value: _currentSettings.pageSwitchAnimationEnabled,
+                        onChanged: (value) => _updateSettings(
+                          _currentSettings.copyWith(
+                            pageSwitchAnimationEnabled: value,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 DesktopSettingsSection(
                   title: l10n.rawPreviewSourceSectionTitle,

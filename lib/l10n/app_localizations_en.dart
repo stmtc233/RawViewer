@@ -21,6 +21,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get gridAspectRatioAdaptive => 'Adaptive';
 
   @override
+  String get navigationSectionTitle => 'Navigation';
+
+  @override
+  String get pageSwitchAnimationTitle => 'Page Switch Animation';
+
+  @override
+  String get pageSwitchAnimationSubtitle => 'Animate mouse-wheel page changes. Touch and trackpad swipes remain direct and follow the finger.';
+
+  @override
   String get languageSectionTitle => 'Language';
 
   @override
