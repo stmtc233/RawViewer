@@ -1079,31 +1079,33 @@ class _HomePageState extends State<HomePage> {
     const gridPadding = EdgeInsets.fromLTRB(12, 12, 12, 88);
     const gridSpacing = 10.0;
 
-    return Padding(
-      padding: gridPadding,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final nominalCellWidth =
-              (width - gridSpacing * (_crossAxisCount - 1)) / _crossAxisCount;
-          final targetRowHeight = nominalCellWidth / (3 / 2);
-          final rows = buildJustifiedGridRows(
-            aspectRatios: mediaGroups
-                .map(
-                  (mediaGroup) =>
-                      _mediaAspectRatios[mediaGroup.primary.path] ??
-                      GridAspectRatio.adaptive.aspectRatio,
-                )
-                .toList(growable: false),
-            availableWidth: width,
-            targetRowHeight: targetRowHeight,
-            spacing: gridSpacing,
-          );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width =
+            math.max(0.0, constraints.maxWidth - gridPadding.horizontal);
+        final nominalCellWidth =
+            (width - gridSpacing * (_crossAxisCount - 1)) / _crossAxisCount;
+        final targetRowHeight = nominalCellWidth / (3 / 2);
+        final rows = buildJustifiedGridRows(
+          aspectRatios: mediaGroups
+              .map(
+                (mediaGroup) =>
+                    _mediaAspectRatios[mediaGroup.primary.path] ??
+                    GridAspectRatio.adaptive.aspectRatio,
+              )
+              .toList(growable: false),
+          availableWidth: width,
+          targetRowHeight: targetRowHeight,
+          spacing: gridSpacing,
+          maxFinalRowHeight: targetRowHeight * 1.5,
+        );
 
-          return CustomScrollView(
-            scrollCacheExtent: const ScrollCacheExtent.pixels(200),
-            slivers: [
-              SliverList.builder(
+        return CustomScrollView(
+          scrollCacheExtent: const ScrollCacheExtent.pixels(200),
+          slivers: [
+            SliverPadding(
+              padding: gridPadding,
+              sliver: SliverList.builder(
                 itemCount: rows.length,
                 itemBuilder: (context, rowIndex) {
                   final row = rows[rowIndex];
@@ -1138,10 +1140,10 @@ class _HomePageState extends State<HomePage> {
                   );
                 },
               ),
-            ],
-          );
-        },
-      ),
+            ),
+          ],
+        );
+      },
     );
   }
 

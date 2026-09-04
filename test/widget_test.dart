@@ -287,11 +287,26 @@ void main() {
       }
     });
 
-    test('justifies the final row instead of leaving empty grid cells', () {
+    test('caps an oversized final row while retaining the image ratio', () {
       final rows = buildJustifiedGridRows(
         aspectRatios: const [1, 1, 1, 1],
         availableWidth: 400,
         targetRowHeight: 150,
+        maxFinalRowHeight: 200,
+      );
+
+      expect(rows.last.height, 200);
+      expect(rows.last.widths, [200]);
+      expect(rows.last.widths.single / rows.last.height, 1);
+      expect(rows.expand((row) => row.indices), orderedEquals([0, 1, 2, 3]));
+    });
+
+    test('still justifies a normal-sized final row', () {
+      final rows = buildJustifiedGridRows(
+        aspectRatios: const [1, 1, 1, 2],
+        availableWidth: 400,
+        targetRowHeight: 150,
+        maxFinalRowHeight: 300,
       );
 
       expect(rows.last.widths.reduce((sum, width) => sum + width),

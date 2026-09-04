@@ -2,8 +2,8 @@ import 'dart:math' as math;
 
 /// A single row in a justified image grid.
 ///
-/// Every row occupies the full available width. The item widths preserve their
-/// source aspect ratios, so the images tile without unused cells.
+/// Rows normally occupy the full available width. The item widths preserve
+/// their source aspect ratios, so the images tile without unused cells.
 class JustifiedGridRow {
   final List<int> indices;
   final List<double> widths;
@@ -19,13 +19,15 @@ class JustifiedGridRow {
 /// Splits image aspect ratios into rows that each fill [availableWidth].
 ///
 /// [targetRowHeight] controls the intended density. The final row is justified
-/// too, which avoids a partially empty trailing row.
+/// too unless that would exceed [maxFinalRowHeight]. In that case it keeps its
+/// aspect ratios and leaves the remaining horizontal space unused.
 List<JustifiedGridRow> buildJustifiedGridRows({
   required List<double> aspectRatios,
   required double availableWidth,
   required double targetRowHeight,
   double spacing = 0,
   double fallbackAspectRatio = 3 / 2,
+  double? maxFinalRowHeight,
 }) {
   if (aspectRatios.isEmpty || availableWidth <= 0 || targetRowHeight <= 0) {
     return const [];
@@ -54,13 +56,21 @@ List<JustifiedGridRow> buildJustifiedGridRows({
 
     final rowWidth =
         math.max(1.0, availableWidth - spacing * (ratios.length - 1));
-    final rowHeight = rowWidth / aspectTotal;
+    final justifiedRowHeight = rowWidth / aspectTotal;
+    final isFinalRow = index == aspectRatios.length;
+    final hasFinalRowHeightLimit = isFinalRow &&
+        maxFinalRowHeight != null &&
+        maxFinalRowHeight.isFinite &&
+        maxFinalRowHeight > 0 &&
+        justifiedRowHeight > maxFinalRowHeight;
+    final rowHeight =
+        hasFinalRowHeightLimit ? maxFinalRowHeight : justifiedRowHeight;
     final widths = <double>[];
     var occupiedWidth = 0.0;
 
     for (var itemIndex = 0; itemIndex < ratios.length; itemIndex++) {
       final isLastItem = itemIndex == ratios.length - 1;
-      final width = isLastItem
+      final width = !hasFinalRowHeightLimit && isLastItem
           ? availableWidth - occupiedWidth - spacing * itemIndex
           : ratios[itemIndex] * rowHeight;
       widths.add(math.max(0.0, width));
