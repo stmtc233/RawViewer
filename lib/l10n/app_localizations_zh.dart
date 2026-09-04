@@ -48,7 +48,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get fastPreviewTitle => '快速预览';
 
   @override
-  String get fastPreviewSubtitle => '先显示缓存的快速预览，再继续使用快速预览层。通常优先使用内嵌预览，缺失时回退到快速 RAW 处理。';
+  String get fastPreviewSubtitle =>
+      '先显示缓存的快速预览，再继续使用快速预览层。通常优先使用内嵌预览，缺失时回退到快速 RAW 处理。';
 
   @override
   String get decodedRawPreviewTitle => 'RAW 解码图像';
@@ -63,7 +64,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get halfSizeRawDecodeTitle => '半尺寸 RAW 解码';
 
   @override
-  String get halfSizeRawDecodeSubtitle => '将 RAW 最终图像按 50% 分辨率解码以提升速度。关闭后使用完整分辨率。';
+  String get halfSizeRawDecodeSubtitle =>
+      '将 RAW 最终图像按 50% 分辨率解码以提升速度。关闭后使用完整分辨率。';
 
   @override
   String get timeDisplaySectionTitle => '时间显示';
@@ -101,10 +103,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get windowsContextMenuToggleTitle => '显示“在 RawView 中打开”';
 
   @override
-  String get windowsContextMenuEnabledSubtitle => '已安装到当前用户。支持文件、多个文件、文件夹，以及文件夹空白处右键打开。';
+  String get windowsContextMenuEnabledSubtitle =>
+      '已安装到当前用户。支持文件、多个文件、文件夹，以及文件夹空白处右键打开。';
 
   @override
-  String get windowsContextMenuDisabledSubtitle => '启用后可在资源管理器中通过右键“在 RawView 中打开”直接打开文件、多个文件、文件夹或当前目录。';
+  String get windowsContextMenuDisabledSubtitle =>
+      '启用后可在资源管理器中通过右键“在 RawView 中打开”直接打开文件、多个文件、文件夹或当前目录。';
 
   @override
   String get installScopeTitle => '安装范围';
@@ -167,6 +171,27 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get resetImageViewTooltip => '重置图片视图';
+
+  @override
+  String get previewDisplayControlsTooltip => '预览显示';
+
+  @override
+  String get previewFilmstripTitle => '缩略图导航';
+
+  @override
+  String get previewOverviewTitle => '鸟瞰图';
+
+  @override
+  String get showPreviewFilmstripTooltip => '显示缩略图导航';
+
+  @override
+  String get hidePreviewFilmstripTooltip => '隐藏缩略图导航';
+
+  @override
+  String get showPreviewOverviewTooltip => '显示鸟瞰图';
+
+  @override
+  String get hidePreviewOverviewTooltip => '隐藏鸟瞰图';
 
   @override
   String get largerThumbnailsTooltip => '放大缩略图';

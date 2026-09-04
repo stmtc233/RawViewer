@@ -36,6 +36,38 @@ void main() {
   });
 
   group('image preview motion', () {
+    test('shows a bounded neighborhood around the active page', () {
+      expect(
+        previewNavigationIndices(currentIndex: 3, itemCount: 8),
+        [1, 2, 3, 4, 5],
+      );
+      expect(
+        previewNavigationIndices(currentIndex: 0, itemCount: 2),
+        [0, 1],
+      );
+      expect(
+        previewNavigationIndices(currentIndex: 10, itemCount: 0),
+        isEmpty,
+      );
+    });
+
+    test('maps the zoomed viewport onto the overview map', () {
+      final transform = Matrix4.identity()
+        ..setEntry(0, 0, 2)
+        ..setEntry(1, 1, 2)
+        ..setTranslationRaw(-100, -50, 0);
+
+      final rect = previewOverviewViewportRect(
+        transform: transform,
+        viewportSize: const Size(1000, 800),
+        mapSize: const Size(200, 160),
+      );
+      expect(rect.left, closeTo(10, 0.001));
+      expect(rect.top, closeTo(5, 0.001));
+      expect(rect.right, closeTo(110, 0.001));
+      expect(rect.bottom, closeTo(85, 0.001));
+    });
+
     test('wraps clockwise and counterclockwise quarter turns', () {
       expect(rotateImageQuarterTurns(0, 1), 1);
       expect(rotateImageQuarterTurns(3, 1), 0);

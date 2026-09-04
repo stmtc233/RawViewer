@@ -184,6 +184,13 @@ const Duration kImagePreviewOpenTransitionDuration =
 const Duration kImagePreviewCloseTransitionDuration =
     Duration(milliseconds: 80);
 const double kImagePreviewToolbarHeight = 52;
+const double kPreviewFilmstripHeight = 88;
+const double kPreviewFilmstripItemWidth = 88;
+const double kPreviewFilmstripItemExtent = 96;
+const double kPreviewOverviewMapWidth = 180;
+const double kPreviewOverviewMapHeight = 120;
+const double _previewImageControlsHeight = 42;
+const double _previewOverviewGap = 10;
 const Duration kImagePreviewPageSwitchDuration = Duration(milliseconds: 55);
 const Duration kImagePreviewRapidSwitchThreshold = Duration(milliseconds: 180);
 const Duration kImagePreviewRapidSwitchSettleDelay =
@@ -202,6 +209,61 @@ const Duration _previewFitScaleLockDuration = Duration(milliseconds: 100);
 
 double clampPreviewScale(double scale) {
   return scale.clamp(kMinPreviewScale, kMaxPreviewScale).toDouble();
+}
+
+/// Returns the small set of pages shown around the active image in the
+/// preview filmstrip.
+List<int> previewNavigationIndices({
+  required int currentIndex,
+  required int itemCount,
+  int radius = 2,
+}) {
+  if (itemCount <= 0) {
+    return const [];
+  }
+
+  final safeCurrentIndex = currentIndex.clamp(0, itemCount - 1).toInt();
+  final safeRadius = radius < 0 ? 0 : radius;
+  final first = math.max(0, safeCurrentIndex - safeRadius);
+  final last = math.min(itemCount - 1, safeCurrentIndex + safeRadius);
+  return [for (var index = first; index <= last; index++) index];
+}
+
+/// Maps the visible portion of the zoomed image onto an overview map.
+Rect previewOverviewViewportRect({
+  required Matrix4 transform,
+  required Size viewportSize,
+  required Size mapSize,
+}) {
+  if (viewportSize.isEmpty || mapSize.isEmpty) {
+    return Offset.zero & mapSize;
+  }
+
+  final scale = transform.getMaxScaleOnAxis();
+  if (!scale.isFinite || scale <= 0) {
+    return Offset.zero & mapSize;
+  }
+
+  final translation = transform.getTranslation();
+  final visibleWidth = viewportSize.width / scale;
+  final visibleHeight = viewportSize.height / scale;
+  final visibleLeft = (-translation.x / scale)
+      .clamp(0.0, math.max(0.0, viewportSize.width - visibleWidth))
+      .toDouble();
+  final visibleTop = (-translation.y / scale)
+      .clamp(0.0, math.max(0.0, viewportSize.height - visibleHeight))
+      .toDouble();
+  final visibleRight =
+      (visibleLeft + visibleWidth).clamp(0.0, viewportSize.width).toDouble();
+  final visibleBottom =
+      (visibleTop + visibleHeight).clamp(0.0, viewportSize.height).toDouble();
+
+  return Rect.fromLTRB(
+    visibleLeft / viewportSize.width * mapSize.width,
+    visibleTop / viewportSize.height * mapSize.height,
+    visibleRight / viewportSize.width * mapSize.width,
+    visibleBottom / viewportSize.height * mapSize.height,
+  );
 }
 
 bool shouldResetPreviewPositionAtFitScale({
@@ -1951,6 +2013,8 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
   late int _currentIndex;
   late int _targetPage;
   bool _isLocked = false;
+  bool _showPreviewFilmstrip = true;
+  bool _showPreviewOverview = true;
   final Map<String, int> _rotationQuarterTurns = <String, int>{};
   final Map<String, _PreviewSource> _previewSources =
       <String, _PreviewSource>{};
@@ -2089,7 +2153,7 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
   }
 
   void _preloadThumbnails(int centerIndex, {bool isFastScrolling = false}) {
-    int range = isFastScrolling ? 2 : 10;
+    final range = isFastScrolling ? 1 : 3;
     for (int i = 1; i <= range; i++) {
       _preloadIndex(centerIndex + i);
       _preloadIndex(centerIndex - i);
@@ -2103,11 +2167,16 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
     final String filePath = mediaFile.path;
 
     if (mediaFile.isRaw) {
-      // Warms the same full-resolution entry the preview reads, so a switch onto
-      // this page can paint on its first frame. The handle is not displayed
-      // here, so release it and let the cached master hold the pixels.
+      // Warm a bounded thumbnail layer instead of several full-resolution RAW
+      // images. The active page paints this cached layer immediately, then
+      // upgrades itself in the background when needed.
       unawaited(widget.imageStore
-          .load(filePath, RawLayer.fastPreview, priority: TaskPriority.low)
+          .load(
+            filePath,
+            RawLayer.fastPreview,
+            targetWidth: _previewFilmstripDecodeWidth,
+            priority: TaskPriority.low,
+          )
           .then((image) => image?.dispose()));
     } else {
       // For bitmaps, preload the same low-res layer used by single preview
@@ -2122,6 +2191,10 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
       }
     }
   }
+
+  int get _previewFilmstripDecodeWidth => bucketDecodeWidth(
+        kPreviewFilmstripItemWidth * MediaQuery.devicePixelRatioOf(context),
+      );
 
   void _switchPage(int delta) {
     int newTarget = _targetPage + delta;
@@ -2187,6 +2260,31 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
         curve: Curves.easeOutCubic,
       );
     }
+  }
+
+  void _jumpToPage(int index) {
+    if (index < 0 || index >= widget.mediaGroups.length) {
+      return;
+    }
+    if (index == _currentIndex && index == _targetPage) {
+      return;
+    }
+
+    _targetPage = index;
+    _preloadThumbnails(index);
+    _scrollStopTimer?.cancel();
+    _isFastScrolling.value = false;
+
+    if (!widget.settings.pageSwitchAnimationEnabled) {
+      _pageController.jumpToPage(index);
+      return;
+    }
+
+    _pageController.animateToPage(
+      index,
+      duration: kImagePreviewPageSwitchDuration,
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _rotateImage(String filePath, int quarterTurns) {
@@ -2263,6 +2361,9 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
         children: [
           Positioned.fill(
             top: previewTop,
+            bottom: _showPreviewFilmstrip
+                ? kPreviewFilmstripHeight + MediaQuery.paddingOf(context).bottom
+                : 0,
             child: PageView.builder(
               controller: _pageController,
               // Trackpad pages are moved from raw pan deltas so their position
@@ -2285,6 +2386,7 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
                   key: ValueKey(filePath),
                   mediaGroup: mediaGroup,
                   thumbnailResizeWidth: widget.thumbnailResizeWidth,
+                  previewThumbnailResizeWidth: _previewFilmstripDecodeWidth,
                   imageStore: widget.imageStore,
                   settings: widget.settings,
                   rotationQuarterTurns: _rotationQuarterTurns[filePath] ?? 0,
@@ -2298,6 +2400,8 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
                   onTrackpadPanEnd: _endTrackpadPageDrag,
                   onTrackpadPanCancel: _cancelTrackpadPageDrag,
                   isActive: index == _currentIndex,
+                  showPreviewOverview: _showPreviewOverview,
+                  overviewBottomInset: 0,
                   isFastScrolling: _isFastScrolling,
                   onScaleStateChanged: (isScaling) {
                     if (_isLocked != isScaling) {
@@ -2310,6 +2414,19 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
               },
             ),
           ),
+          if (_showPreviewFilmstrip)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _PreviewFilmstrip(
+                mediaGroups: widget.mediaGroups,
+                currentIndex: _currentIndex,
+                imageStore: widget.imageStore,
+                decodeWidth: _previewFilmstripDecodeWidth,
+                onIndexSelected: _jumpToPage,
+              ),
+            ),
           Positioned(
             top: 0,
             left: 0,
@@ -2367,6 +2484,43 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
                                     ),
                                   ),
                                 ],
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            DesktopPopupMenuButton<_PreviewDisplayControl>(
+                              tooltip: l10n.previewDisplayControlsTooltip,
+                              onSelected: (control) {
+                                setState(() {
+                                  switch (control) {
+                                    case _PreviewDisplayControl.filmstrip:
+                                      _showPreviewFilmstrip =
+                                          !_showPreviewFilmstrip;
+                                      break;
+                                    case _PreviewDisplayControl.overview:
+                                      _showPreviewOverview =
+                                          !_showPreviewOverview;
+                                      break;
+                                  }
+                                });
+                              },
+                              itemBuilder: (context) => [
+                                desktopPopupMenuItem(
+                                  value: _PreviewDisplayControl.filmstrip,
+                                  icon: Icons.view_carousel_outlined,
+                                  selected: _showPreviewFilmstrip,
+                                  label: l10n.previewFilmstripTitle,
+                                ),
+                                desktopPopupMenuItem(
+                                  value: _PreviewDisplayControl.overview,
+                                  icon: Icons.map_outlined,
+                                  selected: _showPreviewOverview,
+                                  label: l10n.previewOverviewTitle,
+                                ),
+                              ],
+                              child: DesktopPopupMenuTrigger(
+                                icon: Icons.tune,
+                                selected: _showPreviewFilmstrip ||
+                                    _showPreviewOverview,
                               ),
                             ),
                             if (currentMediaGroup.isRaw) ...[
@@ -2428,6 +2582,390 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
   }
 }
 
+class _PreviewFilmstrip extends StatefulWidget {
+  final List<MediaGroup> mediaGroups;
+  final int currentIndex;
+  final ImageStore imageStore;
+  final int decodeWidth;
+  final ValueChanged<int> onIndexSelected;
+
+  const _PreviewFilmstrip({
+    required this.mediaGroups,
+    required this.currentIndex,
+    required this.imageStore,
+    required this.decodeWidth,
+    required this.onIndexSelected,
+  });
+
+  @override
+  State<_PreviewFilmstrip> createState() => _PreviewFilmstripState();
+}
+
+class _PreviewFilmstripState extends State<_PreviewFilmstrip> {
+  late final ScrollController _scrollController;
+  double? _lastViewportWidth;
+  bool _centerRequestScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    _scheduleCenterCurrent(animated: false);
+  }
+
+  @override
+  void didUpdateWidget(_PreviewFilmstrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentIndex != widget.currentIndex) {
+      _scheduleCenterCurrent(animated: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scheduleCenterCurrent({required bool animated}) {
+    if (_centerRequestScheduled) {
+      return;
+    }
+    _centerRequestScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _centerRequestScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      _centerCurrent(animated: animated);
+    });
+  }
+
+  void _centerCurrent({required bool animated}) {
+    if (!_scrollController.hasClients || widget.mediaGroups.isEmpty) {
+      _scheduleCenterCurrent(animated: animated);
+      return;
+    }
+
+    final maxScrollExtent = _scrollController.position.maxScrollExtent;
+    final targetOffset = (widget.currentIndex * kPreviewFilmstripItemExtent)
+        .clamp(0.0, maxScrollExtent)
+        .toDouble();
+    if ((targetOffset - _scrollController.offset).abs() < 0.5) {
+      return;
+    }
+
+    if (animated) {
+      unawaited(_scrollController.animateTo(
+        targetOffset,
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutCubic,
+      ));
+    } else {
+      _scrollController.jumpTo(targetOffset);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomPadding = MediaQuery.paddingOf(context).bottom;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (_lastViewportWidth != constraints.maxWidth) {
+          _lastViewportWidth = constraints.maxWidth;
+          _scheduleCenterCurrent(animated: false);
+        }
+        final viewportWidth = math.max(0.0, constraints.maxWidth - 24);
+        final sidePadding = math.max(
+          0.0,
+          (viewportWidth - kPreviewFilmstripItemWidth) / 2,
+        );
+        return Container(
+          height: kPreviewFilmstripHeight + bottomPadding,
+          padding: EdgeInsets.fromLTRB(12, 10, 12, bottomPadding + 10),
+          decoration: BoxDecoration(
+            color: RawViewerColors.surface.withValues(alpha: 0.96),
+            border: const Border(
+              top: BorderSide(color: RawViewerColors.border),
+            ),
+          ),
+          child: ListView.builder(
+            controller: _scrollController,
+            scrollDirection: Axis.horizontal,
+            physics: const ClampingScrollPhysics(),
+            padding: EdgeInsets.symmetric(horizontal: sidePadding),
+            scrollCacheExtent: ScrollCacheExtent.pixels(
+              kPreviewFilmstripItemExtent * 4,
+            ),
+            itemExtent: kPreviewFilmstripItemExtent,
+            itemCount: widget.mediaGroups.length,
+            itemBuilder: (context, index) {
+              return Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: SizedBox(
+                    width: kPreviewFilmstripItemWidth,
+                    height: 58,
+                    child: _PreviewFilmstripThumbnail(
+                      key: ValueKey(widget.mediaGroups[index].primary.path),
+                      mediaGroup: widget.mediaGroups[index],
+                      imageStore: widget.imageStore,
+                      decodeWidth: widget.decodeWidth,
+                      selected: index == widget.currentIndex,
+                      onTap: () => widget.onIndexSelected(index),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PreviewFilmstripThumbnail extends StatefulWidget {
+  final MediaGroup mediaGroup;
+  final ImageStore imageStore;
+  final int decodeWidth;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PreviewFilmstripThumbnail({
+    super.key,
+    required this.mediaGroup,
+    required this.imageStore,
+    required this.decodeWidth,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  State<_PreviewFilmstripThumbnail> createState() =>
+      _PreviewFilmstripThumbnailState();
+}
+
+class _PreviewFilmstripThumbnailState
+    extends State<_PreviewFilmstripThumbnail> {
+  ViewerImage? _rawImage;
+  bool _failed = false;
+  int _generation = 0;
+
+  String get _filePath => widget.mediaGroup.primary.path;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(_PreviewFilmstripThumbnail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_filePath != oldWidget.mediaGroup.primary.path ||
+        widget.decodeWidth != oldWidget.decodeWidth) {
+      _generation++;
+      _rawImage?.dispose();
+      _rawImage = null;
+      _failed = false;
+      _load();
+    }
+  }
+
+  @override
+  void dispose() {
+    _generation++;
+    _rawImage?.dispose();
+    super.dispose();
+  }
+
+  void _load() {
+    if (!widget.mediaGroup.isRaw) {
+      return;
+    }
+
+    final generation = _generation;
+    unawaited(widget.imageStore
+        .load(
+      _filePath,
+      RawLayer.fastPreview,
+      targetWidth: widget.decodeWidth,
+      priority: TaskPriority.low,
+    )
+        .then((image) {
+      if (!mounted || generation != _generation) {
+        image?.dispose();
+        return;
+      }
+      setState(() {
+        _rawImage = image;
+        _failed = image == null;
+      });
+    }));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget image;
+    if (widget.mediaGroup.isRaw) {
+      image = _rawImage == null
+          ? Container(
+              color: RawViewerColors.raisedSurface,
+              child: _failed
+                  ? const Icon(Icons.broken_image_outlined,
+                      color: RawViewerColors.mutedText, size: 18)
+                  : const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+            )
+          : RawImage(
+              image: _rawImage!.image,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.low,
+            );
+    } else {
+      image = Image(
+        image: ResizeImage(
+          FileImage(File(_filePath)),
+          width: widget.decodeWidth,
+        ),
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (context, error, stackTrace) => Container(
+          color: RawViewerColors.raisedSurface,
+          child: const Icon(Icons.broken_image_outlined,
+              color: RawViewerColors.mutedText, size: 18),
+        ),
+      );
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: BorderRadius.circular(5),
+        splashColor: RawViewerColors.accentMuted,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: image,
+            ),
+            IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: widget.selected
+                        ? RawViewerColors.accent
+                        : RawViewerColors.border,
+                    width: widget.selected ? 2 : 1,
+                  ),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewOverviewMap extends StatelessWidget {
+  final Widget image;
+  final TransformationController transformationController;
+  final Size viewportSize;
+
+  const _PreviewOverviewMap({
+    required this.image,
+    required this.transformationController,
+    required this.viewportSize,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ExcludeSemantics(
+      child: SizedBox(
+        width: kPreviewOverviewMapWidth,
+        height: kPreviewOverviewMapHeight,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: RawViewerColors.surface,
+            border: Border.all(color: RawViewerColors.border),
+            borderRadius: BorderRadius.circular(5),
+            boxShadow: const [
+              BoxShadow(color: Colors.black54, blurRadius: 12, spreadRadius: 1),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final mapSize = Size(
+                  constraints.maxWidth,
+                  constraints.maxHeight,
+                );
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    image,
+                    AnimatedBuilder(
+                      animation: transformationController,
+                      builder: (context, child) {
+                        final viewportRect = previewOverviewViewportRect(
+                          transform: transformationController.value,
+                          viewportSize: viewportSize,
+                          mapSize: mapSize,
+                        );
+                        return CustomPaint(
+                          painter: _PreviewOverviewViewportPainter(
+                            viewportRect: viewportRect,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewOverviewViewportPainter extends CustomPainter {
+  final Rect viewportRect;
+
+  const _PreviewOverviewViewportPainter({required this.viewportRect});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fillPaint = Paint()
+      ..color = RawViewerColors.accent.withValues(alpha: 0.18)
+      ..style = PaintingStyle.fill;
+    final strokePaint = Paint()
+      ..color = RawViewerColors.accent
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    canvas.drawRect(viewportRect, fillPaint);
+    canvas.drawRect(viewportRect, strokePaint);
+  }
+
+  @override
+  bool shouldRepaint(_PreviewOverviewViewportPainter oldDelegate) {
+    return oldDelegate.viewportRect != viewportRect;
+  }
+}
+
+enum _PreviewDisplayControl { filmstrip, overview }
+
 enum _PreviewSource { fastPreview, decodedRaw, jpeg }
 
 /// Rotates an image view in clockwise 90-degree increments.
@@ -2438,6 +2976,7 @@ int rotateImageQuarterTurns(int currentQuarterTurns, int delta) {
 class _SingleImagePreview extends StatefulWidget {
   final MediaGroup mediaGroup;
   final int thumbnailResizeWidth;
+  final int previewThumbnailResizeWidth;
   final ImageStore imageStore;
   final ViewerSettings settings;
   final int rotationQuarterTurns;
@@ -2450,6 +2989,8 @@ class _SingleImagePreview extends StatefulWidget {
   final ValueChanged<PointerPanZoomEndEvent> onTrackpadPanEnd;
   final VoidCallback onTrackpadPanCancel;
   final bool isActive;
+  final bool showPreviewOverview;
+  final double overviewBottomInset;
   final ValueNotifier<bool> isFastScrolling;
   final ValueChanged<bool>? onScaleStateChanged;
 
@@ -2457,6 +2998,7 @@ class _SingleImagePreview extends StatefulWidget {
     super.key,
     required this.mediaGroup,
     required this.thumbnailResizeWidth,
+    required this.previewThumbnailResizeWidth,
     required this.imageStore,
     required this.settings,
     required this.rotationQuarterTurns,
@@ -2469,6 +3011,8 @@ class _SingleImagePreview extends StatefulWidget {
     required this.onTrackpadPanEnd,
     required this.onTrackpadPanCancel,
     required this.isActive,
+    required this.showPreviewOverview,
+    required this.overviewBottomInset,
     required this.isFastScrolling,
     this.onScaleStateChanged,
   });
@@ -2484,11 +3028,14 @@ class _SingleImagePreview extends StatefulWidget {
 class _SingleImagePreviewState extends State<_SingleImagePreview> {
   ViewerImage? _fastPreviewImage;
   ViewerImage? _decodedRawPreviewImage;
+  bool _hasFullResolutionFastPreview = false;
+  bool _fullResolutionFastPreviewRequested = false;
   bool _isLoadingDecodedRawPreview = false;
   late int _rawDecodeHalfSize;
   final TransformationController _transformationController =
       TransformationController();
   bool _panEnabled = false;
+  bool _isZoomed = false;
   // Mouse-wheel zoom is explicit so it does not conflict with navigation.
   // Touch keeps InteractiveViewer's pinch flow, while trackpad pinch is
   // handled from raw pan/zoom updates.
@@ -2522,10 +3069,24 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
     // the full-resolution entry, but fall back to the grid's thumbnail-sized
     // one: showing it slightly soft for a moment beats showing black.
     if (widget.isRaw) {
-      _fastPreviewImage =
-          widget.imageStore.peek(widget.filePath, RawLayer.fastPreview) ??
-              widget.imageStore.peek(widget.filePath, RawLayer.fastPreview,
-                  targetWidth: widget.thumbnailResizeWidth);
+      _fastPreviewImage = widget.imageStore.peek(
+        widget.filePath,
+        RawLayer.fastPreview,
+      );
+      if (_fastPreviewImage != null) {
+        _hasFullResolutionFastPreview = true;
+      } else {
+        _fastPreviewImage = widget.imageStore.peek(
+              widget.filePath,
+              RawLayer.fastPreview,
+              targetWidth: widget.thumbnailResizeWidth,
+            ) ??
+            widget.imageStore.peek(
+              widget.filePath,
+              RawLayer.fastPreview,
+              targetWidth: widget.previewThumbnailResizeWidth,
+            );
+      }
     }
 
     unawaited(_loadRawDisplayLayers());
@@ -2610,9 +3171,10 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
     final scale = _transformationController.value.getMaxScaleOnAxis();
     final newPanEnabled =
         (scale - _previewFitScale).abs() > _previewScaleEpsilon;
-    if (_panEnabled != newPanEnabled) {
+    if (_panEnabled != newPanEnabled || _isZoomed != newPanEnabled) {
       setState(() {
         _panEnabled = newPanEnabled;
+        _isZoomed = newPanEnabled;
       });
     }
   }
@@ -2637,14 +3199,13 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
 
   Future<void> _loadRawDisplayLayers() async {
     // For non-RAW files, we rely entirely on Flutter's Image.file
-    if (!widget.isRaw) return;
+    if (!widget.isRaw || !widget.isActive) return;
 
-    if (_fastPreviewImage == null) {
-      // If not active, or fast scrolling, use low priority
+    if (!_hasFullResolutionFastPreview &&
+        !_fullResolutionFastPreviewRequested) {
+      _fullResolutionFastPreviewRequested = true;
       final fastPreviewPriority =
-          (!widget.isActive || widget.isFastScrolling.value)
-              ? TaskPriority.low
-              : TaskPriority.high;
+          widget.isFastScrolling.value ? TaskPriority.low : TaskPriority.high;
 
       // No targetWidth: this is the full-screen layer, so keep the preview's
       // own resolution rather than the grid's thumbnail size.
@@ -2663,6 +3224,7 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
         setState(() {
           _fastPreviewImage?.dispose();
           _fastPreviewImage = fastPreviewImage;
+          _hasFullResolutionFastPreview = true;
         });
       }
     }
@@ -2917,87 +3479,146 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
 
-    return Stack(
-      children: [
-        Listener(
-          onPointerSignal: _handlePointerSignal,
-          onPointerPanZoomStart: _handleTrackpadPanZoomStart,
-          onPointerPanZoomUpdate: _handleTrackpadPanZoomUpdate,
-          onPointerPanZoomEnd: _handleTrackpadPanZoomEnd,
-          onPointerDown: _onPointerDown,
-          onPointerUp: _onPointerUp,
-          onPointerCancel: _onPointerCancel,
-          onPointerHover: _onPointerHover,
-          child: Center(
-            child: InteractiveViewer(
-              transformationController: _transformationController,
-              minScale: kMinPreviewScale,
-              maxScale: kMaxPreviewScale,
-              panEnabled: _panEnabled,
-              scaleEnabled: _scaleEnabled,
-              child: RotatedBox(
-                quarterTurns: widget.rotationQuarterTurns,
-                child: _isShowingPairedJpeg
-                    ? _buildBitmapPreview(widget.mediaGroup.pairedJpeg!.path)
-                    : widget.isRaw
-                        ? _buildRawPreview()
-                        : Stack(
-                            fit: StackFit.expand,
-                            children: [_buildBitmapPreview(widget.filePath)],
-                          ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewportSize = constraints.biggest;
+        return Stack(
+          children: [
+            Listener(
+              onPointerSignal: _handlePointerSignal,
+              onPointerPanZoomStart: _handleTrackpadPanZoomStart,
+              onPointerPanZoomUpdate: _handleTrackpadPanZoomUpdate,
+              onPointerPanZoomEnd: _handleTrackpadPanZoomEnd,
+              onPointerDown: _onPointerDown,
+              onPointerUp: _onPointerUp,
+              onPointerCancel: _onPointerCancel,
+              onPointerHover: _onPointerHover,
+              child: Center(
+                child: InteractiveViewer(
+                  transformationController: _transformationController,
+                  minScale: kMinPreviewScale,
+                  maxScale: kMaxPreviewScale,
+                  panEnabled: _panEnabled,
+                  scaleEnabled: _scaleEnabled,
+                  child: RotatedBox(
+                    quarterTurns: widget.rotationQuarterTurns,
+                    child: _isShowingPairedJpeg
+                        ? _buildBitmapPreview(
+                            widget.mediaGroup.pairedJpeg!.path)
+                        : widget.isRaw
+                            ? _buildRawPreview()
+                            : Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  _buildBitmapPreview(widget.filePath)
+                                ],
+                              ),
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-        Positioned(
-          right: 12,
-          bottom: MediaQuery.paddingOf(context).bottom + 12,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: RawViewerColors.surface.withValues(alpha: 0.94),
-              border: Border.all(color: RawViewerColors.border),
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(3),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DesktopIconButton(
-                    icon: Icons.rotate_left,
-                    tooltip: l10n.rotateImageCounterclockwiseTooltip,
-                    onPressed: () => widget.onRotationRequested(-1),
+            if (widget.isActive && widget.showPreviewOverview && _isZoomed)
+              Positioned(
+                right: 12,
+                bottom: widget.overviewBottomInset +
+                    MediaQuery.paddingOf(context).bottom +
+                    _previewImageControlsHeight +
+                    _previewOverviewGap +
+                    12,
+                child: _PreviewOverviewMap(
+                  image: RotatedBox(
+                    quarterTurns: widget.rotationQuarterTurns,
+                    child: _buildOverviewImage(),
                   ),
-                  const SizedBox(width: 2),
-                  DesktopIconButton(
-                    icon: Icons.rotate_right,
-                    tooltip: l10n.rotateImageTooltip,
-                    onPressed: () => widget.onRotationRequested(1),
+                  transformationController: _transformationController,
+                  viewportSize: viewportSize,
+                ),
+              ),
+            Positioned(
+              right: 12,
+              bottom: MediaQuery.paddingOf(context).bottom + 12,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: RawViewerColors.surface.withValues(alpha: 0.94),
+                  border: Border.all(color: RawViewerColors.border),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(3),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DesktopIconButton(
+                        icon: Icons.rotate_left,
+                        tooltip: l10n.rotateImageCounterclockwiseTooltip,
+                        onPressed: () => widget.onRotationRequested(-1),
+                      ),
+                      const SizedBox(width: 2),
+                      DesktopIconButton(
+                        icon: Icons.rotate_right,
+                        tooltip: l10n.rotateImageTooltip,
+                        onPressed: () => widget.onRotationRequested(1),
+                      ),
+                      const SizedBox(width: 5),
+                      DesktopIconButton(
+                        icon: Icons.zoom_in,
+                        tooltip: l10n.zoomInImageTooltip,
+                        onPressed: () => _zoomBy(_previewControlZoomStep),
+                      ),
+                      const SizedBox(width: 2),
+                      DesktopIconButton(
+                        icon: Icons.zoom_out,
+                        tooltip: l10n.zoomOutImageTooltip,
+                        onPressed: () => _zoomBy(1 / _previewControlZoomStep),
+                      ),
+                      const SizedBox(width: 2),
+                      DesktopIconButton(
+                        icon: Icons.filter_center_focus,
+                        tooltip: l10n.resetImageViewTooltip,
+                        onPressed: _resetView,
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 5),
-                  DesktopIconButton(
-                    icon: Icons.zoom_in,
-                    tooltip: l10n.zoomInImageTooltip,
-                    onPressed: () => _zoomBy(_previewControlZoomStep),
-                  ),
-                  const SizedBox(width: 2),
-                  DesktopIconButton(
-                    icon: Icons.zoom_out,
-                    tooltip: l10n.zoomOutImageTooltip,
-                    onPressed: () => _zoomBy(1 / _previewControlZoomStep),
-                  ),
-                  const SizedBox(width: 2),
-                  DesktopIconButton(
-                    icon: Icons.filter_center_focus,
-                    tooltip: l10n.resetImageViewTooltip,
-                    onPressed: _resetView,
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildOverviewImage() {
+    if (_isShowingPairedJpeg) {
+      return _buildOverviewBitmap(widget.mediaGroup.pairedJpeg!.path);
+    }
+    if (widget.isRaw) {
+      final image = _preferFastPreviewForRaw
+          ? _fastPreviewImage
+          : _decodedRawPreviewImage ?? _fastPreviewImage;
+      if (image != null) {
+        return RawImage(
+          image: image.image,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.low,
+        );
+      }
+      return const SizedBox.shrink();
+    }
+    return _buildOverviewBitmap(widget.filePath);
+  }
+
+  Widget _buildOverviewBitmap(String filePath) {
+    return Image(
+      image: ResizeImage(
+        FileImage(File(filePath)),
+        width:
+            (kPreviewOverviewMapWidth * MediaQuery.devicePixelRatioOf(context))
+                .round(),
+      ),
+      fit: BoxFit.contain,
+      gaplessPlayback: true,
+      errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
     );
   }
 
