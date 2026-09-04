@@ -410,7 +410,7 @@ void main() {
     expect(zoomOutPosition.dy, greaterThan(400));
   });
 
-  testWidgets('gallery actions menu contains file and folder open actions',
+  testWidgets('gallery actions menu contains all folder actions',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(800, 600);
@@ -439,7 +439,7 @@ void main() {
     final popupMenuItems = find.byWidgetPredicate(
       (widget) => widget is PopupMenuItem,
     );
-    expect(popupMenuItems, findsNWidgets(2));
+    expect(popupMenuItems, findsNWidgets(3));
     expect(
       find.ancestor(
         of: find.byIcon(Icons.file_open_outlined).last,
@@ -451,6 +451,19 @@ void main() {
       find.ancestor(
         of: find.byIcon(Icons.folder_open_outlined).last,
         matching: popupMenuItems,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.ancestor(
+        of: find.byIcon(Icons.open_in_new),
+        matching: popupMenuItems,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is PopupMenuItem && !widget.enabled,
       ),
       findsOneWidget,
     );

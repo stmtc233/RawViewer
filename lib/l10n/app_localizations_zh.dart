@@ -127,6 +127,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get openFiles => '打开文件';
 
   @override
+  String get openInFinder => '在访达中打开';
+
+  @override
+  String get openInExplorer => '在资源管理器中打开';
+
+  @override
+  String get openInFileManager => '在文件管理器中打开';
+
+  @override
   String get moreActionsTooltip => '更多操作';
 
   @override

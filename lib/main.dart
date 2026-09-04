@@ -580,6 +580,38 @@ class _HomePageState extends State<HomePage> {
     await _handleIncomingPaths(selectedFiles);
   }
 
+  String? _currentFolderPath() {
+    if (_openedSourceKind == _OpenedSourceKind.folder) {
+      return _currentDirectoryPath;
+    }
+
+    final directories =
+        _files.map((file) => path.normalize(path.dirname(file.path))).toSet();
+    return directories.length == 1 ? directories.single : null;
+  }
+
+  Future<void> _openCurrentFolder(String folderPath) async {
+    final executable = switch (Platform.operatingSystem) {
+      'macos' => 'open',
+      'windows' => 'explorer.exe',
+      'linux' => 'xdg-open',
+      _ => null,
+    };
+    if (executable == null) {
+      return;
+    }
+
+    try {
+      await Process.start(
+        executable,
+        [folderPath],
+        mode: ProcessStartMode.detached,
+      );
+    } catch (_) {
+      // The desktop file manager may be unavailable in a sandboxed session.
+    }
+  }
+
   Future<void> _listenForDesktopOpenRequests() async {
     if (!Platform.isMacOS && !Platform.isWindows) {
       return;
@@ -746,6 +778,16 @@ class _HomePageState extends State<HomePage> {
     return l10n.appTitle;
   }
 
+  String _currentFolderActionLabel(AppLocalizations l10n) {
+    if (Platform.isMacOS) {
+      return l10n.openInFinder;
+    }
+    if (Platform.isWindows) {
+      return l10n.openInExplorer;
+    }
+    return l10n.openInFileManager;
+  }
+
   void _updateMediaAspectRatio(String filePath, double aspectRatio) {
     if (!aspectRatio.isFinite || aspectRatio <= 0) {
       return;
@@ -910,6 +952,9 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final currentFolderPath = _currentFolderPath();
+    final canOpenCurrentFolder = currentFolderPath != null &&
+        (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
     final rawCount = _files.where((file) => file.isRaw).length;
     final imageCount = _files.length - rawCount;
     final adaptiveMediaGroups = buildAdaptiveMediaGroups(_files);
@@ -951,6 +996,7 @@ class _HomePageState extends State<HomePage> {
               title: _currentTitle(l10n),
               openFolderLabel: l10n.openFolder,
               openFilesLabel: l10n.openFiles,
+              openCurrentFolderLabel: _currentFolderActionLabel(l10n),
               moreActionsTooltip: l10n.moreActionsTooltip,
               settingsTooltip: l10n.settingsTooltip,
               selectedMediaFilter: _mediaFilter,
@@ -965,6 +1011,9 @@ class _HomePageState extends State<HomePage> {
               onOpenSettings: _showSettings,
               onOpenFiles: _openFiles,
               onOpenFolder: _openFolder,
+              onOpenCurrentFolder: !canOpenCurrentFolder
+                  ? null
+                  : () => _openCurrentFolder(currentFolderPath),
             ),
             Expanded(
               child: Stack(
@@ -1075,6 +1124,7 @@ class _DesktopCommandBar extends StatelessWidget {
   final String title;
   final String openFolderLabel;
   final String openFilesLabel;
+  final String openCurrentFolderLabel;
   final String moreActionsTooltip;
   final String settingsTooltip;
   final MediaFilter selectedMediaFilter;
@@ -1085,11 +1135,13 @@ class _DesktopCommandBar extends StatelessWidget {
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenFiles;
   final VoidCallback onOpenFolder;
+  final VoidCallback? onOpenCurrentFolder;
 
   const _DesktopCommandBar({
     required this.title,
     required this.openFolderLabel,
     required this.openFilesLabel,
+    required this.openCurrentFolderLabel,
     required this.moreActionsTooltip,
     required this.settingsTooltip,
     required this.selectedMediaFilter,
@@ -1100,6 +1152,7 @@ class _DesktopCommandBar extends StatelessWidget {
     required this.onOpenSettings,
     required this.onOpenFiles,
     required this.onOpenFolder,
+    required this.onOpenCurrentFolder,
   });
 
   @override
@@ -1120,8 +1173,10 @@ class _DesktopCommandBar extends StatelessWidget {
                 tooltip: moreActionsTooltip,
                 openFolderLabel: openFolderLabel,
                 openFilesLabel: openFilesLabel,
+                openCurrentFolderLabel: openCurrentFolderLabel,
                 onOpenFiles: onOpenFiles,
                 onOpenFolder: onOpenFolder,
+                onOpenCurrentFolder: onOpenCurrentFolder,
               ),
               const SizedBox(width: 4),
               const Icon(Icons.photo_library_outlined,
@@ -1185,21 +1240,25 @@ class _DesktopCommandBar extends StatelessWidget {
   }
 }
 
-enum _GalleryAction { openFiles, openFolder }
+enum _GalleryAction { openFiles, openFolder, openCurrentFolder }
 
 class _GalleryActionsMenu extends StatelessWidget {
   final String tooltip;
   final String openFolderLabel;
   final String openFilesLabel;
+  final String openCurrentFolderLabel;
   final VoidCallback onOpenFiles;
   final VoidCallback onOpenFolder;
+  final VoidCallback? onOpenCurrentFolder;
 
   const _GalleryActionsMenu({
     required this.tooltip,
     required this.openFolderLabel,
     required this.openFilesLabel,
+    required this.openCurrentFolderLabel,
     required this.onOpenFiles,
     required this.onOpenFolder,
+    required this.onOpenCurrentFolder,
   });
 
   @override
@@ -1217,6 +1276,9 @@ class _GalleryActionsMenu extends StatelessWidget {
           case _GalleryAction.openFolder:
             onOpenFolder();
             break;
+          case _GalleryAction.openCurrentFolder:
+            onOpenCurrentFolder?.call();
+            break;
         }
       },
       itemBuilder: (context) => [
@@ -1232,6 +1294,15 @@ class _GalleryActionsMenu extends StatelessWidget {
           child: _GalleryActionMenuItem(
             icon: Icons.folder_open_outlined,
             label: openFolderLabel,
+          ),
+        ),
+        PopupMenuItem(
+          value: _GalleryAction.openCurrentFolder,
+          enabled: onOpenCurrentFolder != null,
+          child: _GalleryActionMenuItem(
+            icon: Icons.open_in_new,
+            label: openCurrentFolderLabel,
+            enabled: onOpenCurrentFolder != null,
           ),
         ),
       ],
@@ -1251,19 +1322,36 @@ class _GalleryActionsMenu extends StatelessWidget {
 class _GalleryActionMenuItem extends StatelessWidget {
   final IconData icon;
   final String label;
+  final bool enabled;
 
   const _GalleryActionMenuItem({
     required this.icon,
     required this.label,
+    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: RawViewerColors.mutedText),
+        Icon(
+          icon,
+          size: 18,
+          color:
+              enabled ? RawViewerColors.mutedText : RawViewerColors.mutedBorder,
+        ),
         const SizedBox(width: 10),
-        Text(label),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color:
+                  enabled ? RawViewerColors.text : RawViewerColors.mutedBorder,
+            ),
+          ),
+        ),
       ],
     );
   }

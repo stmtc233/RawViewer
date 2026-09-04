@@ -323,6 +323,24 @@ abstract class AppLocalizations {
   /// **'Open files'**
   String get openFiles;
 
+  /// No description provided for @openInFinder.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in Finder'**
+  String get openInFinder;
+
+  /// No description provided for @openInExplorer.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in Explorer'**
+  String get openInExplorer;
+
+  /// No description provided for @openInFileManager.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in file manager'**
+  String get openInFileManager;
+
   /// No description provided for @moreActionsTooltip.
   ///
   /// In en, this message translates to:

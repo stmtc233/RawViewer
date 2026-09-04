@@ -127,6 +127,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get openFiles => 'Open files';
 
   @override
+  String get openInFinder => 'Open in Finder';
+
+  @override
+  String get openInExplorer => 'Open in Explorer';
+
+  @override
+  String get openInFileManager => 'Open in file manager';
+
+  @override
   String get moreActionsTooltip => 'More actions';
 
   @override
