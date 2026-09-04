@@ -53,6 +53,10 @@ const List<String> _supportedExtensions = [
   ..._bitmapExtensions,
 ];
 
+String embeddedJpegExportFileName(String rawFilePath) {
+  return '${path.basenameWithoutExtension(rawFilePath)}-embedded.jpg';
+}
+
 final DateFormat _timestampFormatter = DateFormat('yyyy-MM-dd HH:mm:ss');
 
 class _MediaTimestampInfo {
@@ -2051,6 +2055,7 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
   final Map<String, int> _rotationQuarterTurns = <String, int>{};
   final Map<String, _PreviewSource> _previewSources =
       <String, _PreviewSource>{};
+  bool _isExportingEmbeddedJpeg = false;
 
   DateTime? _lastSwitchTime;
   Timer? _scrollStopTimer;
@@ -2352,6 +2357,61 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
     });
   }
 
+  Future<void> _exportEmbeddedJpeg(String filePath) async {
+    final l10n = AppLocalizations.of(context)!;
+    setState(() {
+      _isExportingEmbeddedJpeg = true;
+    });
+
+    try {
+      final jpegBytes = await extractEmbeddedJpeg(filePath);
+      if (!mounted) return;
+
+      if (jpegBytes == null) {
+        _showPreviewMessage(l10n.embeddedJpegNotFoundMessage);
+        return;
+      }
+
+      final savedFile = await FilePicker.saveFile(
+        fileName: embeddedJpegExportFileName(filePath),
+        bytes: jpegBytes,
+        mimeType: 'image/jpeg',
+        dialogTitle: l10n.exportEmbeddedJpegDialogTitle,
+        initialDirectory: Platform.isAndroid ? null : path.dirname(filePath),
+      );
+      if (!mounted || savedFile == null) return;
+
+      _showPreviewMessage(l10n.embeddedJpegExportedMessage);
+    } catch (error) {
+      if (mounted) {
+        _showPreviewMessage(
+          l10n.embeddedJpegExportFailedMessage(
+            _embeddedJpegExportErrorMessage(error),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isExportingEmbeddedJpeg = false;
+        });
+      }
+    }
+  }
+
+  void _showPreviewMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String _embeddedJpegExportErrorMessage(Object error) {
+    if (error is PlatformException) {
+      return error.message ?? error.code;
+    }
+    return error.toString();
+  }
+
   IconData _previewSourceIcon(_PreviewSource source) {
     switch (source) {
       case _PreviewSource.fastPreview:
@@ -2604,6 +2664,34 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
                                             _PreviewSource.jpeg,
                                         label: 'JPG',
                                       ),
+                                  ],
+                                ),
+                                const SizedBox(width: 8),
+                                DesktopPopupMenuButton<_PreviewAction>(
+                                  tooltip: l10n.moreActionsTooltip,
+                                  enabled: !_isExportingEmbeddedJpeg,
+                                  onSelected: (action) {
+                                    switch (action) {
+                                      case _PreviewAction.exportEmbeddedJpeg:
+                                        unawaited(
+                                          _exportEmbeddedJpeg(
+                                            currentMediaGroup.primary.path,
+                                          ),
+                                        );
+                                        break;
+                                    }
+                                  },
+                                  child: DesktopPopupMenuTrigger(
+                                    icon: _isExportingEmbeddedJpeg
+                                        ? Icons.downloading_outlined
+                                        : Icons.more_vert,
+                                  ),
+                                  itemBuilder: (context) => [
+                                    desktopPopupMenuItem(
+                                      value: _PreviewAction.exportEmbeddedJpeg,
+                                      icon: Icons.download_outlined,
+                                      label: l10n.exportEmbeddedJpegMenuItem,
+                                    ),
                                   ],
                                 ),
                               ],
@@ -3168,6 +3256,8 @@ class _PreviewOverviewViewportPainter extends CustomPainter {
 }
 
 enum _PreviewDisplayControl { filmstrip, overview }
+
+enum _PreviewAction { exportEmbeddedJpeg }
 
 enum _PreviewSource { fastPreview, decodedRaw, jpeg }
 

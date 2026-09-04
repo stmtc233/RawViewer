@@ -36,6 +36,13 @@ void main() {
   });
 
   group('image preview motion', () {
+    test('uses a clear JPEG export name for RAW files', () {
+      expect(
+        embeddedJpegExportFileName('/photos/IMG_0001.ARW'),
+        'IMG_0001-embedded.jpg',
+      );
+    });
+
     test('shows a bounded neighborhood around the active page', () {
       expect(
         previewNavigationIndices(currentIndex: 3, itemCount: 8),

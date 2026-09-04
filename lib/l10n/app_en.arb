@@ -70,6 +70,18 @@
   "openInExplorer": "Open in Explorer",
   "openInFileManager": "Open in file manager",
   "moreActionsTooltip": "More actions",
+  "exportEmbeddedJpegMenuItem": "Export embedded JPEG",
+  "exportEmbeddedJpegDialogTitle": "Export embedded JPEG",
+  "embeddedJpegNotFoundMessage": "This RAW file has no embedded JPEG",
+  "embeddedJpegExportedMessage": "Embedded JPEG exported",
+  "embeddedJpegExportFailedMessage": "Could not export the embedded JPEG: {error}",
+  "@embeddedJpegExportFailedMessage": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "settingsTooltip": "Settings",
   "closeSettingsTooltip": "Close settings",
   "rotateImageTooltip": "Rotate image clockwise",

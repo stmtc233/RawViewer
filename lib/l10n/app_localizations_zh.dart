@@ -36,8 +36,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get previewOverlayOpacityTitle => '预览控件透明度';
 
   @override
-  String get previewOverlayOpacitySubtitle =>
-      '设置预览控件未悬停时的透明度；悬停后始终恢复清晰显示，100% 表示关闭透明效果。';
+  String get previewOverlayOpacitySubtitle => '设置预览控件未悬停时的透明度；悬停后始终恢复清晰显示，100% 表示关闭透明效果。';
 
   @override
   String previewOverlayOpacityPercent(int percent) {
@@ -63,8 +62,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get fastPreviewTitle => '快速预览';
 
   @override
-  String get fastPreviewSubtitle =>
-      '先显示缓存的快速预览，再继续使用快速预览层。通常优先使用内嵌预览，缺失时回退到快速 RAW 处理。';
+  String get fastPreviewSubtitle => '先显示缓存的快速预览，再继续使用快速预览层。通常优先使用内嵌预览，缺失时回退到快速 RAW 处理。';
 
   @override
   String get decodedRawPreviewTitle => 'RAW 解码图像';
@@ -79,8 +77,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get halfSizeRawDecodeTitle => '半尺寸 RAW 解码';
 
   @override
-  String get halfSizeRawDecodeSubtitle =>
-      '将 RAW 最终图像按 50% 分辨率解码以提升速度。关闭后使用完整分辨率。';
+  String get halfSizeRawDecodeSubtitle => '将 RAW 最终图像按 50% 分辨率解码以提升速度。关闭后使用完整分辨率。';
 
   @override
   String get timeDisplaySectionTitle => '时间显示';
@@ -118,12 +115,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get windowsContextMenuToggleTitle => '显示“在 RawView 中打开”';
 
   @override
-  String get windowsContextMenuEnabledSubtitle =>
-      '已安装到当前用户。支持文件、多个文件、文件夹，以及文件夹空白处右键打开。';
+  String get windowsContextMenuEnabledSubtitle => '已安装到当前用户。支持文件、多个文件、文件夹，以及文件夹空白处右键打开。';
 
   @override
-  String get windowsContextMenuDisabledSubtitle =>
-      '启用后可在资源管理器中通过右键“在 RawView 中打开”直接打开文件、多个文件、文件夹或当前目录。';
+  String get windowsContextMenuDisabledSubtitle => '启用后可在资源管理器中通过右键“在 RawView 中打开”直接打开文件、多个文件、文件夹或当前目录。';
 
   @override
   String get installScopeTitle => '安装范围';
@@ -165,6 +160,23 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get moreActionsTooltip => '更多操作';
+
+  @override
+  String get exportEmbeddedJpegMenuItem => '导出 RAW 内嵌 JPEG';
+
+  @override
+  String get exportEmbeddedJpegDialogTitle => '导出 RAW 内嵌 JPEG';
+
+  @override
+  String get embeddedJpegNotFoundMessage => '此 RAW 文件没有内嵌 JPEG';
+
+  @override
+  String get embeddedJpegExportedMessage => '已导出内嵌 JPEG';
+
+  @override
+  String embeddedJpegExportFailedMessage(String error) {
+    return '无法导出内嵌 JPEG：$error';
+  }
 
   @override
   String get settingsTooltip => '设置';

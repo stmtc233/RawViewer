@@ -70,6 +70,18 @@
   "openInExplorer": "在资源管理器中打开",
   "openInFileManager": "在文件管理器中打开",
   "moreActionsTooltip": "更多操作",
+  "exportEmbeddedJpegMenuItem": "导出 RAW 内嵌 JPEG",
+  "exportEmbeddedJpegDialogTitle": "导出 RAW 内嵌 JPEG",
+  "embeddedJpegNotFoundMessage": "此 RAW 文件没有内嵌 JPEG",
+  "embeddedJpegExportedMessage": "已导出内嵌 JPEG",
+  "embeddedJpegExportFailedMessage": "无法导出内嵌 JPEG：{error}",
+  "@embeddedJpegExportFailedMessage": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "settingsTooltip": "设置",
   "closeSettingsTooltip": "关闭设置",
   "rotateImageTooltip": "顺时针旋转图片",

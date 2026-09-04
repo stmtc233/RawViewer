@@ -1,5 +1,6 @@
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
@@ -79,24 +80,34 @@ final class ImageResult extends Struct {
 
 // --- Windows (UTF-16 path) ---
 
-typedef GetThumbnailC = Void Function(
-    Pointer<Utf16> path, Pointer<Void> cancelToken, Pointer<ThumbnailResult> out);
-typedef GetThumbnailDart = void Function(
-    Pointer<Utf16> path, Pointer<Void> cancelToken, Pointer<ThumbnailResult> out);
+typedef GetThumbnailC = Void Function(Pointer<Utf16> path,
+    Pointer<Void> cancelToken, Pointer<ThumbnailResult> out);
+typedef GetThumbnailDart = void Function(Pointer<Utf16> path,
+    Pointer<Void> cancelToken, Pointer<ThumbnailResult> out);
+
+typedef GetEmbeddedJpegC = Void Function(
+    Pointer<Utf16> path, Pointer<ThumbnailResult> out);
+typedef GetEmbeddedJpegDart = void Function(
+    Pointer<Utf16> path, Pointer<ThumbnailResult> out);
 
 // The native symbol name is still `get_preview`, but it semantically returns
 // the decoded RAW layer rather than an arbitrary preview.
-typedef GetDecodedRawPreviewC = Void Function(Pointer<Utf16> path, Int32 halfSize,
-    Pointer<Void> cancelToken, Pointer<ImageResult> out);
+typedef GetDecodedRawPreviewC = Void Function(Pointer<Utf16> path,
+    Int32 halfSize, Pointer<Void> cancelToken, Pointer<ImageResult> out);
 typedef GetDecodedRawPreviewDart = void Function(Pointer<Utf16> path,
     int halfSize, Pointer<Void> cancelToken, Pointer<ImageResult> out);
 
 // --- POSIX (UTF-8 path) ---
 
-typedef GetThumbnailPosixC = Void Function(
-    Pointer<Utf8> path, Pointer<Void> cancelToken, Pointer<ThumbnailResult> out);
-typedef GetThumbnailPosixDart = void Function(
-    Pointer<Utf8> path, Pointer<Void> cancelToken, Pointer<ThumbnailResult> out);
+typedef GetThumbnailPosixC = Void Function(Pointer<Utf8> path,
+    Pointer<Void> cancelToken, Pointer<ThumbnailResult> out);
+typedef GetThumbnailPosixDart = void Function(Pointer<Utf8> path,
+    Pointer<Void> cancelToken, Pointer<ThumbnailResult> out);
+
+typedef GetEmbeddedJpegPosixC = Void Function(
+    Pointer<Utf8> path, Pointer<ThumbnailResult> out);
+typedef GetEmbeddedJpegPosixDart = void Function(
+    Pointer<Utf8> path, Pointer<ThumbnailResult> out);
 
 typedef GetDecodedRawPreviewPosixC = Void Function(Pointer<Utf8> path,
     Int32 halfSize, Pointer<Void> cancelToken, Pointer<ImageResult> out);
@@ -110,14 +121,23 @@ typedef GetThumbnailBufferC = Void Function(Pointer<Uint8> buffer, Int32 size,
 typedef GetThumbnailBufferDart = void Function(Pointer<Uint8> buffer, int size,
     Pointer<Void> cancelToken, Pointer<ThumbnailResult> out);
 
+typedef GetEmbeddedJpegBufferC = Void Function(
+    Pointer<Uint8> buffer, Int32 size, Pointer<ThumbnailResult> out);
+typedef GetEmbeddedJpegBufferDart = void Function(
+    Pointer<Uint8> buffer, int size, Pointer<ThumbnailResult> out);
+
 typedef GetDecodedRawPreviewBufferC = Void Function(
     Pointer<Uint8> buffer,
     Int32 size,
     Int32 halfSize,
     Pointer<Void> cancelToken,
     Pointer<ImageResult> out);
-typedef GetDecodedRawPreviewBufferDart = void Function(Pointer<Uint8> buffer,
-    int size, int halfSize, Pointer<Void> cancelToken, Pointer<ImageResult> out);
+typedef GetDecodedRawPreviewBufferDart = void Function(
+    Pointer<Uint8> buffer,
+    int size,
+    int halfSize,
+    Pointer<Void> cancelToken,
+    Pointer<ImageResult> out);
 
 // --- Free / cancellation ---
 
@@ -202,7 +222,8 @@ class LibRawImage {
 // Despite the legacy `thumbnail` naming, this is not limited to an embedded
 // JPEG. Native code first tries to extract embedded preview data and then falls
 // back to a fast RAW-generated preview when the file has no embedded preview.
-LibRawImage? getRawFastPreviewSync(String filePath, {RawCancelToken? cancelToken}) {
+LibRawImage? getRawFastPreviewSync(String filePath,
+    {RawCancelToken? cancelToken}) {
   final token = cancelToken?.handle ?? nullptr;
   final resultPtr = calloc<ThumbnailResult>();
   try {
@@ -246,6 +267,59 @@ LibRawImage? getRawFastPreviewSync(String filePath, {RawCancelToken? cancelToken
   } finally {
     calloc.free(resultPtr);
   }
+}
+
+/// Returns the JPEG bytes embedded in a RAW file, without processing or
+/// re-encoding them. Returns null when the file has no embedded JPEG.
+///
+/// Call [extractEmbeddedJpeg] from UI code so LibRaw work stays off the main
+/// isolate.
+Uint8List? getEmbeddedJpegSync(String filePath) {
+  final resultPtr = calloc<ThumbnailResult>();
+  try {
+    if (Platform.isWindows) {
+      final getEmbeddedJpeg = nativeLib
+          .lookup<NativeFunction<GetEmbeddedJpegC>>('get_embedded_jpeg')
+          .asFunction<GetEmbeddedJpegDart>();
+      final pathPtr = filePath.toNativeUtf16();
+      try {
+        getEmbeddedJpeg(pathPtr, resultPtr);
+      } finally {
+        calloc.free(pathPtr);
+      }
+    } else {
+      final getEmbeddedJpeg = nativeLib
+          .lookup<NativeFunction<GetEmbeddedJpegPosixC>>('get_embedded_jpeg')
+          .asFunction<GetEmbeddedJpegPosixDart>();
+      final pathPtr = filePath.toNativeUtf8();
+      try {
+        getEmbeddedJpeg(pathPtr, resultPtr);
+      } finally {
+        calloc.free(pathPtr);
+      }
+
+      if (resultPtr.ref.data == nullptr && Platform.isAndroid) {
+        _withAndroidFileBuffer(filePath, (bufferPtr, length) {
+          final getEmbeddedJpegBuffer = nativeLib
+              .lookup<NativeFunction<GetEmbeddedJpegBufferC>>(
+                'get_embedded_jpeg_from_buffer',
+              )
+              .asFunction<GetEmbeddedJpegBufferDart>();
+          getEmbeddedJpegBuffer(bufferPtr, length, resultPtr);
+        });
+      }
+    }
+
+    final image = _processThumbnailResult(resultPtr.ref);
+    return image?.format == RawPixelFormat.encoded ? image!.data : null;
+  } finally {
+    calloc.free(resultPtr);
+  }
+}
+
+/// Extracts an embedded JPEG on a helper isolate for use by the UI.
+Future<Uint8List?> extractEmbeddedJpeg(String filePath) {
+  return Isolate.run(() => getEmbeddedJpegSync(filePath));
 }
 
 /// Reads [filePath] into native memory and runs [action] over it.

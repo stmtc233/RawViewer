@@ -57,8 +57,37 @@ void attach_cancel_token(LibRaw& raw_processor, void* cancel_token) {
 }
 
 bool is_cancelled(void* cancel_token) {
-  const auto* flag = static_cast<const std::atomic<bool>*>(cancel_token);
-  return flag != nullptr && flag->load(std::memory_order_relaxed);
+    const auto* flag = static_cast<const std::atomic<bool>*>(cancel_token);
+    return flag != nullptr && flag->load(std::memory_order_relaxed);
+}
+
+// Extract only the JPEG bytes stored in the RAW container. Unlike the fast
+// preview path below, this deliberately does not fall back to RAW processing.
+ThumbnailResult extract_embedded_jpeg(LibRaw& RawProcessor) {
+    ThumbnailResult result = empty_thumbnail();
+
+    if (RawProcessor.unpack_thumb() != LIBRAW_SUCCESS) {
+        return result;
+    }
+
+    int errc = 0;
+    libraw_processed_image_t* thumb =
+        RawProcessor.dcraw_make_mem_thumb(&errc);
+    if (thumb == nullptr) {
+        return result;
+    }
+
+    if (thumb->type == LIBRAW_IMAGE_JPEG && thumb->data_size > 0) {
+        result.data = static_cast<uint8_t*>(malloc(thumb->data_size));
+        if (result.data != nullptr) {
+            memcpy(result.data, thumb->data, thumb->data_size);
+            result.size = static_cast<int>(thumb->data_size);
+            result.format = 0;
+        }
+    }
+
+    LibRaw::dcraw_clear_mem(thumb);
+    return result;
 }
 
 // Expand LibRaw's packed RGB output into RGBA8888, which is what
@@ -274,6 +303,39 @@ extern "C" {
         }
 
         *out = process_thumbnail(RawProcessor, cancel_token);
+        RawProcessor.recycle();
+    }
+
+    EXPORT void get_embedded_jpeg(const char* file_path,
+                                  ThumbnailResult* out) {
+        if (!out) return;
+
+        *out = empty_thumbnail();
+        if (!file_path) return;
+
+        LibRaw RawProcessor;
+        if (RawProcessor.open_file(file_path) != LIBRAW_SUCCESS) {
+            return;
+        }
+
+        *out = extract_embedded_jpeg(RawProcessor);
+        RawProcessor.recycle();
+    }
+
+    EXPORT void get_embedded_jpeg_from_buffer(uint8_t* buffer, int size,
+                                              ThumbnailResult* out) {
+        if (!out) return;
+
+        *out = empty_thumbnail();
+        if (!buffer || size <= 0) return;
+
+        LibRaw RawProcessor;
+        if (RawProcessor.open_buffer(buffer, static_cast<size_t>(size)) !=
+            LIBRAW_SUCCESS) {
+            return;
+        }
+
+        *out = extract_embedded_jpeg(RawProcessor);
         RawProcessor.recycle();
     }
 
