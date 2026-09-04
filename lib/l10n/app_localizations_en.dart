@@ -31,6 +31,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Animate mouse-wheel page changes. Touch and trackpad swipes remain direct and follow the finger.';
 
   @override
+  String get imagePreviewSectionTitle => 'Image Preview';
+
+  @override
+  String get previewOverlayAutoTransparencyTitle =>
+      'Auto-transparent Preview Controls';
+
+  @override
+  String get previewOverlayAutoTransparencySubtitle =>
+      'Keep preview controls semi-transparent until the pointer hovers over them.';
+
+  @override
   String get languageSectionTitle => 'Language';
 
   @override

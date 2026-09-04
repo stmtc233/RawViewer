@@ -106,6 +106,8 @@ class ViewerSettings {
   // Applies to discrete mouse-wheel page changes. Touch and trackpad
   // navigation remain directly controlled by the PageView.
   final bool pageSwitchAnimationEnabled;
+  // Reduce preview overlay opacity until the pointer hovers over the control.
+  final bool previewOverlayAutoTransparencyEnabled;
   final WindowsContextMenuSettings windowsContextMenu;
 
   const ViewerSettings({
@@ -116,6 +118,7 @@ class ViewerSettings {
     this.appLanguage = AppLanguage.system,
     this.gridAspectRatio = GridAspectRatio.ratio3x2,
     this.pageSwitchAnimationEnabled = true,
+    this.previewOverlayAutoTransparencyEnabled = true,
     this.windowsContextMenu = const WindowsContextMenuSettings(),
   });
 
@@ -127,6 +130,7 @@ class ViewerSettings {
     AppLanguage? appLanguage,
     GridAspectRatio? gridAspectRatio,
     bool? pageSwitchAnimationEnabled,
+    bool? previewOverlayAutoTransparencyEnabled,
     WindowsContextMenuSettings? windowsContextMenu,
   }) {
     return ViewerSettings(
@@ -139,6 +143,9 @@ class ViewerSettings {
       gridAspectRatio: gridAspectRatio ?? this.gridAspectRatio,
       pageSwitchAnimationEnabled:
           pageSwitchAnimationEnabled ?? this.pageSwitchAnimationEnabled,
+      previewOverlayAutoTransparencyEnabled:
+          previewOverlayAutoTransparencyEnabled ??
+              this.previewOverlayAutoTransparencyEnabled,
       windowsContextMenu: windowsContextMenu ?? this.windowsContextMenu,
     );
   }
@@ -338,6 +345,25 @@ class _SettingsPageState extends State<SettingsPage> {
                         onChanged: (value) => _updateSettings(
                           _currentSettings.copyWith(
                             pageSwitchAnimationEnabled: value,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                DesktopSettingsSection(
+                  title: l10n.imagePreviewSectionTitle,
+                  children: [
+                    DesktopSettingsRow(
+                      key: const ValueKey('preview-overlay-auto-transparency'),
+                      title: l10n.previewOverlayAutoTransparencyTitle,
+                      subtitle: l10n.previewOverlayAutoTransparencySubtitle,
+                      control: Switch(
+                        value: _currentSettings
+                            .previewOverlayAutoTransparencyEnabled,
+                        onChanged: (value) => _updateSettings(
+                          _currentSettings.copyWith(
+                            previewOverlayAutoTransparencyEnabled: value,
                           ),
                         ),
                       ),

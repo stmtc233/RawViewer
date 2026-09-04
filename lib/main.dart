@@ -502,6 +502,8 @@ class _HomePageState extends State<HomePage> {
         .asNameMap()[prefs.getString('grid_aspect_ratio')];
     final pageSwitchAnimationEnabled =
         prefs.getBool('page_switch_animation_enabled') ?? true;
+    final previewOverlayAutoTransparencyEnabled =
+        prefs.getBool('preview_overlay_auto_transparency_enabled') ?? true;
     if (!mounted) {
       return;
     }
@@ -514,6 +516,8 @@ class _HomePageState extends State<HomePage> {
       }
       _settings = _settings.copyWith(
         pageSwitchAnimationEnabled: pageSwitchAnimationEnabled,
+        previewOverlayAutoTransparencyEnabled:
+            previewOverlayAutoTransparencyEnabled,
       );
     });
   }
@@ -605,6 +609,13 @@ class _HomePageState extends State<HomePage> {
     await prefs.setBool('page_switch_animation_enabled', enabled);
   }
 
+  Future<void> _persistPreviewOverlayAutoTransparencyEnabled(
+    bool enabled,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('preview_overlay_auto_transparency_enabled', enabled);
+  }
+
   void _updateSettings(ViewerSettings settings) {
     final cacheSizeChanged = _settings.maxCacheSize != settings.maxCacheSize;
     final appLanguageChanged = _settings.appLanguage != settings.appLanguage;
@@ -612,6 +623,9 @@ class _HomePageState extends State<HomePage> {
         _settings.gridAspectRatio != settings.gridAspectRatio;
     final pageSwitchAnimationChanged = _settings.pageSwitchAnimationEnabled !=
         settings.pageSwitchAnimationEnabled;
+    final previewOverlayAutoTransparencyChanged =
+        _settings.previewOverlayAutoTransparencyEnabled !=
+            settings.previewOverlayAutoTransparencyEnabled;
 
     setState(() {
       _settings = settings;
@@ -631,6 +645,13 @@ class _HomePageState extends State<HomePage> {
       unawaited(
         _persistPageSwitchAnimationEnabled(
           settings.pageSwitchAnimationEnabled,
+        ),
+      );
+    }
+    if (previewOverlayAutoTransparencyChanged) {
+      unawaited(
+        _persistPreviewOverlayAutoTransparencyEnabled(
+          settings.previewOverlayAutoTransparencyEnabled,
         ),
       );
     }
@@ -2427,6 +2448,8 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
               right: 0,
               bottom: 0,
               child: _PreviewHoverReveal(
+                autoTransparencyEnabled:
+                    widget.settings.previewOverlayAutoTransparencyEnabled,
                 child: _PreviewFilmstrip(
                   mediaGroups: widget.mediaGroups,
                   currentIndex: _currentIndex,
@@ -2443,6 +2466,8 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
             left: 0,
             right: 0,
             child: _PreviewHoverReveal(
+              autoTransparencyEnabled:
+                  widget.settings.previewOverlayAutoTransparencyEnabled,
               child: FutureBuilder<_MediaTimestampInfo>(
                 future: _currentTimestampFuture,
                 builder: (context, snapshot) {
@@ -2597,8 +2622,12 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
 
 class _PreviewHoverReveal extends StatefulWidget {
   final Widget child;
+  final bool autoTransparencyEnabled;
 
-  const _PreviewHoverReveal({required this.child});
+  const _PreviewHoverReveal({
+    required this.child,
+    required this.autoTransparencyEnabled,
+  });
 
   @override
   State<_PreviewHoverReveal> createState() => _PreviewHoverRevealState();
@@ -2618,6 +2647,10 @@ class _PreviewHoverRevealState extends State<_PreviewHoverReveal> {
 
   @override
   Widget build(BuildContext context) {
+    final opacity = widget.autoTransparencyEnabled && !_isHovered
+        ? _previewOverlayRestingOpacity
+        : 1.0;
+
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (event) {
@@ -2633,7 +2666,7 @@ class _PreviewHoverRevealState extends State<_PreviewHoverReveal> {
         onEnter: (_) => _setHovered(true),
         onExit: (_) => _setHovered(false),
         child: AnimatedOpacity(
-          opacity: _isHovered ? 1 : _previewOverlayRestingOpacity,
+          opacity: opacity,
           duration: _previewOverlayFadeDuration,
           curve: Curves.easeOutCubic,
           child: widget.child,
@@ -3695,6 +3728,8 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
                     _previewOverviewGap +
                     12,
                 child: _PreviewHoverReveal(
+                  autoTransparencyEnabled:
+                      widget.settings.previewOverlayAutoTransparencyEnabled,
                   child: _PreviewOverviewMap(
                     image: RotatedBox(
                       quarterTurns: widget.rotationQuarterTurns,
@@ -3709,6 +3744,8 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
               right: 12,
               bottom: MediaQuery.paddingOf(context).bottom + 12,
               child: _PreviewHoverReveal(
+                autoTransparencyEnabled:
+                    widget.settings.previewOverlayAutoTransparencyEnabled,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: RawViewerColors.surface.withValues(alpha: 0.84),

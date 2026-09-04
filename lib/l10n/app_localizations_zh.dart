@@ -30,6 +30,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get pageSwitchAnimationSubtitle => '控制鼠标滚轮触发的切换动画；触控和触控板滑动始终保持跟手。';
 
   @override
+  String get imagePreviewSectionTitle => '图片预览';
+
+  @override
+  String get previewOverlayAutoTransparencyTitle => '预览控件自动半透明';
+
+  @override
+  String get previewOverlayAutoTransparencySubtitle =>
+      '鼠标悬停前保持预览控件半透明，悬停后恢复清晰显示。';
+
+  @override
   String get languageSectionTitle => '语言';
 
   @override

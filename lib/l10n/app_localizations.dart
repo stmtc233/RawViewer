@@ -140,6 +140,24 @@ abstract class AppLocalizations {
   /// **'Animate mouse-wheel page changes. Touch and trackpad swipes remain direct and follow the finger.'**
   String get pageSwitchAnimationSubtitle;
 
+  /// No description provided for @imagePreviewSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Image Preview'**
+  String get imagePreviewSectionTitle;
+
+  /// No description provided for @previewOverlayAutoTransparencyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-transparent Preview Controls'**
+  String get previewOverlayAutoTransparencyTitle;
+
+  /// No description provided for @previewOverlayAutoTransparencySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep preview controls semi-transparent until the pointer hovers over them.'**
+  String get previewOverlayAutoTransparencySubtitle;
+
   /// No description provided for @languageSectionTitle.
   ///
   /// In en, this message translates to:

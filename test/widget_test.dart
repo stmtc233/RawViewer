@@ -185,6 +185,22 @@ void main() {
       expect(updated.gridAspectRatio, original.gridAspectRatio);
     });
 
+    test(
+        'defaults preview overlay auto-transparency to enabled and can disable it',
+        () {
+      const original = ViewerSettings();
+      final updated = original.copyWith(
+        previewOverlayAutoTransparencyEnabled: false,
+      );
+
+      expect(original.previewOverlayAutoTransparencyEnabled, isTrue);
+      expect(updated.previewOverlayAutoTransparencyEnabled, isFalse);
+      expect(
+        updated.pageSwitchAnimationEnabled,
+        original.pageSwitchAnimationEnabled,
+      );
+    });
+
     test('supports adaptive grid sizing', () {
       const settings = ViewerSettings(
         gridAspectRatio: GridAspectRatio.adaptive,
@@ -263,6 +279,23 @@ void main() {
       );
       await tester.pump();
       expect(updatedSettings!.pageSwitchAnimationEnabled, isFalse);
+
+      final previewOverlayAutoTransparency =
+          find.byKey(const ValueKey('preview-overlay-auto-transparency'));
+      await tester.scrollUntilVisible(
+        previewOverlayAutoTransparency,
+        300,
+        scrollable: settingsList,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: previewOverlayAutoTransparency,
+          matching: find.byType(Switch),
+        ),
+      );
+      await tester.pump();
+      expect(updatedSettings!.previewOverlayAutoTransparencyEnabled, isFalse);
     });
   });
 
