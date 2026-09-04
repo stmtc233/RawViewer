@@ -8,8 +8,16 @@
   "pageSwitchAnimationTitle": "Page Switch Animation",
   "pageSwitchAnimationSubtitle": "Animate mouse-wheel page changes. Touch and trackpad swipes remain direct and follow the finger.",
   "imagePreviewSectionTitle": "Image Preview",
-  "previewOverlayAutoTransparencyTitle": "Auto-transparent Preview Controls",
-  "previewOverlayAutoTransparencySubtitle": "Keep preview controls semi-transparent until the pointer hovers over them.",
+  "previewOverlayOpacityTitle": "Preview Control Opacity",
+  "previewOverlayOpacitySubtitle": "Set the resting opacity of preview controls. Hovered controls always become fully visible; 100% disables transparency.",
+  "previewOverlayOpacityPercent": "{percent}%",
+  "@previewOverlayOpacityPercent": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
   "languageSectionTitle": "Language",
   "languageSystem": "Follow system",
   "languageChineseSimplified": "简体中文",

@@ -146,17 +146,23 @@ abstract class AppLocalizations {
   /// **'Image Preview'**
   String get imagePreviewSectionTitle;
 
-  /// No description provided for @previewOverlayAutoTransparencyTitle.
+  /// No description provided for @previewOverlayOpacityTitle.
   ///
   /// In en, this message translates to:
-  /// **'Auto-transparent Preview Controls'**
-  String get previewOverlayAutoTransparencyTitle;
+  /// **'Preview Control Opacity'**
+  String get previewOverlayOpacityTitle;
 
-  /// No description provided for @previewOverlayAutoTransparencySubtitle.
+  /// No description provided for @previewOverlayOpacitySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Keep preview controls semi-transparent until the pointer hovers over them.'**
-  String get previewOverlayAutoTransparencySubtitle;
+  /// **'Set the resting opacity of preview controls. Hovered controls always become fully visible; 100% disables transparency.'**
+  String get previewOverlayOpacitySubtitle;
+
+  /// No description provided for @previewOverlayOpacityPercent.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}%'**
+  String previewOverlayOpacityPercent(int percent);
 
   /// No description provided for @languageSectionTitle.
   ///

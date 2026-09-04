@@ -33,11 +33,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get imagePreviewSectionTitle => '图片预览';
 
   @override
-  String get previewOverlayAutoTransparencyTitle => '预览控件自动半透明';
+  String get previewOverlayOpacityTitle => '预览控件透明度';
 
   @override
-  String get previewOverlayAutoTransparencySubtitle =>
-      '鼠标悬停前保持预览控件半透明，悬停后恢复清晰显示。';
+  String get previewOverlayOpacitySubtitle =>
+      '设置预览控件未悬停时的透明度；悬停后始终恢复清晰显示，100% 表示关闭透明效果。';
+
+  @override
+  String previewOverlayOpacityPercent(int percent) {
+    return '$percent%';
+  }
 
   @override
   String get languageSectionTitle => '语言';

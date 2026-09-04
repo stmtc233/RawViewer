@@ -185,16 +185,14 @@ void main() {
       expect(updated.gridAspectRatio, original.gridAspectRatio);
     });
 
-    test(
-        'defaults preview overlay auto-transparency to enabled and can disable it',
-        () {
+    test('defaults preview overlay opacity and can customize it', () {
       const original = ViewerSettings();
       final updated = original.copyWith(
-        previewOverlayAutoTransparencyEnabled: false,
+        previewOverlayOpacity: 0.65,
       );
 
-      expect(original.previewOverlayAutoTransparencyEnabled, isTrue);
-      expect(updated.previewOverlayAutoTransparencyEnabled, isFalse);
+      expect(original.previewOverlayOpacity, kDefaultPreviewOverlayOpacity);
+      expect(updated.previewOverlayOpacity, 0.65);
       expect(
         updated.pageSwitchAnimationEnabled,
         original.pageSwitchAnimationEnabled,
@@ -280,22 +278,22 @@ void main() {
       await tester.pump();
       expect(updatedSettings!.pageSwitchAnimationEnabled, isFalse);
 
-      final previewOverlayAutoTransparency =
-          find.byKey(const ValueKey('preview-overlay-auto-transparency'));
+      final previewOverlayOpacity =
+          find.byKey(const ValueKey('preview-overlay-opacity'));
       await tester.scrollUntilVisible(
-        previewOverlayAutoTransparency,
+        previewOverlayOpacity,
         300,
         scrollable: settingsList,
       );
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.descendant(
-          of: previewOverlayAutoTransparency,
-          matching: find.byType(Switch),
-        ),
+      final previewOverlaySlider = find.descendant(
+        of: previewOverlayOpacity,
+        matching: find.byType(Slider),
       );
+      await tester
+          .tapAt(tester.getCenter(previewOverlaySlider) + const Offset(50, 0));
       await tester.pump();
-      expect(updatedSettings!.previewOverlayAutoTransparencyEnabled, isFalse);
+      expect(updatedSettings!.previewOverlayOpacity, greaterThan(0.42));
     });
   });
 

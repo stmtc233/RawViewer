@@ -9,6 +9,11 @@ enum TimeDisplaySource { capturedAt, modifiedAt }
 
 enum AppLanguage { system, zhHans, english }
 
+const double kDefaultPreviewOverlayOpacity = 0.42;
+const double kMinPreviewOverlayOpacity = 0.2;
+const double kMaxPreviewOverlayOpacity = 1.0;
+const int kPreviewOverlayOpacityDivisions = 80;
+
 extension AppLanguageLocale on AppLanguage {
   Locale? get locale {
     switch (this) {
@@ -106,8 +111,8 @@ class ViewerSettings {
   // Applies to discrete mouse-wheel page changes. Touch and trackpad
   // navigation remain directly controlled by the PageView.
   final bool pageSwitchAnimationEnabled;
-  // Reduce preview overlay opacity until the pointer hovers over the control.
-  final bool previewOverlayAutoTransparencyEnabled;
+  // Resting opacity for preview overlays before the pointer hovers over them.
+  final double previewOverlayOpacity;
   final WindowsContextMenuSettings windowsContextMenu;
 
   const ViewerSettings({
@@ -118,7 +123,7 @@ class ViewerSettings {
     this.appLanguage = AppLanguage.system,
     this.gridAspectRatio = GridAspectRatio.ratio3x2,
     this.pageSwitchAnimationEnabled = true,
-    this.previewOverlayAutoTransparencyEnabled = true,
+    this.previewOverlayOpacity = kDefaultPreviewOverlayOpacity,
     this.windowsContextMenu = const WindowsContextMenuSettings(),
   });
 
@@ -130,7 +135,7 @@ class ViewerSettings {
     AppLanguage? appLanguage,
     GridAspectRatio? gridAspectRatio,
     bool? pageSwitchAnimationEnabled,
-    bool? previewOverlayAutoTransparencyEnabled,
+    double? previewOverlayOpacity,
     WindowsContextMenuSettings? windowsContextMenu,
   }) {
     return ViewerSettings(
@@ -143,9 +148,8 @@ class ViewerSettings {
       gridAspectRatio: gridAspectRatio ?? this.gridAspectRatio,
       pageSwitchAnimationEnabled:
           pageSwitchAnimationEnabled ?? this.pageSwitchAnimationEnabled,
-      previewOverlayAutoTransparencyEnabled:
-          previewOverlayAutoTransparencyEnabled ??
-              this.previewOverlayAutoTransparencyEnabled,
+      previewOverlayOpacity:
+          previewOverlayOpacity ?? this.previewOverlayOpacity,
       windowsContextMenu: windowsContextMenu ?? this.windowsContextMenu,
     );
   }
@@ -355,16 +359,45 @@ class _SettingsPageState extends State<SettingsPage> {
                   title: l10n.imagePreviewSectionTitle,
                   children: [
                     DesktopSettingsRow(
-                      key: const ValueKey('preview-overlay-auto-transparency'),
-                      title: l10n.previewOverlayAutoTransparencyTitle,
-                      subtitle: l10n.previewOverlayAutoTransparencySubtitle,
-                      control: Switch(
-                        value: _currentSettings
-                            .previewOverlayAutoTransparencyEnabled,
-                        onChanged: (value) => _updateSettings(
-                          _currentSettings.copyWith(
-                            previewOverlayAutoTransparencyEnabled: value,
-                          ),
+                      key: const ValueKey('preview-overlay-opacity'),
+                      title: l10n.previewOverlayOpacityTitle,
+                      subtitle: l10n.previewOverlayOpacitySubtitle,
+                      control: SizedBox(
+                        width: 190,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Slider(
+                                value: _currentSettings.previewOverlayOpacity,
+                                min: kMinPreviewOverlayOpacity,
+                                max: kMaxPreviewOverlayOpacity,
+                                divisions: kPreviewOverlayOpacityDivisions,
+                                label: l10n.previewOverlayOpacityPercent(
+                                  (_currentSettings.previewOverlayOpacity * 100)
+                                      .round(),
+                                ),
+                                onChanged: (value) => _updateSettings(
+                                  _currentSettings.copyWith(
+                                    previewOverlayOpacity: value,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: 42,
+                              child: Text(
+                                l10n.previewOverlayOpacityPercent(
+                                  (_currentSettings.previewOverlayOpacity * 100)
+                                      .round(),
+                                ),
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(
+                                  color: RawViewerColors.text,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),

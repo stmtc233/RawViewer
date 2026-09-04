@@ -34,12 +34,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get imagePreviewSectionTitle => 'Image Preview';
 
   @override
-  String get previewOverlayAutoTransparencyTitle =>
-      'Auto-transparent Preview Controls';
+  String get previewOverlayOpacityTitle => 'Preview Control Opacity';
 
   @override
-  String get previewOverlayAutoTransparencySubtitle =>
-      'Keep preview controls semi-transparent until the pointer hovers over them.';
+  String get previewOverlayOpacitySubtitle =>
+      'Set the resting opacity of preview controls. Hovered controls always become fully visible; 100% disables transparency.';
+
+  @override
+  String previewOverlayOpacityPercent(int percent) {
+    return '$percent%';
+  }
 
   @override
   String get languageSectionTitle => 'Language';
