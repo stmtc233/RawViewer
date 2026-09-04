@@ -190,6 +190,8 @@ const double kPreviewFilmstripItemExtent = 96;
 const double _previewFilmstripScrollbarThickness = 2;
 const double _previewFilmstripScrollbarMainAxisMargin = 4;
 const double _previewFilmstripVisibilityEpsilon = 0.5;
+const double _previewOverlayRestingOpacity = 0.42;
+const Duration _previewOverlayFadeDuration = Duration(milliseconds: 140);
 const double kPreviewOverviewMapWidth = 180;
 const double kPreviewOverviewMapHeight = 120;
 const double _previewImageControlsHeight = 42;
@@ -2424,166 +2426,218 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
               left: 0,
               right: 0,
               bottom: 0,
-              child: _PreviewFilmstrip(
-                mediaGroups: widget.mediaGroups,
-                currentIndex: _currentIndex,
-                imageStore: widget.imageStore,
-                decodeWidth: _previewFilmstripDecodeWidth,
-                centerCurrentThumbnailTooltip:
-                    l10n.centerCurrentPreviewThumbnailTooltip,
-                onIndexSelected: _jumpToPage,
+              child: _PreviewHoverReveal(
+                child: _PreviewFilmstrip(
+                  mediaGroups: widget.mediaGroups,
+                  currentIndex: _currentIndex,
+                  imageStore: widget.imageStore,
+                  decodeWidth: _previewFilmstripDecodeWidth,
+                  centerCurrentThumbnailTooltip:
+                      l10n.centerCurrentPreviewThumbnailTooltip,
+                  onIndexSelected: _jumpToPage,
+                ),
               ),
             ),
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: FutureBuilder<_MediaTimestampInfo>(
-              future: _currentTimestampFuture,
-              builder: (context, snapshot) {
-                final timestampText = snapshot.hasData
-                    ? snapshot.data!.format(widget.settings.timeDisplaySource)
-                    : '---- -- -- --:--:--';
-                return Container(
-                  decoration: BoxDecoration(
-                    color: RawViewerColors.surface.withValues(alpha: 0.94),
-                    border: const Border(
-                      bottom: BorderSide(color: RawViewerColors.border),
+            child: _PreviewHoverReveal(
+              child: FutureBuilder<_MediaTimestampInfo>(
+                future: _currentTimestampFuture,
+                builder: (context, snapshot) {
+                  final timestampText = snapshot.hasData
+                      ? snapshot.data!.format(widget.settings.timeDisplaySource)
+                      : '---- -- -- --:--:--';
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: RawViewerColors.surface.withValues(alpha: 0.84),
+                      border: const Border(
+                        bottom: BorderSide(color: RawViewerColors.border),
+                      ),
                     ),
-                  ),
-                  child: SafeArea(
-                    bottom: false,
-                    child: SizedBox(
-                      height: kImagePreviewToolbarHeight,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: Row(
-                          children: [
-                            DesktopIconButton(
-                              icon: Icons.arrow_back,
-                              tooltip: MaterialLocalizations.of(context)
-                                  .backButtonTooltip,
-                              onPressed: widget.onClose,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    path.basename(currentFilePath),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: RawViewerColors.text,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  Text(
-                                    timestampText,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: RawViewerColors.mutedText,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ],
+                    child: SafeArea(
+                      bottom: false,
+                      child: SizedBox(
+                        height: kImagePreviewToolbarHeight,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          child: Row(
+                            children: [
+                              DesktopIconButton(
+                                icon: Icons.arrow_back,
+                                tooltip: MaterialLocalizations.of(context)
+                                    .backButtonTooltip,
+                                onPressed: widget.onClose,
                               ),
-                            ),
-                            const SizedBox(width: 4),
-                            DesktopPopupMenuButton<_PreviewDisplayControl>(
-                              tooltip: l10n.previewDisplayControlsTooltip,
-                              onSelected: (control) {
-                                setState(() {
-                                  switch (control) {
-                                    case _PreviewDisplayControl.filmstrip:
-                                      _showPreviewFilmstrip =
-                                          !_showPreviewFilmstrip;
-                                      break;
-                                    case _PreviewDisplayControl.overview:
-                                      _showPreviewOverview =
-                                          !_showPreviewOverview;
-                                      break;
-                                  }
-                                });
-                              },
-                              itemBuilder: (context) => [
-                                desktopPopupMenuItem(
-                                  value: _PreviewDisplayControl.filmstrip,
-                                  icon: Icons.view_carousel_outlined,
-                                  selected: _showPreviewFilmstrip,
-                                  label: l10n.previewFilmstripTitle,
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      path.basename(currentFilePath),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: RawViewerColors.text,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      timestampText,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: RawViewerColors.mutedText,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                desktopPopupMenuItem(
-                                  value: _PreviewDisplayControl.overview,
-                                  icon: Icons.map_outlined,
-                                  selected: _showPreviewOverview,
-                                  label: l10n.previewOverviewTitle,
-                                ),
-                              ],
-                              child: DesktopPopupMenuTrigger(
-                                icon: Icons.tune,
-                                selected: _showPreviewFilmstrip ||
-                                    _showPreviewOverview,
                               ),
-                            ),
-                            if (currentMediaGroup.isRaw) ...[
-                              const SizedBox(width: 8),
-                              DesktopPopupMenuButton<_PreviewSource>(
-                                tooltip: l10n.rawPreviewSourceSectionTitle,
-                                initialValue: currentPreviewSource,
-                                onSelected: (source) => _selectPreviewSource(
-                                  currentMediaGroup,
-                                  source,
-                                ),
-                                child: DesktopPopupMenuLabelTrigger(
-                                  icon: _previewSourceIcon(
-                                    currentPreviewSource,
-                                  ),
-                                  label: _previewSourceLabel(
-                                    l10n,
-                                    currentPreviewSource,
-                                  ),
-                                ),
+                              const SizedBox(width: 4),
+                              DesktopPopupMenuButton<_PreviewDisplayControl>(
+                                tooltip: l10n.previewDisplayControlsTooltip,
+                                onSelected: (control) {
+                                  setState(() {
+                                    switch (control) {
+                                      case _PreviewDisplayControl.filmstrip:
+                                        _showPreviewFilmstrip =
+                                            !_showPreviewFilmstrip;
+                                        break;
+                                      case _PreviewDisplayControl.overview:
+                                        _showPreviewOverview =
+                                            !_showPreviewOverview;
+                                        break;
+                                    }
+                                  });
+                                },
                                 itemBuilder: (context) => [
                                   desktopPopupMenuItem(
-                                    value: _PreviewSource.fastPreview,
-                                    icon: Icons.bolt_outlined,
-                                    selected: currentPreviewSource ==
-                                        _PreviewSource.fastPreview,
-                                    label: l10n.fastPreviewShortLabel,
+                                    value: _PreviewDisplayControl.filmstrip,
+                                    icon: Icons.view_carousel_outlined,
+                                    selected: _showPreviewFilmstrip,
+                                    label: l10n.previewFilmstripTitle,
                                   ),
                                   desktopPopupMenuItem(
-                                    value: _PreviewSource.decodedRaw,
-                                    icon: Icons.camera_alt_outlined,
-                                    selected: currentPreviewSource ==
-                                        _PreviewSource.decodedRaw,
-                                    label: l10n.rawShortLabel,
+                                    value: _PreviewDisplayControl.overview,
+                                    icon: Icons.map_outlined,
+                                    selected: _showPreviewOverview,
+                                    label: l10n.previewOverviewTitle,
                                   ),
-                                  if (currentMediaGroup.hasPairedJpeg)
-                                    desktopPopupMenuItem(
-                                      value: _PreviewSource.jpeg,
-                                      icon: Icons.image_outlined,
-                                      selected: currentPreviewSource ==
-                                          _PreviewSource.jpeg,
-                                      label: 'JPG',
-                                    ),
                                 ],
+                                child: DesktopPopupMenuTrigger(
+                                  icon: Icons.tune,
+                                  selected: _showPreviewFilmstrip ||
+                                      _showPreviewOverview,
+                                ),
                               ),
+                              if (currentMediaGroup.isRaw) ...[
+                                const SizedBox(width: 8),
+                                DesktopPopupMenuButton<_PreviewSource>(
+                                  tooltip: l10n.rawPreviewSourceSectionTitle,
+                                  initialValue: currentPreviewSource,
+                                  onSelected: (source) => _selectPreviewSource(
+                                    currentMediaGroup,
+                                    source,
+                                  ),
+                                  child: DesktopPopupMenuLabelTrigger(
+                                    icon: _previewSourceIcon(
+                                      currentPreviewSource,
+                                    ),
+                                    label: _previewSourceLabel(
+                                      l10n,
+                                      currentPreviewSource,
+                                    ),
+                                  ),
+                                  itemBuilder: (context) => [
+                                    desktopPopupMenuItem(
+                                      value: _PreviewSource.fastPreview,
+                                      icon: Icons.bolt_outlined,
+                                      selected: currentPreviewSource ==
+                                          _PreviewSource.fastPreview,
+                                      label: l10n.fastPreviewShortLabel,
+                                    ),
+                                    desktopPopupMenuItem(
+                                      value: _PreviewSource.decodedRaw,
+                                      icon: Icons.camera_alt_outlined,
+                                      selected: currentPreviewSource ==
+                                          _PreviewSource.decodedRaw,
+                                      label: l10n.rawShortLabel,
+                                    ),
+                                    if (currentMediaGroup.hasPairedJpeg)
+                                      desktopPopupMenuItem(
+                                        value: _PreviewSource.jpeg,
+                                        icon: Icons.image_outlined,
+                                        selected: currentPreviewSource ==
+                                            _PreviewSource.jpeg,
+                                        label: 'JPG',
+                                      ),
+                                  ],
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PreviewHoverReveal extends StatefulWidget {
+  final Widget child;
+
+  const _PreviewHoverReveal({required this.child});
+
+  @override
+  State<_PreviewHoverReveal> createState() => _PreviewHoverRevealState();
+}
+
+class _PreviewHoverRevealState extends State<_PreviewHoverReveal> {
+  bool _isHovered = false;
+
+  void _setHovered(bool value) {
+    if (_isHovered == value) {
+      return;
+    }
+    setState(() {
+      _isHovered = value;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (event) {
+        // Touch screens have no hover state, so reveal the controls on touch.
+        if (event.kind != PointerDeviceKind.mouse &&
+            event.kind != PointerDeviceKind.trackpad) {
+          _setHovered(true);
+        }
+      },
+      child: MouseRegion(
+        opaque: false,
+        hitTestBehavior: HitTestBehavior.translucent,
+        onEnter: (_) => _setHovered(true),
+        onExit: (_) => _setHovered(false),
+        child: AnimatedOpacity(
+          opacity: _isHovered ? 1 : _previewOverlayRestingOpacity,
+          duration: _previewOverlayFadeDuration,
+          curve: Curves.easeOutCubic,
+          child: widget.child,
+        ),
       ),
     );
   }
@@ -3010,7 +3064,7 @@ class _PreviewOverviewMap extends StatelessWidget {
         height: kPreviewOverviewMapHeight,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: RawViewerColors.surface,
+            color: RawViewerColors.surface.withValues(alpha: 0.78),
             border: Border.all(color: RawViewerColors.border),
             borderRadius: BorderRadius.circular(5),
             boxShadow: const [
@@ -3640,59 +3694,63 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
                     _previewImageControlsHeight +
                     _previewOverviewGap +
                     12,
-                child: _PreviewOverviewMap(
-                  image: RotatedBox(
-                    quarterTurns: widget.rotationQuarterTurns,
-                    child: _buildOverviewImage(),
+                child: _PreviewHoverReveal(
+                  child: _PreviewOverviewMap(
+                    image: RotatedBox(
+                      quarterTurns: widget.rotationQuarterTurns,
+                      child: _buildOverviewImage(),
+                    ),
+                    transformationController: _transformationController,
+                    viewportSize: viewportSize,
                   ),
-                  transformationController: _transformationController,
-                  viewportSize: viewportSize,
                 ),
               ),
             Positioned(
               right: 12,
               bottom: MediaQuery.paddingOf(context).bottom + 12,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: RawViewerColors.surface.withValues(alpha: 0.94),
-                  border: Border.all(color: RawViewerColors.border),
-                  borderRadius: BorderRadius.circular(5),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(3),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      DesktopIconButton(
-                        icon: Icons.rotate_left,
-                        tooltip: l10n.rotateImageCounterclockwiseTooltip,
-                        onPressed: () => widget.onRotationRequested(-1),
-                      ),
-                      const SizedBox(width: 2),
-                      DesktopIconButton(
-                        icon: Icons.rotate_right,
-                        tooltip: l10n.rotateImageTooltip,
-                        onPressed: () => widget.onRotationRequested(1),
-                      ),
-                      const SizedBox(width: 5),
-                      DesktopIconButton(
-                        icon: Icons.zoom_in,
-                        tooltip: l10n.zoomInImageTooltip,
-                        onPressed: () => _zoomBy(_previewControlZoomStep),
-                      ),
-                      const SizedBox(width: 2),
-                      DesktopIconButton(
-                        icon: Icons.zoom_out,
-                        tooltip: l10n.zoomOutImageTooltip,
-                        onPressed: () => _zoomBy(1 / _previewControlZoomStep),
-                      ),
-                      const SizedBox(width: 2),
-                      DesktopIconButton(
-                        icon: Icons.filter_center_focus,
-                        tooltip: l10n.resetImageViewTooltip,
-                        onPressed: _resetView,
-                      ),
-                    ],
+              child: _PreviewHoverReveal(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: RawViewerColors.surface.withValues(alpha: 0.84),
+                    border: Border.all(color: RawViewerColors.border),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(3),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        DesktopIconButton(
+                          icon: Icons.rotate_left,
+                          tooltip: l10n.rotateImageCounterclockwiseTooltip,
+                          onPressed: () => widget.onRotationRequested(-1),
+                        ),
+                        const SizedBox(width: 2),
+                        DesktopIconButton(
+                          icon: Icons.rotate_right,
+                          tooltip: l10n.rotateImageTooltip,
+                          onPressed: () => widget.onRotationRequested(1),
+                        ),
+                        const SizedBox(width: 5),
+                        DesktopIconButton(
+                          icon: Icons.zoom_in,
+                          tooltip: l10n.zoomInImageTooltip,
+                          onPressed: () => _zoomBy(_previewControlZoomStep),
+                        ),
+                        const SizedBox(width: 2),
+                        DesktopIconButton(
+                          icon: Icons.zoom_out,
+                          tooltip: l10n.zoomOutImageTooltip,
+                          onPressed: () => _zoomBy(1 / _previewControlZoomStep),
+                        ),
+                        const SizedBox(width: 2),
+                        DesktopIconButton(
+                          icon: Icons.filter_center_focus,
+                          tooltip: l10n.resetImageViewTooltip,
+                          onPressed: _resetView,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
