@@ -377,6 +377,36 @@ abstract class AppLocalizations {
   /// **'Close settings'**
   String get closeSettingsTooltip;
 
+  /// No description provided for @rotateImageTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Rotate image clockwise'**
+  String get rotateImageTooltip;
+
+  /// No description provided for @rotateImageCounterclockwiseTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Rotate image counterclockwise'**
+  String get rotateImageCounterclockwiseTooltip;
+
+  /// No description provided for @zoomInImageTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom in'**
+  String get zoomInImageTooltip;
+
+  /// No description provided for @zoomOutImageTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom out'**
+  String get zoomOutImageTooltip;
+
+  /// No description provided for @resetImageViewTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset image view'**
+  String get resetImageViewTooltip;
+
   /// No description provided for @largerThumbnailsTooltip.
   ///
   /// In en, this message translates to:

@@ -193,8 +193,26 @@ const double _gridZoomLogScaleStep = 0.12;
 const double _previewTrackpadScaleSlop = 0.015;
 const double _trackpadPageDragSensitivity = 2.5;
 const double _trackpadFlingMinVelocity = 350;
-const double _minPreviewScale = 1.0;
-const double _maxPreviewScale = 5.0;
+const double kMinPreviewScale = 0.25;
+const double kMaxPreviewScale = 5.0;
+const double _previewFitScale = 1.0;
+const double _previewScaleEpsilon = 0.01;
+const double _previewControlZoomStep = 1.25;
+const Duration _previewFitScaleLockDuration = Duration(milliseconds: 100);
+
+double clampPreviewScale(double scale) {
+  return scale.clamp(kMinPreviewScale, kMaxPreviewScale).toDouble();
+}
+
+bool shouldResetPreviewPositionAtFitScale({
+  required double currentScale,
+  required double targetScale,
+}) {
+  return (currentScale > _previewFitScale && targetScale <= _previewFitScale) ||
+      (currentScale < _previewFitScale && targetScale >= _previewFitScale);
+}
+
+enum _PreviewScaleDirection { zoomIn, zoomOut }
 
 bool _isZoomModifierPressed() {
   final keysPressed = HardwareKeyboard.instance.logicalKeysPressed;
@@ -1933,6 +1951,9 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
   late int _currentIndex;
   late int _targetPage;
   bool _isLocked = false;
+  final Map<String, int> _rotationQuarterTurns = <String, int>{};
+  final Map<String, _PreviewSource> _previewSources =
+      <String, _PreviewSource>{};
 
   DateTime? _lastSwitchTime;
   Timer? _scrollStopTimer;
@@ -2168,9 +2189,69 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
     }
   }
 
+  void _rotateImage(String filePath, int quarterTurns) {
+    setState(() {
+      _rotationQuarterTurns[filePath] = rotateImageQuarterTurns(
+        _rotationQuarterTurns[filePath] ?? 0,
+        quarterTurns,
+      );
+    });
+  }
+
+  void _resetImageRotation(String filePath) {
+    setState(() {
+      _rotationQuarterTurns.remove(filePath);
+    });
+  }
+
+  _PreviewSource _previewSourceFor(MediaGroup mediaGroup) {
+    return _previewSources[mediaGroup.primary.path] ??
+        (widget.settings.preferFastPreviewForRaw
+            ? _PreviewSource.fastPreview
+            : _PreviewSource.decodedRaw);
+  }
+
+  void _selectPreviewSource(MediaGroup mediaGroup, _PreviewSource source) {
+    if (!mediaGroup.isRaw ||
+        (source == _PreviewSource.jpeg && !mediaGroup.hasPairedJpeg)) {
+      return;
+    }
+    setState(() {
+      _previewSources[mediaGroup.primary.path] = source;
+    });
+  }
+
+  IconData _previewSourceIcon(_PreviewSource source) {
+    switch (source) {
+      case _PreviewSource.fastPreview:
+        return Icons.bolt_outlined;
+      case _PreviewSource.decodedRaw:
+        return Icons.camera_alt_outlined;
+      case _PreviewSource.jpeg:
+        return Icons.image_outlined;
+    }
+  }
+
+  String _previewSourceLabel(
+    AppLocalizations l10n,
+    _PreviewSource source,
+  ) {
+    switch (source) {
+      case _PreviewSource.fastPreview:
+        return l10n.fastPreviewShortLabel;
+      case _PreviewSource.decodedRaw:
+        return l10n.rawShortLabel;
+      case _PreviewSource.jpeg:
+        return 'JPG';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final currentMediaGroup = widget.mediaGroups[_currentIndex];
     final currentFilePath = widget.mediaGroups[_currentIndex].primary.path;
+    final currentPreviewSource = _previewSourceFor(currentMediaGroup);
     final previewTop =
         MediaQuery.paddingOf(context).top + kImagePreviewToolbarHeight;
     final pageDragDevices =
@@ -2206,6 +2287,11 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
                   thumbnailResizeWidth: widget.thumbnailResizeWidth,
                   imageStore: widget.imageStore,
                   settings: widget.settings,
+                  rotationQuarterTurns: _rotationQuarterTurns[filePath] ?? 0,
+                  previewSource: _previewSourceFor(mediaGroup),
+                  onRotationRequested: (quarterTurns) =>
+                      _rotateImage(filePath, quarterTurns),
+                  onResetRotationRequested: () => _resetImageRotation(filePath),
                   onSwitchRequest: _switchPage,
                   onTrackpadPanStart: _startTrackpadPageDrag,
                   onTrackpadPanUpdate: _updateTrackpadPageDrag,
@@ -2283,6 +2369,50 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
                                 ],
                               ),
                             ),
+                            if (currentMediaGroup.isRaw) ...[
+                              const SizedBox(width: 8),
+                              DesktopPopupMenuButton<_PreviewSource>(
+                                tooltip: l10n.rawPreviewSourceSectionTitle,
+                                initialValue: currentPreviewSource,
+                                onSelected: (source) => _selectPreviewSource(
+                                  currentMediaGroup,
+                                  source,
+                                ),
+                                child: DesktopPopupMenuLabelTrigger(
+                                  icon: _previewSourceIcon(
+                                    currentPreviewSource,
+                                  ),
+                                  label: _previewSourceLabel(
+                                    l10n,
+                                    currentPreviewSource,
+                                  ),
+                                ),
+                                itemBuilder: (context) => [
+                                  desktopPopupMenuItem(
+                                    value: _PreviewSource.fastPreview,
+                                    icon: Icons.bolt_outlined,
+                                    selected: currentPreviewSource ==
+                                        _PreviewSource.fastPreview,
+                                    label: l10n.fastPreviewShortLabel,
+                                  ),
+                                  desktopPopupMenuItem(
+                                    value: _PreviewSource.decodedRaw,
+                                    icon: Icons.camera_alt_outlined,
+                                    selected: currentPreviewSource ==
+                                        _PreviewSource.decodedRaw,
+                                    label: l10n.rawShortLabel,
+                                  ),
+                                  if (currentMediaGroup.hasPairedJpeg)
+                                    desktopPopupMenuItem(
+                                      value: _PreviewSource.jpeg,
+                                      icon: Icons.image_outlined,
+                                      selected: currentPreviewSource ==
+                                          _PreviewSource.jpeg,
+                                      label: 'JPG',
+                                    ),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -2300,11 +2430,20 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
 
 enum _PreviewSource { fastPreview, decodedRaw, jpeg }
 
+/// Rotates an image view in clockwise 90-degree increments.
+int rotateImageQuarterTurns(int currentQuarterTurns, int delta) {
+  return (currentQuarterTurns + delta) % 4;
+}
+
 class _SingleImagePreview extends StatefulWidget {
   final MediaGroup mediaGroup;
   final int thumbnailResizeWidth;
   final ImageStore imageStore;
   final ViewerSettings settings;
+  final int rotationQuarterTurns;
+  final _PreviewSource previewSource;
+  final ValueChanged<int> onRotationRequested;
+  final VoidCallback onResetRotationRequested;
   final ValueChanged<int> onSwitchRequest;
   final ValueChanged<PointerPanZoomStartEvent> onTrackpadPanStart;
   final ValueChanged<PointerPanZoomUpdateEvent> onTrackpadPanUpdate;
@@ -2320,6 +2459,10 @@ class _SingleImagePreview extends StatefulWidget {
     required this.thumbnailResizeWidth,
     required this.imageStore,
     required this.settings,
+    required this.rotationQuarterTurns,
+    required this.previewSource,
+    required this.onRotationRequested,
+    required this.onResetRotationRequested,
     required this.onSwitchRequest,
     required this.onTrackpadPanStart,
     required this.onTrackpadPanUpdate,
@@ -2342,8 +2485,6 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
   ViewerImage? _fastPreviewImage;
   ViewerImage? _decodedRawPreviewImage;
   bool _isLoadingDecodedRawPreview = false;
-  bool _isShowingPairedJpeg = false;
-  late bool _preferFastPreviewForRaw;
   late int _rawDecodeHalfSize;
   final TransformationController _transformationController =
       TransformationController();
@@ -2356,6 +2497,9 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
   double _lastTrackpadScale = 1;
   bool _isTrackpadScaling = false;
   bool _isTrackpadPageDrag = false;
+  Timer? _fitScaleLockTimer;
+  bool _isFitScaleLocked = false;
+  _PreviewScaleDirection? _fitScaleLockDirection;
 
   /// Only the expensive decoded-RAW task is tracked for cancellation.
   ///
@@ -2364,10 +2508,13 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
   /// tile's shared request to null and leave that tile showing a broken image.
   WorkerTask<LibRawImage?>? _decodedRawTask;
 
+  bool get _isShowingPairedJpeg => widget.previewSource == _PreviewSource.jpeg;
+  bool get _preferFastPreviewForRaw =>
+      widget.previewSource == _PreviewSource.fastPreview;
+
   @override
   void initState() {
     super.initState();
-    _preferFastPreviewForRaw = widget.settings.preferFastPreviewForRaw;
     _rawDecodeHalfSize = widget.settings.useHalfSizeRawDecode ? 1 : 0;
 
     // Take a cached fast preview synchronously so the first frame of a page
@@ -2396,8 +2543,26 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
     }
 
     if (!widget.isActive && oldWidget.isActive) {
+      _clearFitScaleLock();
       _transformationController.value = Matrix4.identity();
       _cancelDecodedRawTask();
+    }
+
+    if (widget.rotationQuarterTurns != oldWidget.rotationQuarterTurns) {
+      _clearFitScaleLock();
+      _transformationController.value = Matrix4.identity();
+    }
+
+    if (widget.previewSource != oldWidget.previewSource) {
+      if (widget.previewSource != _PreviewSource.decodedRaw) {
+        _decodedRawTask?.cancel();
+        _decodedRawTask = null;
+        _isLoadingDecodedRawPreview = false;
+      } else if (widget.isActive &&
+          !widget.isFastScrolling.value &&
+          _decodedRawPreviewImage == null) {
+        unawaited(_loadRawDisplayLayers());
+      }
     }
 
     if (widget.isActive && !oldWidget.isActive) {
@@ -2409,6 +2574,7 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
   @override
   void dispose() {
     widget.isFastScrolling.removeListener(_onFastScrollingChanged);
+    _clearFitScaleLock();
     _decodedRawTask?.cancel();
     _fastPreviewImage?.dispose();
     _decodedRawPreviewImage?.dispose();
@@ -2442,12 +2608,31 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
 
   void _onTransformationChange() {
     final scale = _transformationController.value.getMaxScaleOnAxis();
-    final newPanEnabled = scale > 1.01; // Small epsilon
+    final newPanEnabled =
+        (scale - _previewFitScale).abs() > _previewScaleEpsilon;
     if (_panEnabled != newPanEnabled) {
       setState(() {
         _panEnabled = newPanEnabled;
       });
     }
+  }
+
+  void _lockAtFitScale(_PreviewScaleDirection direction) {
+    _isFitScaleLocked = true;
+    _fitScaleLockDirection = direction;
+    _fitScaleLockTimer?.cancel();
+    _fitScaleLockTimer = Timer(_previewFitScaleLockDuration, () {
+      _fitScaleLockTimer = null;
+      _isFitScaleLocked = false;
+      _fitScaleLockDirection = null;
+    });
+  }
+
+  void _clearFitScaleLock() {
+    _fitScaleLockTimer?.cancel();
+    _fitScaleLockTimer = null;
+    _isFitScaleLocked = false;
+    _fitScaleLockDirection = null;
   }
 
   Future<void> _loadRawDisplayLayers() async {
@@ -2486,7 +2671,7 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
       return;
     }
 
-    if (_preferFastPreviewForRaw) return;
+    if (_preferFastPreviewForRaw || _isShowingPairedJpeg) return;
     if (_decodedRawPreviewImage != null) return;
 
     setState(() {
@@ -2502,7 +2687,10 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
     _decodedRawTask = null;
 
     // A cancelled or superseded load must not overwrite what is on screen.
-    if (!mounted || !widget.isActive || _preferFastPreviewForRaw) {
+    if (!mounted ||
+        !widget.isActive ||
+        _preferFastPreviewForRaw ||
+        _isShowingPairedJpeg) {
       decodedRawPreviewImage?.dispose();
       if (mounted && _isLoadingDecodedRawPreview) {
         setState(() {
@@ -2521,52 +2709,45 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
     });
   }
 
-  void _selectPreviewSource(_PreviewSource source) {
-    if (!widget.isRaw) {
-      return;
-    }
-
-    if (source == _PreviewSource.jpeg) {
-      if (!widget.hasPairedJpeg) {
-        return;
-      }
-      _decodedRawTask?.cancel();
-      _decodedRawTask = null;
-      setState(() {
-        _isShowingPairedJpeg = true;
-        _isLoadingDecodedRawPreview = false;
-      });
-      return;
-    }
-
-    final preferFastPreview = source == _PreviewSource.fastPreview;
-    if (preferFastPreview && _fastPreviewImage != null) {
-      // Switching to the fast preview: abandon the full decode in flight.
-      _decodedRawTask?.cancel();
-      _decodedRawTask = null;
-    }
-    setState(() {
-      _isShowingPairedJpeg = false;
-      _preferFastPreviewForRaw = preferFastPreview;
-      if (preferFastPreview) {
-        _isLoadingDecodedRawPreview = false;
-      }
-    });
-    if (!preferFastPreview && _decodedRawPreviewImage == null) {
-      unawaited(_loadRawDisplayLayers());
-    }
-  }
-
-  void _applyScale(double scaleChange, Offset focalPoint) {
+  void _applyScale(
+    double scaleChange,
+    Offset focalPoint, {
+    bool lockAtFitScale = false,
+  }) {
     if (scaleChange <= 0 || !scaleChange.isFinite) {
       return;
+    }
+    if ((scaleChange - 1).abs() < 0.0001) {
+      return;
+    }
+
+    final direction = scaleChange > 1
+        ? _PreviewScaleDirection.zoomIn
+        : _PreviewScaleDirection.zoomOut;
+
+    if (_isFitScaleLocked) {
+      if (lockAtFitScale && direction == _fitScaleLockDirection) {
+        _lockAtFitScale(direction);
+        return;
+      }
+      _clearFitScaleLock();
     }
 
     final matrix = _transformationController.value.clone();
     final currentScale = matrix.getMaxScaleOnAxis();
-    final targetScale = (currentScale * scaleChange)
-        .clamp(_minPreviewScale, _maxPreviewScale)
-        .toDouble();
+    final targetScale = clampPreviewScale(currentScale * scaleChange);
+    if (shouldResetPreviewPositionAtFitScale(
+      currentScale: currentScale,
+      targetScale: targetScale,
+    )) {
+      // Crossing the fitted size in either direction is a distinct step.
+      // Pointer zoom stays here until its current scroll/pinch sequence ends.
+      _transformationController.value = Matrix4.identity();
+      if (lockAtFitScale) {
+        _lockAtFitScale(direction);
+      }
+      return;
+    }
     final effectiveScaleChange = targetScale / currentScale;
     if ((effectiveScaleChange - 1).abs() < 0.0001) {
       return;
@@ -2584,11 +2765,29 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
     _transformationController.value = scaleMatrix * matrix;
   }
 
+  void _zoomBy(double scaleChange) {
+    final size = context.size;
+    if (size == null) {
+      return;
+    }
+    _applyScale(scaleChange, size.center(Offset.zero));
+  }
+
+  void _resetView() {
+    _clearFitScaleLock();
+    _transformationController.value = Matrix4.identity();
+    widget.onResetRotationRequested();
+  }
+
   void _handlePointerSignal(PointerSignalEvent event) {
     if (event is PointerScaleEvent) {
       GestureBinding.instance.pointerSignalResolver.register(event, (event) {
         final scaleEvent = event as PointerScaleEvent;
-        _applyScale(scaleEvent.scale, scaleEvent.localPosition);
+        _applyScale(
+          scaleEvent.scale,
+          scaleEvent.localPosition,
+          lockAtFitScale: true,
+        );
       });
       return;
     }
@@ -2618,6 +2817,7 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
         _applyScale(
           primaryDelta < 0 ? 1.1 : 0.9,
           scrollEvent.localPosition,
+          lockAtFitScale: true,
         );
       } else {
         widget.onSwitchRequest(primaryDelta > 0 ? 1 : -1);
@@ -2648,7 +2848,11 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
           _isTrackpadPageDrag = false;
         }
         _isTrackpadScaling = true;
-        _applyScale(scaleChange, event.localPosition);
+        _applyScale(
+          scaleChange,
+          event.localPosition,
+          lockAtFitScale: true,
+        );
         return;
       }
     }
@@ -2662,6 +2866,7 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
     if (_isTrackpadPageDrag && !_isTrackpadScaling) {
       widget.onTrackpadPanEnd(event);
     }
+    _clearFitScaleLock();
     _isTrackpadPageDrag = false;
   }
 
@@ -2726,57 +2931,72 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
           child: Center(
             child: InteractiveViewer(
               transformationController: _transformationController,
-              minScale: _minPreviewScale,
-              maxScale: _maxPreviewScale,
+              minScale: kMinPreviewScale,
+              maxScale: kMaxPreviewScale,
               panEnabled: _panEnabled,
               scaleEnabled: _scaleEnabled,
-              child: _isShowingPairedJpeg
-                  ? _buildBitmapPreview(widget.mediaGroup.pairedJpeg!.path)
-                  : widget.isRaw
-                      ? _buildRawPreview()
-                      : Stack(
-                          fit: StackFit.expand,
-                          children: [_buildBitmapPreview(widget.filePath)],
-                        ),
+              child: RotatedBox(
+                quarterTurns: widget.rotationQuarterTurns,
+                child: _isShowingPairedJpeg
+                    ? _buildBitmapPreview(widget.mediaGroup.pairedJpeg!.path)
+                    : widget.isRaw
+                        ? _buildRawPreview()
+                        : Stack(
+                            fit: StackFit.expand,
+                            children: [_buildBitmapPreview(widget.filePath)],
+                          ),
+              ),
             ),
           ),
         ),
-        if (widget.isRaw)
-          Positioned(
-            top: 12,
-            right: 10,
-            child: DesktopPopupMenuButton<_PreviewSource>(
-              tooltip: l10n.rawPreviewSourceSectionTitle,
-              onSelected: _selectPreviewSource,
-              child: DesktopPopupMenuTrigger(
-                icon: _isShowingPairedJpeg
-                    ? Icons.image_outlined
-                    : Icons.camera_alt_outlined,
-                selected: true,
-              ),
-              itemBuilder: (context) => [
-                desktopPopupMenuItem(
-                  value: _PreviewSource.fastPreview,
-                  icon: Icons.bolt_outlined,
-                  selected: !_isShowingPairedJpeg && _preferFastPreviewForRaw,
-                  label: l10n.fastPreviewShortLabel,
-                ),
-                desktopPopupMenuItem(
-                  value: _PreviewSource.decodedRaw,
-                  icon: Icons.camera_alt_outlined,
-                  selected: !_isShowingPairedJpeg && !_preferFastPreviewForRaw,
-                  label: l10n.rawShortLabel,
-                ),
-                if (widget.hasPairedJpeg)
-                  desktopPopupMenuItem(
-                    value: _PreviewSource.jpeg,
-                    icon: Icons.image_outlined,
-                    selected: _isShowingPairedJpeg,
-                    label: 'JPG',
+        Positioned(
+          right: 12,
+          bottom: MediaQuery.paddingOf(context).bottom + 12,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: RawViewerColors.surface.withValues(alpha: 0.94),
+              border: Border.all(color: RawViewerColors.border),
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(3),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DesktopIconButton(
+                    icon: Icons.rotate_left,
+                    tooltip: l10n.rotateImageCounterclockwiseTooltip,
+                    onPressed: () => widget.onRotationRequested(-1),
                   ),
-              ],
+                  const SizedBox(width: 2),
+                  DesktopIconButton(
+                    icon: Icons.rotate_right,
+                    tooltip: l10n.rotateImageTooltip,
+                    onPressed: () => widget.onRotationRequested(1),
+                  ),
+                  const SizedBox(width: 5),
+                  DesktopIconButton(
+                    icon: Icons.zoom_in,
+                    tooltip: l10n.zoomInImageTooltip,
+                    onPressed: () => _zoomBy(_previewControlZoomStep),
+                  ),
+                  const SizedBox(width: 2),
+                  DesktopIconButton(
+                    icon: Icons.zoom_out,
+                    tooltip: l10n.zoomOutImageTooltip,
+                    onPressed: () => _zoomBy(1 / _previewControlZoomStep),
+                  ),
+                  const SizedBox(width: 2),
+                  DesktopIconButton(
+                    icon: Icons.filter_center_focus,
+                    tooltip: l10n.resetImageViewTooltip,
+                    onPressed: _resetView,
+                  ),
+                ],
+              ),
             ),
           ),
+        ),
       ],
     );
   }

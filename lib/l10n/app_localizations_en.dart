@@ -154,6 +154,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get closeSettingsTooltip => 'Close settings';
 
   @override
+  String get rotateImageTooltip => 'Rotate image clockwise';
+
+  @override
+  String get rotateImageCounterclockwiseTooltip => 'Rotate image counterclockwise';
+
+  @override
+  String get zoomInImageTooltip => 'Zoom in';
+
+  @override
+  String get zoomOutImageTooltip => 'Zoom out';
+
+  @override
+  String get resetImageViewTooltip => 'Reset image view';
+
+  @override
   String get largerThumbnailsTooltip => 'Larger thumbnails';
 
   @override

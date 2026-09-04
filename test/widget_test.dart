@@ -36,6 +36,41 @@ void main() {
   });
 
   group('image preview motion', () {
+    test('wraps clockwise and counterclockwise quarter turns', () {
+      expect(rotateImageQuarterTurns(0, 1), 1);
+      expect(rotateImageQuarterTurns(3, 1), 0);
+      expect(rotateImageQuarterTurns(0, -1), 3);
+      expect(rotateImageQuarterTurns(1, -1), 0);
+    });
+
+    test('enforces zoom bounds and separates zoom-out at fit scale', () {
+      expect(clampPreviewScale(0.1), kMinPreviewScale);
+      expect(clampPreviewScale(1.5), 1.5);
+      expect(clampPreviewScale(10), kMaxPreviewScale);
+
+      expect(
+        shouldResetPreviewPositionAtFitScale(
+          currentScale: 1.25,
+          targetScale: 0.9,
+        ),
+        isTrue,
+      );
+      expect(
+        shouldResetPreviewPositionAtFitScale(
+          currentScale: 1,
+          targetScale: 0.8,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldResetPreviewPositionAtFitScale(
+          currentScale: 0.8,
+          targetScale: 1.1,
+        ),
+        isTrue,
+      );
+    });
+
     test('keeps preview opening and discrete navigation responsive', () {
       expect(
         kImagePreviewOpenTransitionDuration,

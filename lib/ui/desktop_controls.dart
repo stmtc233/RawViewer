@@ -77,6 +77,45 @@ class DesktopPopupMenuTrigger extends StatelessWidget {
   }
 }
 
+class DesktopPopupMenuLabelTrigger extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const DesktopPopupMenuLabelTrigger({
+    super.key,
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 66),
+      child: SizedBox(
+        height: desktopControlSize,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: RawViewerColors.mutedText, size: 18),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: RawViewerColors.mutedText,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 PopupMenuItem<T> desktopPopupMenuItem<T>({
   required T value,
   required String label,

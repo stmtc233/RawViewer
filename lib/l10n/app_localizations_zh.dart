@@ -154,6 +154,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get closeSettingsTooltip => '关闭设置';
 
   @override
+  String get rotateImageTooltip => '顺时针旋转图片';
+
+  @override
+  String get rotateImageCounterclockwiseTooltip => '逆时针旋转图片';
+
+  @override
+  String get zoomInImageTooltip => '放大图片';
+
+  @override
+  String get zoomOutImageTooltip => '缩小图片';
+
+  @override
+  String get resetImageViewTooltip => '重置图片视图';
+
+  @override
   String get largerThumbnailsTooltip => '放大缩略图';
 
   @override
