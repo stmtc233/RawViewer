@@ -9,11 +9,13 @@ import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 import 'package:permission_handler/permission_handler.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/decode_target.dart';
 import 'core/media_timestamps.dart';
 import 'core/media_types.dart';
+import 'core/preferences_repository.dart';
+import 'gallery/grid_zoom_accumulator.dart';
+import 'gallery/media_library.dart';
 import 'core/platform_channels.dart';
 import 'core/pointer_modifiers.dart';
 import 'gallery/widgets/desktop_command_bar.dart';
@@ -30,8 +32,6 @@ import 'preview/preview_geometry.dart';
 import 'settings_page.dart';
 import 'viewer_image.dart';
 
-const double _gridZoomScrollStep = 20;
-const double _gridZoomLogScaleStep = 0.12;
 
 enum _OpenedSourceKind { none, folder, files }
 
@@ -61,9 +61,7 @@ class _HomePageState extends State<HomePage> {
   MediaFilter _mediaFilter = defaultMediaFilter;
   int _crossAxisCount = 4;
   bool _hasUserConfiguredGridAspectRatio = false;
-  double _gridZoomScrollRemainder = 0;
-  double _gridZoomLogScaleRemainder = 0;
-  double _lastGridTrackpadScale = 1;
+  final GridZoomAccumulator _gridZoom = GridZoomAccumulator();
   Timer? _gridZoomResetTimer;
   final Map<String, double> _mediaAspectRatios = <String, double>{};
   final Map<String, double> _pendingMediaAspectRatios = <String, double>{};
@@ -85,34 +83,19 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadPreferences() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedGridAspectRatio = GridAspectRatio.values
-        .asNameMap()[prefs.getString('grid_aspect_ratio')];
-    final pageSwitchAnimationEnabled =
-        prefs.getBool('page_switch_animation_enabled') ?? true;
-    final savedPreviewOverlayOpacity =
-        prefs.getDouble('preview_overlay_opacity');
-    final legacyAutoTransparencyEnabled =
-        prefs.getBool('preview_overlay_auto_transparency_enabled');
-    final previewOverlayOpacity = (savedPreviewOverlayOpacity ??
-            (legacyAutoTransparencyEnabled == false
-                ? kMaxPreviewOverlayOpacity
-                : kDefaultPreviewOverlayOpacity))
-        .clamp(kMinPreviewOverlayOpacity, kMaxPreviewOverlayOpacity)
-        .toDouble();
-    if (!mounted) {
-      return;
-    }
+    final prefs = const PreferencesRepository();
+    final stored = await prefs.loadViewPreferences();
+    if (!mounted) return;
     setState(() {
-      _crossAxisCount = prefs.getInt('grid_cross_axis_count') ?? 4;
+      _crossAxisCount = stored.crossAxisCount;
       if (!_hasUserConfiguredGridAspectRatio) {
         _settings = _settings.copyWith(
-          gridAspectRatio: savedGridAspectRatio ?? GridAspectRatio.ratio3x2,
+          gridAspectRatio: stored.gridAspectRatio ?? GridAspectRatio.ratio3x2,
         );
       }
       _settings = _settings.copyWith(
-        pageSwitchAnimationEnabled: pageSwitchAnimationEnabled,
-        previewOverlayOpacity: previewOverlayOpacity,
+        pageSwitchAnimationEnabled: stored.pageSwitchAnimationEnabled,
+        previewOverlayOpacity: stored.previewOverlayOpacity,
       );
     });
   }
@@ -124,9 +107,7 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _crossAxisCount = newCount;
     });
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('grid_cross_axis_count', newCount);
+    await const PreferencesRepository().saveCrossAxisCount(newCount);
   }
 
   void _handleGridPointerSignal(PointerSignalEvent event) {
@@ -148,68 +129,34 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _updateGridColumnsFromScrollDelta(double delta) {
-    _gridZoomScrollRemainder += delta;
     _gridZoomResetTimer?.cancel();
-    _gridZoomResetTimer = Timer(const Duration(milliseconds: 160), () {
-      _gridZoomScrollRemainder = 0;
-    });
+    _gridZoomResetTimer = Timer(kGridZoomScrollResetDelay, _gridZoom.resetScroll);
 
-    var columnChange = 0;
-    while (_gridZoomScrollRemainder.abs() >= _gridZoomScrollStep) {
-      final direction = _gridZoomScrollRemainder.isNegative ? -1 : 1;
-      columnChange += direction;
-      _gridZoomScrollRemainder -= direction * _gridZoomScrollStep;
-    }
+    final columnChange = _gridZoom.addScrollDelta(delta);
     if (columnChange != 0) {
       unawaited(_updateCrossAxisCount(columnChange));
     }
   }
 
   void _handleGridTrackpadPanZoomStart(PointerPanZoomStartEvent event) {
-    _lastGridTrackpadScale = 1;
-    _gridZoomLogScaleRemainder = 0;
+    _gridZoom.beginTrackpadPinch();
   }
 
   void _handleGridTrackpadPanZoomUpdate(PointerPanZoomUpdateEvent event) {
-    if (event.scale <= 0 || !event.scale.isFinite) {
-      return;
-    }
-
-    final scaleChange = event.scale / _lastGridTrackpadScale;
-    _lastGridTrackpadScale = event.scale;
-    if (scaleChange <= 0 || !scaleChange.isFinite) {
-      return;
-    }
-
-    _gridZoomLogScaleRemainder += math.log(scaleChange);
-    var columnChange = 0;
-    while (_gridZoomLogScaleRemainder.abs() >= _gridZoomLogScaleStep) {
-      // Opening the pinch increases thumbnail size, so reduce the column count.
-      final direction = _gridZoomLogScaleRemainder.isNegative ? 1 : -1;
-      columnChange += direction;
-      _gridZoomLogScaleRemainder += direction * _gridZoomLogScaleStep;
-    }
+    final columnChange = _gridZoom.addTrackpadScale(event.scale);
     if (columnChange != 0) {
       unawaited(_updateCrossAxisCount(columnChange));
     }
   }
 
-  Future<void> _persistGridAspectRatio(GridAspectRatio ratio) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('grid_aspect_ratio', ratio.name);
-  }
+  Future<void> _persistGridAspectRatio(GridAspectRatio ratio) =>
+      const PreferencesRepository().saveGridAspectRatio(ratio);
 
-  Future<void> _persistPageSwitchAnimationEnabled(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('page_switch_animation_enabled', enabled);
-  }
+  Future<void> _persistPageSwitchAnimationEnabled(bool enabled) =>
+      const PreferencesRepository().savePageSwitchAnimationEnabled(enabled);
 
-  Future<void> _persistPreviewOverlayOpacity(
-    double opacity,
-  ) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('preview_overlay_opacity', opacity);
-  }
+  Future<void> _persistPreviewOverlayOpacity(double opacity) =>
+      const PreferencesRepository().savePreviewOverlayOpacity(opacity);
 
   void _updateSettings(ViewerSettings settings) {
     final cacheSizeChanged = _settings.maxCacheSize != settings.maxCacheSize;
@@ -540,42 +487,14 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  List<MediaFile> _listRawFilesInDirectory(String directoryPath) {
-    final files = Directory(directoryPath)
-        .listSync()
-        .whereType<File>()
-        .map((file) => _mediaFileFromPath(file.path))
-        .whereType<MediaFile>()
-        .toList()
-      ..sort((a, b) => a.path.compareTo(b.path));
-    return files;
-  }
+  List<MediaFile> _listRawFilesInDirectory(String directoryPath) =>
+      listMediaFilesInDirectory(directoryPath);
 
-  List<MediaFile> _deduplicateMediaFiles(Iterable<MediaFile> files) {
-    final seen = <String>{};
-    final result = <MediaFile>[];
+  List<MediaFile> _deduplicateMediaFiles(Iterable<MediaFile> files) =>
+      deduplicateMediaFiles(files);
 
-    for (final mediaFile in files) {
-      final normalizedPath = path.normalize(path.absolute(mediaFile.path));
-      if (seen.add(normalizedPath)) {
-        result.add(MediaFile(path: normalizedPath, kind: mediaFile.kind));
-      }
-    }
-
-    return result;
-  }
-
-  MediaFile? _mediaFileFromPath(String filePath) {
-    final normalizedPath = path.normalize(path.absolute(filePath));
-    final extension = path.extension(normalizedPath).toLowerCase();
-    if (rawExtensions.contains(extension)) {
-      return MediaFile(path: normalizedPath, kind: MediaKind.raw);
-    }
-    if (bitmapExtensions.contains(extension)) {
-      return MediaFile(path: normalizedPath, kind: MediaKind.bitmap);
-    }
-    return null;
-  }
+  MediaFile? _mediaFileFromPath(String filePath) =>
+      mediaFileFromPath(filePath);
 
   String _currentTitle(AppLocalizations l10n) {
     if (_openedSourceKind == _OpenedSourceKind.folder) {

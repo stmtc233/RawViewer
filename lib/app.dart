@@ -3,9 +3,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'core/preferences_repository.dart';
 import 'home_page.dart';
 import 'l10n/app_localizations.dart';
 import 'settings_page.dart';
@@ -54,11 +54,12 @@ class _MyAppState extends State<MyApp> with WindowListener {
 
       final size = await windowManager.getSize();
       final position = await windowManager.getPosition();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setDouble('window_width', size.width);
-      await prefs.setDouble('window_height', size.height);
-      await prefs.setDouble('window_x', position.dx);
-      await prefs.setDouble('window_y', position.dy);
+      await const PreferencesRepository().saveWindowBounds(
+        width: size.width,
+        height: size.height,
+        x: position.dx,
+        y: position.dy,
+      );
     } catch (_) {
       // Window may already be gone; losing geometry is not worth surfacing.
     }
@@ -76,14 +77,12 @@ class _MyAppState extends State<MyApp> with WindowListener {
 
   @override
   void onWindowMaximize() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('window_maximized', true);
+    await const PreferencesRepository().saveWindowMaximized(true);
   }
 
   @override
   void onWindowUnmaximize() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('window_maximized', false);
+    await const PreferencesRepository().saveWindowMaximized(false);
   }
 
   void _handleAppLanguageChanged(AppLanguage language) {
