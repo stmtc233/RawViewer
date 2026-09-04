@@ -2813,16 +2813,20 @@ class _PreviewFilmstripThumbnailState
     Widget image;
     if (widget.mediaGroup.isRaw) {
       image = _rawImage == null
-          ? Container(
-              color: RawViewerColors.raisedSurface,
-              child: _failed
-                  ? const Icon(Icons.broken_image_outlined,
-                      color: RawViewerColors.mutedText, size: 18)
-                  : const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
+          ? Stack(
+              fit: StackFit.expand,
+              children: [
+                const ColoredBox(color: RawViewerColors.raisedSurface),
+                Center(
+                  child: _failed
+                      ? const Icon(Icons.broken_image_outlined,
+                          color: RawViewerColors.mutedText, size: 18)
+                      : const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                ),
+              ],
             )
           : RawImage(
               image: _rawImage!.image,
