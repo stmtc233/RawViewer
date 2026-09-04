@@ -73,6 +73,7 @@
   "hidePreviewFilmstripTooltip": "隐藏缩略图导航",
   "showPreviewOverviewTooltip": "显示鸟瞰图",
   "hidePreviewOverviewTooltip": "隐藏鸟瞰图",
+  "centerCurrentPreviewThumbnailTooltip": "居中当前缩略图",
   "largerThumbnailsTooltip": "放大缩略图",
   "smallerThumbnailsTooltip": "缩小缩略图",
   "gridColumnsTooltip": "{count} 列",

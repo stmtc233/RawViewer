@@ -194,6 +194,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get hidePreviewOverviewTooltip => '隐藏鸟瞰图';
 
   @override
+  String get centerCurrentPreviewThumbnailTooltip => '居中当前缩略图';
+
+  @override
   String get largerThumbnailsTooltip => '放大缩略图';
 
   @override

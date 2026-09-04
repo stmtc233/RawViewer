@@ -200,6 +200,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hidePreviewOverviewTooltip => 'Hide overview map';
 
   @override
+  String get centerCurrentPreviewThumbnailTooltip => 'Center current thumbnail';
+
+  @override
   String get largerThumbnailsTooltip => 'Larger thumbnails';
 
   @override

@@ -73,6 +73,7 @@
   "hidePreviewFilmstripTooltip": "Hide thumbnail navigation",
   "showPreviewOverviewTooltip": "Show overview map",
   "hidePreviewOverviewTooltip": "Hide overview map",
+  "centerCurrentPreviewThumbnailTooltip": "Center current thumbnail",
   "largerThumbnailsTooltip": "Larger thumbnails",
   "smallerThumbnailsTooltip": "Smaller thumbnails",
   "gridColumnsTooltip": "{count} columns",

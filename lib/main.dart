@@ -187,6 +187,9 @@ const double kImagePreviewToolbarHeight = 52;
 const double kPreviewFilmstripHeight = 88;
 const double kPreviewFilmstripItemWidth = 88;
 const double kPreviewFilmstripItemExtent = 96;
+const double _previewFilmstripScrollbarThickness = 2;
+const double _previewFilmstripScrollbarMainAxisMargin = 4;
+const double _previewFilmstripVisibilityEpsilon = 0.5;
 const double kPreviewOverviewMapWidth = 180;
 const double kPreviewOverviewMapHeight = 120;
 const double _previewImageControlsHeight = 42;
@@ -2426,6 +2429,8 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
                 currentIndex: _currentIndex,
                 imageStore: widget.imageStore,
                 decodeWidth: _previewFilmstripDecodeWidth,
+                centerCurrentThumbnailTooltip:
+                    l10n.centerCurrentPreviewThumbnailTooltip,
                 onIndexSelected: _jumpToPage,
               ),
             ),
@@ -2589,6 +2594,7 @@ class _PreviewFilmstrip extends StatefulWidget {
   final int currentIndex;
   final ImageStore imageStore;
   final int decodeWidth;
+  final String centerCurrentThumbnailTooltip;
   final ValueChanged<int> onIndexSelected;
 
   const _PreviewFilmstrip({
@@ -2596,6 +2602,7 @@ class _PreviewFilmstrip extends StatefulWidget {
     required this.currentIndex,
     required this.imageStore,
     required this.decodeWidth,
+    required this.centerCurrentThumbnailTooltip,
     required this.onIndexSelected,
   });
 
@@ -2606,12 +2613,16 @@ class _PreviewFilmstrip extends StatefulWidget {
 class _PreviewFilmstripState extends State<_PreviewFilmstrip> {
   late final ScrollController _scrollController;
   double? _lastViewportWidth;
+  double _sidePadding = 0;
+  bool _showLeadingCenterArrow = false;
+  bool _showTrailingCenterArrow = false;
   bool _centerRequestScheduled = false;
 
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController();
+    _scrollController.addListener(_updateCenterArrowVisibility);
     _scheduleCenterCurrent(animated: false);
   }
 
@@ -2625,6 +2636,7 @@ class _PreviewFilmstripState extends State<_PreviewFilmstrip> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_updateCenterArrowVisibility);
     _scrollController.dispose();
     super.dispose();
   }
@@ -2649,11 +2661,17 @@ class _PreviewFilmstripState extends State<_PreviewFilmstrip> {
       return;
     }
 
-    final maxScrollExtent = _scrollController.position.maxScrollExtent;
-    final targetOffset = (widget.currentIndex * kPreviewFilmstripItemExtent)
+    final position = _scrollController.position;
+    final maxScrollExtent = position.maxScrollExtent;
+    final itemStart =
+        _sidePadding + widget.currentIndex * kPreviewFilmstripItemExtent;
+    final targetOffset = (itemStart +
+            kPreviewFilmstripItemWidth / 2 -
+            position.viewportDimension / 2)
         .clamp(0.0, maxScrollExtent)
         .toDouble();
     if ((targetOffset - _scrollController.offset).abs() < 0.5) {
+      _updateCenterArrowVisibility();
       return;
     }
 
@@ -2666,6 +2684,53 @@ class _PreviewFilmstripState extends State<_PreviewFilmstrip> {
     } else {
       _scrollController.jumpTo(targetOffset);
     }
+  }
+
+  void _updateCenterArrowVisibility() {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+
+    final position = _scrollController.position;
+    final itemStart =
+        _sidePadding + widget.currentIndex * kPreviewFilmstripItemExtent;
+    final itemEnd = itemStart + kPreviewFilmstripItemWidth;
+    final viewportStart = position.pixels;
+    final viewportEnd = viewportStart + position.viewportDimension;
+    final showLeading =
+        itemStart < viewportStart - _previewFilmstripVisibilityEpsilon;
+    final showTrailing =
+        itemEnd > viewportEnd + _previewFilmstripVisibilityEpsilon;
+
+    if (showLeading == _showLeadingCenterArrow &&
+        showTrailing == _showTrailingCenterArrow) {
+      return;
+    }
+
+    setState(() {
+      _showLeadingCenterArrow = showLeading;
+      _showTrailingCenterArrow = showTrailing;
+    });
+  }
+
+  Widget _buildCenterArrow({required bool leading}) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: RawViewerColors.surface.withValues(alpha: 0.94),
+        border: Border.all(color: RawViewerColors.border),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: DesktopIconButton(
+        key: ValueKey(
+          leading
+              ? 'preview-filmstrip-center-current-leading'
+              : 'preview-filmstrip-center-current-trailing',
+        ),
+        icon: leading ? Icons.chevron_left : Icons.chevron_right,
+        tooltip: widget.centerCurrentThumbnailTooltip,
+        onPressed: () => _centerCurrent(animated: true),
+      ),
+    );
   }
 
   @override
@@ -2682,6 +2747,7 @@ class _PreviewFilmstripState extends State<_PreviewFilmstrip> {
           0.0,
           (viewportWidth - kPreviewFilmstripItemWidth) / 2,
         );
+        _sidePadding = sidePadding;
         return Container(
           height: kPreviewFilmstripHeight + bottomPadding,
           padding: EdgeInsets.fromLTRB(12, 10, 12, bottomPadding + 10),
@@ -2691,36 +2757,79 @@ class _PreviewFilmstripState extends State<_PreviewFilmstrip> {
               top: BorderSide(color: RawViewerColors.border),
             ),
           ),
-          child: ListView.builder(
-            controller: _scrollController,
-            scrollDirection: Axis.horizontal,
-            physics: const ClampingScrollPhysics(),
-            padding: EdgeInsets.symmetric(horizontal: sidePadding),
-            scrollCacheExtent: ScrollCacheExtent.pixels(
-              kPreviewFilmstripItemExtent * 4,
-            ),
-            itemExtent: kPreviewFilmstripItemExtent,
-            itemCount: widget.mediaGroups.length,
-            itemBuilder: (context, index) {
-              return Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: SizedBox(
-                    width: kPreviewFilmstripItemWidth,
-                    height: 58,
-                    child: _PreviewFilmstripThumbnail(
-                      key: ValueKey(widget.mediaGroups[index].primary.path),
-                      mediaGroup: widget.mediaGroups[index],
-                      imageStore: widget.imageStore,
-                      decodeWidth: widget.decodeWidth,
-                      selected: index == widget.currentIndex,
-                      onTap: () => widget.onIndexSelected(index),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              ScrollbarTheme(
+                data: ScrollbarThemeData(
+                  thumbColor: WidgetStatePropertyAll(
+                    RawViewerColors.mutedText.withValues(alpha: 0.65),
+                  ),
+                  mainAxisMargin: _previewFilmstripScrollbarMainAxisMargin,
+                ),
+                child: Scrollbar(
+                  controller: _scrollController,
+                  scrollbarOrientation: ScrollbarOrientation.bottom,
+                  thumbVisibility: false,
+                  trackVisibility: false,
+                  thickness: _previewFilmstripScrollbarThickness,
+                  radius: const Radius.circular(1),
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    scrollDirection: Axis.horizontal,
+                    physics: const ClampingScrollPhysics(),
+                    padding: EdgeInsets.symmetric(horizontal: sidePadding),
+                    scrollCacheExtent: ScrollCacheExtent.pixels(
+                      kPreviewFilmstripItemExtent * 4,
                     ),
+                    itemExtent: kPreviewFilmstripItemExtent,
+                    itemCount: widget.mediaGroups.length,
+                    itemBuilder: (context, index) {
+                      return Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: SizedBox(
+                            width: kPreviewFilmstripItemWidth,
+                            height: 58,
+                            child: _PreviewFilmstripThumbnail(
+                              key: ValueKey(
+                                widget.mediaGroups[index].primary.path,
+                              ),
+                              mediaGroup: widget.mediaGroups[index],
+                              imageStore: widget.imageStore,
+                              decodeWidth: widget.decodeWidth,
+                              selected: index == widget.currentIndex,
+                              onTap: () => widget.onIndexSelected(index),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
-              );
-            },
+              ),
+              if (_showLeadingCenterArrow)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: _buildCenterArrow(leading: true),
+                  ),
+                ),
+              if (_showTrailingCenterArrow)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: _buildCenterArrow(leading: false),
+                  ),
+                ),
+            ],
           ),
         );
       },

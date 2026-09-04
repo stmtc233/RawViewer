@@ -452,6 +452,12 @@ abstract class AppLocalizations {
   /// **'Hide overview map'**
   String get hidePreviewOverviewTooltip;
 
+  /// No description provided for @centerCurrentPreviewThumbnailTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Center current thumbnail'**
+  String get centerCurrentPreviewThumbnailTooltip;
+
   /// No description provided for @largerThumbnailsTooltip.
   ///
   /// In en, this message translates to:
