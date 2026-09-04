@@ -156,6 +156,10 @@ void main() {
         Colors.transparent,
       );
     });
+
+    test('uses a neutral gray image preview background', () {
+      expect(RawViewerColors.previewBackground, const Color(0xFF4A4A4A));
+    });
   });
 
   group('ViewerSettings', () {

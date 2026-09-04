@@ -2389,7 +2389,7 @@ class _ImagePreviewPageState extends State<_ImagePreviewPage> {
         Set<PointerDeviceKind>.from(ScrollConfiguration.of(context).dragDevices)
           ..remove(PointerDeviceKind.trackpad);
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: RawViewerColors.previewBackground,
       body: Stack(
         children: [
           Positioned.fill(
@@ -3268,7 +3268,7 @@ class _SingleImagePreviewState extends State<_SingleImagePreview> {
     _rawDecodeHalfSize = widget.settings.useHalfSizeRawDecode ? 1 : 0;
 
     // Take a cached fast preview synchronously so the first frame of a page
-    // switch already paints an image instead of an empty (black) area. Prefer
+    // switch already paints an image instead of an empty preview area. Prefer
     // the full-resolution entry, but fall back to the grid's thumbnail-sized
     // one: showing it slightly soft for a moment beats showing black.
     if (widget.isRaw) {
@@ -3943,7 +3943,7 @@ const double _maxBitmapDecodeWidth = 4096;
 /// Uses [RawImage] rather than [Image.memory] on purpose: the `ui.Image` is
 /// already in hand, so the pixels land in the very frame this widget is built.
 /// Going through `Image.memory` would re-enter the async codec path and leave a
-/// blank (black, over the dark scaffold) gap on every page switch.
+/// blank gap over the preview scaffold on every page switch.
 class RawImageWidget extends StatelessWidget {
   final ViewerImage image;
   final BoxFit? fit;

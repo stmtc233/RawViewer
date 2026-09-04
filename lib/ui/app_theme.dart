@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 abstract final class RawViewerColors {
   static const canvas = Color(0xFF121416);
+  static const previewBackground = Color(0xFF4A4A4A);
   static const surface = Color(0xFF191C20);
   static const raisedSurface = Color(0xFF20242A);
   static const border = Color(0xFF30363D);
