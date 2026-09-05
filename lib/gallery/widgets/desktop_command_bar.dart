@@ -224,4 +224,3 @@ class ThumbnailSizeControls extends StatelessWidget {
     );
   }
 }
-

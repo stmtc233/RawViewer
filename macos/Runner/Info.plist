@@ -22,6 +22,166 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Raw Viewer image</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.rawviewer.arw</string>
+				<string>com.rawviewer.cr2</string>
+				<string>com.rawviewer.cr3</string>
+				<string>com.rawviewer.dng</string>
+				<string>com.rawviewer.nef</string>
+				<string>com.rawviewer.orf</string>
+				<string>com.rawviewer.raf</string>
+				<string>com.rawviewer.rw2</string>
+				<string>com.rawviewer.srw</string>
+				<string>com.rawviewer.jpg</string>
+				<string>com.rawviewer.jpeg</string>
+				<string>com.rawviewer.png</string>
+				<string>com.rawviewer.webp</string>
+			</array>
+		</dict>
+	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.rawviewer.arw</string>
+			<key>UTTypeDescription</key>
+			<string>Sony ARW image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>arw</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.rawviewer.cr2</string>
+			<key>UTTypeDescription</key>
+			<string>Canon CR2 image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>cr2</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.rawviewer.cr3</string>
+			<key>UTTypeDescription</key>
+			<string>Canon CR3 image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>cr3</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.rawviewer.dng</string>
+			<key>UTTypeDescription</key>
+			<string>DNG image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>dng</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.rawviewer.nef</string>
+			<key>UTTypeDescription</key>
+			<string>Nikon NEF image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>nef</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.rawviewer.orf</string>
+			<key>UTTypeDescription</key>
+			<string>Olympus ORF image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>orf</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.rawviewer.raf</string>
+			<key>UTTypeDescription</key>
+			<string>Fujifilm RAF image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>raf</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.rawviewer.rw2</string>
+			<key>UTTypeDescription</key>
+			<string>Panasonic RW2 image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>rw2</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.rawviewer.srw</string>
+			<key>UTTypeDescription</key>
+			<string>Samsung SRW image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>srw</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.rawviewer.jpg</string>
+			<key>UTTypeDescription</key>
+			<string>JPEG image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>jpg</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.rawviewer.jpeg</string>
+			<key>UTTypeDescription</key>
+			<string>JPEG image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>jpeg</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.rawviewer.png</string>
+			<key>UTTypeDescription</key>
+			<string>PNG image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>png</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.rawviewer.webp</string>
+			<key>UTTypeDescription</key>
+			<string>WebP image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>webp</string></array></dict>
+		</dict>
+	</array>
 	<key>NSHumanReadableCopyright</key>
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<key>NSMainNibFile</key>

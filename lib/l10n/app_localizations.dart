@@ -329,6 +329,24 @@ abstract class AppLocalizations {
   /// **'Failed to update Windows context menu: {error}'**
   String windowsContextMenuUpdateFailed(String error);
 
+  /// No description provided for @fileAssociationsSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Default file associations'**
+  String get fileAssociationsSectionTitle;
+
+  /// No description provided for @fileAssociationFormatSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open .{extension} files with Raw Viewer'**
+  String fileAssociationFormatSubtitle(Object extension);
+
+  /// No description provided for @fileAssociationsUpdateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to update file associations: {error}'**
+  String fileAssociationsUpdateFailed(String error);
+
   /// No description provided for @homeEmptyState.
   ///
   /// In en, this message translates to:
@@ -490,6 +508,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Center current thumbnail'**
   String get centerCurrentPreviewThumbnailTooltip;
+
+  /// No description provided for @loadDirectoryTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Load images from this directory'**
+  String get loadDirectoryTooltip;
+
+  /// No description provided for @grantDirectoryAccessDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow Raw Viewer to access this folder'**
+  String get grantDirectoryAccessDialogTitle;
+
+  /// No description provided for @loadDirectoryFailedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load the directory: {error}'**
+  String loadDirectoryFailedMessage(String error);
 
   /// No description provided for @largerThumbnailsTooltip.
   ///

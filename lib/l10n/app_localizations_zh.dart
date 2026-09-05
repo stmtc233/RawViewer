@@ -132,6 +132,19 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get fileAssociationsSectionTitle => '默认打开格式';
+
+  @override
+  String fileAssociationFormatSubtitle(Object extension) {
+    return '使用 Raw Viewer 打开 .$extension 文件';
+  }
+
+  @override
+  String fileAssociationsUpdateFailed(String error) {
+    return '更新文件关联失败：$error';
+  }
+
+  @override
   String get homeEmptyState => '打开或拖放 RAW 与图片文件/文件夹';
 
   @override
@@ -213,6 +226,17 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get centerCurrentPreviewThumbnailTooltip => '居中当前缩略图';
+
+  @override
+  String get loadDirectoryTooltip => '加载此目录中的图片';
+
+  @override
+  String get grantDirectoryAccessDialogTitle => '允许 Raw Viewer 访问此文件夹';
+
+  @override
+  String loadDirectoryFailedMessage(String error) {
+    return '无法加载目录：$error';
+  }
 
   @override
   String get largerThumbnailsTooltip => '放大缩略图';

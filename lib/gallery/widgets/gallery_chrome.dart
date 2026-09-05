@@ -115,4 +115,3 @@ class GalleryStatusBar extends StatelessWidget {
     );
   }
 }
-

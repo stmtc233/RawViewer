@@ -15,6 +15,7 @@ namespace {
 
 constexpr char kOpenPathChannelName[] = "rawviewer/open_paths";
 constexpr char kShellIntegrationChannelName[] = "rawviewer/windows_shell";
+constexpr char kFileAssociationChannelName[] = "rawviewer/file_associations";
 constexpr UINT_PTR kFlutterContentWindowSubclassId = 1;
 
 flutter::EncodableList EncodePaths(const std::vector<std::string>& paths) {
@@ -89,6 +90,7 @@ bool FlutterWindow::OnCreate() {
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
   ConfigureOpenPathChannel();
   ConfigureShellIntegrationChannel();
+  ConfigureFileAssociationChannel();
 
   DragAcceptFiles(GetHandle(), TRUE);
   flutter_content_window_ = flutter_controller_->view()->GetNativeWindow();
@@ -123,6 +125,7 @@ void FlutterWindow::OnDestroy() {
   }
   open_path_channel_ = nullptr;
   shell_integration_channel_ = nullptr;
+  file_association_channel_ = nullptr;
   open_path_listener_ready_ = false;
 
   if (flutter_controller_) {
@@ -289,6 +292,75 @@ void FlutterWindow::ConfigureShellIntegrationChannel() {
 
           result->Success(
               flutter::EncodableValue(GetWindowsContextMenuState()));
+          return;
+        }
+
+        result->NotImplemented();
+      });
+}
+
+void FlutterWindow::ConfigureFileAssociationChannel() {
+  file_association_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(),
+          kFileAssociationChannelName,
+          &flutter::StandardMethodCodec::GetInstance());
+
+  file_association_channel_->SetMethodCallHandler(
+      [](const flutter::MethodCall<flutter::EncodableValue>& call,
+         std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
+             result) {
+        if (call.method_name() == "getFileAssociationState") {
+          result->Success(
+              flutter::EncodableValue(GetWindowsFileAssociationState()));
+          return;
+        }
+
+        if (call.method_name() == "setFileAssociations") {
+          const auto* arguments =
+              std::get_if<flutter::EncodableMap>(call.arguments());
+          if (arguments == nullptr) {
+            result->Error("invalid_arguments",
+                          "Expected a map containing extensions.");
+            return;
+          }
+
+          const auto extensions_it =
+              arguments->find(flutter::EncodableValue("extensions"));
+          if (extensions_it == arguments->end()) {
+            result->Error("invalid_arguments",
+                          "Expected an extensions list.");
+            return;
+          }
+
+          const auto* extension_list =
+              std::get_if<flutter::EncodableList>(&extensions_it->second);
+          if (extension_list == nullptr) {
+            result->Error("invalid_arguments",
+                          "Expected extensions as a list of strings.");
+            return;
+          }
+
+          std::vector<std::string> extensions;
+          extensions.reserve(extension_list->size());
+          for (const auto& value : *extension_list) {
+            const auto* extension = std::get_if<std::string>(&value);
+            if (extension == nullptr) {
+              result->Error("invalid_arguments",
+                            "Expected extensions as a list of strings.");
+              return;
+            }
+            extensions.push_back(*extension);
+          }
+
+          std::string error_message;
+          if (!SetWindowsFileAssociations(extensions, &error_message)) {
+            result->Error("file_association_error", error_message);
+            return;
+          }
+
+          result->Success(
+              flutter::EncodableValue(GetWindowsFileAssociationState()));
           return;
         }
 

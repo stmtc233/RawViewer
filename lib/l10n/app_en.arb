@@ -60,6 +60,16 @@
       }
     }
   },
+  "fileAssociationsSectionTitle": "Default file associations",
+  "fileAssociationFormatSubtitle": "Open .{extension} files with Raw Viewer",
+  "fileAssociationsUpdateFailed": "Failed to update file associations: {error}",
+  "@fileAssociationsUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "homeEmptyState": "Open or drop RAW and image files/folders",
   "openFolder": "Open folder",
   "openFiles": "Open files",
@@ -94,6 +104,16 @@
   "showPreviewOverviewTooltip": "Show overview map",
   "hidePreviewOverviewTooltip": "Hide overview map",
   "centerCurrentPreviewThumbnailTooltip": "Center current thumbnail",
+  "loadDirectoryTooltip": "Load images from this directory",
+  "grantDirectoryAccessDialogTitle": "Allow Raw Viewer to access this folder",
+  "loadDirectoryFailedMessage": "Could not load the directory: {error}",
+  "@loadDirectoryFailedMessage": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "largerThumbnailsTooltip": "Larger thumbnails",
   "smallerThumbnailsTooltip": "Smaller thumbnails",
   "gridColumnsTooltip": "{count} columns",

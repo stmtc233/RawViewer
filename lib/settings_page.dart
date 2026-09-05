@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'core/media_types.dart';
 import 'core/preview_filmstrip_size.dart';
 import 'core/raw_view_mode.dart';
 import 'l10n/app_localizations.dart';
@@ -98,6 +99,47 @@ class WindowsContextMenuSettings {
 typedef WindowsContextMenuToggleHandler = Future<WindowsContextMenuSettings>
     Function(bool enabled);
 
+class FileAssociationSettings {
+  final bool supported;
+  final Map<String, bool> bindings;
+
+  const FileAssociationSettings({
+    this.supported = false,
+    this.bindings = const <String, bool>{},
+  });
+
+  bool isBound(String extension) => bindings[extension] == true;
+
+  FileAssociationSettings copyWith({
+    bool? supported,
+    Map<String, bool>? bindings,
+  }) {
+    return FileAssociationSettings(
+      supported: supported ?? this.supported,
+      bindings: bindings ?? this.bindings,
+    );
+  }
+
+  factory FileAssociationSettings.fromPlatformMap(
+    Map<Object?, Object?>? values,
+  ) {
+    final rawBindings = values?['bindings'];
+    final bindings = <String, bool>{};
+    if (rawBindings is Map) {
+      for (final extension in supportedExtensions) {
+        bindings[extension] = rawBindings[extension] == true;
+      }
+    }
+    return FileAssociationSettings(
+      supported: values?['supported'] == true,
+      bindings: bindings,
+    );
+  }
+}
+
+typedef FileAssociationChangeHandler = Future<FileAssociationSettings> Function(
+    Set<String> extensions);
+
 class ViewerSettings {
   // Which image the preview shows for RAW files. Chosen from the preview's own
   // top-right switch rather than this settings page, and persisted.
@@ -118,6 +160,7 @@ class ViewerSettings {
   final double previewFilmstripOpacity;
   final double previewFilmstripHeight;
   final WindowsContextMenuSettings windowsContextMenu;
+  final FileAssociationSettings fileAssociations;
 
   const ViewerSettings({
     this.rawViewMode = RawViewMode.decodedRaw,
@@ -132,6 +175,7 @@ class ViewerSettings {
     this.previewFilmstripOpacity = kDefaultPreviewOverlayOpacity,
     this.previewFilmstripHeight = kPreviewFilmstripHeight,
     this.windowsContextMenu = const WindowsContextMenuSettings(),
+    this.fileAssociations = const FileAssociationSettings(),
   });
 
   ViewerSettings copyWith({
@@ -147,6 +191,7 @@ class ViewerSettings {
     double? previewFilmstripOpacity,
     double? previewFilmstripHeight,
     WindowsContextMenuSettings? windowsContextMenu,
+    FileAssociationSettings? fileAssociations,
   }) {
     return ViewerSettings(
       rawViewMode: rawViewMode ?? this.rawViewMode,
@@ -166,6 +211,7 @@ class ViewerSettings {
       previewFilmstripHeight:
           previewFilmstripHeight ?? this.previewFilmstripHeight,
       windowsContextMenu: windowsContextMenu ?? this.windowsContextMenu,
+      fileAssociations: fileAssociations ?? this.fileAssociations,
     );
   }
 }
@@ -175,6 +221,7 @@ class SettingsPage extends StatefulWidget {
   final VoidCallback onClose;
   final ValueChanged<ViewerSettings> onSettingsChanged;
   final WindowsContextMenuToggleHandler? onWindowsContextMenuChanged;
+  final FileAssociationChangeHandler? onFileAssociationsChanged;
 
   const SettingsPage({
     super.key,
@@ -182,6 +229,7 @@ class SettingsPage extends StatefulWidget {
     required this.onClose,
     required this.onSettingsChanged,
     this.onWindowsContextMenuChanged,
+    this.onFileAssociationsChanged,
   });
 
   @override
@@ -191,6 +239,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   late ViewerSettings _currentSettings;
   bool _isUpdatingWindowsContextMenu = false;
+  bool _isUpdatingFileAssociations = false;
 
   String _languageLabel(AppLanguage language, AppLocalizations l10n) {
     switch (language) {
@@ -218,6 +267,11 @@ class _SettingsPageState extends State<SettingsPage> {
 
   bool get _showWindowsContextMenuSection =>
       Platform.isWindows && widget.onWindowsContextMenuChanged != null;
+
+  bool get _showFileAssociationSection =>
+      (Platform.isWindows || Platform.isMacOS) &&
+      widget.onFileAssociationsChanged != null &&
+      _currentSettings.fileAssociations.supported;
 
   List<Widget> _withDividers(List<Widget> children) {
     return [
@@ -317,6 +371,47 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) {
         setState(() {
           _isUpdatingWindowsContextMenu = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleFileAssociationChanged(
+    String extension,
+    bool enabled,
+  ) async {
+    final onFileAssociationsChanged = widget.onFileAssociationsChanged;
+    if (onFileAssociationsChanged == null || _isUpdatingFileAssociations) {
+      return;
+    }
+
+    final nextBindings = Map<String, bool>.from(
+      _currentSettings.fileAssociations.bindings,
+    )..[extension] = enabled;
+
+    setState(() {
+      _isUpdatingFileAssociations = true;
+    });
+
+    try {
+      final nextState = await onFileAssociationsChanged(
+        nextBindings.entries
+            .where((entry) => entry.value)
+            .map((entry) => entry.key)
+            .toSet(),
+      );
+      if (!mounted) return;
+      _updateSettings(_currentSettings.copyWith(fileAssociations: nextState));
+    } catch (error) {
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.fileAssociationsUpdateFailed('$error'))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdatingFileAssociations = false;
         });
       }
     }
@@ -430,7 +525,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       title: l10n.previewFilmstripOpacityTitle,
                       value: _currentSettings.previewFilmstripOpacity,
                       onChanged: (value) => _updateSettings(
-                        _currentSettings.copyWith(previewFilmstripOpacity: value),
+                        _currentSettings.copyWith(
+                            previewFilmstripOpacity: value),
                       ),
                     ),
                     _buildOpacityRow(
@@ -563,6 +659,37 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                         ),
                       ),
+                    ]),
+                  ),
+                if (_showFileAssociationSection)
+                  DesktopSettingsSection(
+                    title: l10n.fileAssociationsSectionTitle,
+                    children: _withDividers([
+                      for (final extension in supportedExtensions)
+                        DesktopSettingsRow(
+                          key: ValueKey('file-association-$extension'),
+                          title: extension.substring(1).toUpperCase(),
+                          subtitle: l10n.fileAssociationFormatSubtitle(
+                            extension.substring(1).toUpperCase(),
+                          ),
+                          control: _isUpdatingFileAssociations
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Switch(
+                                  value: _currentSettings.fileAssociations
+                                      .isBound(extension),
+                                  onChanged: (value) =>
+                                      _handleFileAssociationChanged(
+                                    extension,
+                                    value,
+                                  ),
+                                ),
+                        ),
                     ]),
                   ),
               ],

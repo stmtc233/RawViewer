@@ -76,6 +76,9 @@ class MainFlutterWindow: NSWindow {
     let dragHandlingView = DragHandlingView(frame: contentBounds)
     dragHandlingView.autoresizingMask = [.width, .height]
     dragHandlingView.onPathsDropped = { paths in
+      for path in paths {
+        ScopedFileAccess.shared.retainAccess(to: URL(fileURLWithPath: path))
+      }
       OpenPathChannel.shared.handle(paths: paths)
     }
 
@@ -83,6 +86,8 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     OpenPathChannel.shared.attach(to: flutterViewController)
+    DirectoryAccessChannel.shared.attach(to: flutterViewController)
+    FileAssociationChannel.shared.attach(to: flutterViewController)
     registerForDraggedTypes([.fileURL])
 
     super.awakeFromNib()

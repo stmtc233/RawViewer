@@ -60,6 +60,16 @@
       }
     }
   },
+  "fileAssociationsSectionTitle": "默认打开格式",
+  "fileAssociationFormatSubtitle": "使用 Raw Viewer 打开 .{extension} 文件",
+  "fileAssociationsUpdateFailed": "更新文件关联失败：{error}",
+  "@fileAssociationsUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "homeEmptyState": "打开或拖放 RAW 与图片文件/文件夹",
   "openFolder": "打开文件夹",
   "openFiles": "打开文件",
@@ -94,6 +104,16 @@
   "showPreviewOverviewTooltip": "显示鸟瞰图",
   "hidePreviewOverviewTooltip": "隐藏鸟瞰图",
   "centerCurrentPreviewThumbnailTooltip": "居中当前缩略图",
+  "loadDirectoryTooltip": "加载此目录中的图片",
+  "grantDirectoryAccessDialogTitle": "允许 Raw Viewer 访问此文件夹",
+  "loadDirectoryFailedMessage": "无法加载目录：{error}",
+  "@loadDirectoryFailedMessage": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "largerThumbnailsTooltip": "放大缩略图",
   "smallerThumbnailsTooltip": "缩小缩略图",
   "gridColumnsTooltip": "{count} 列",

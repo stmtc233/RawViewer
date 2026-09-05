@@ -132,6 +132,19 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get fileAssociationsSectionTitle => 'Default file associations';
+
+  @override
+  String fileAssociationFormatSubtitle(Object extension) {
+    return 'Open .$extension files with Raw Viewer';
+  }
+
+  @override
+  String fileAssociationsUpdateFailed(String error) {
+    return 'Failed to update file associations: $error';
+  }
+
+  @override
   String get homeEmptyState => 'Open or drop RAW and image files/folders';
 
   @override
@@ -213,6 +226,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get centerCurrentPreviewThumbnailTooltip => 'Center current thumbnail';
+
+  @override
+  String get loadDirectoryTooltip => 'Load images from this directory';
+
+  @override
+  String get grantDirectoryAccessDialogTitle => 'Allow Raw Viewer to access this folder';
+
+  @override
+  String loadDirectoryFailedMessage(String error) {
+    return 'Could not load the directory: $error';
+  }
 
   @override
   String get largerThumbnailsTooltip => 'Larger thumbnails';

@@ -91,4 +91,3 @@ class _PreviewOverviewViewportPainter extends CustomPainter {
     return oldDelegate.viewportRect != viewportRect;
   }
 }
-

@@ -5,7 +5,10 @@
 #include <shellapi.h>
 
 #include <array>
+#include <cctype>
+#include <set>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -15,6 +18,11 @@ constexpr wchar_t kDirectoryVerbKey[] =
     L"Software\\Classes\\Directory\\shell\\RawViewOpen";
 constexpr wchar_t kDirectoryBackgroundVerbKey[] =
     L"Software\\Classes\\Directory\\Background\\shell\\RawViewOpen";
+
+constexpr std::array<const wchar_t*, 13> kFileAssociationExtensions = {{
+    L"arw", L"cr2", L"cr3", L"dng", L"nef", L"orf", L"raf",
+    L"rw2", L"srw", L"jpg", L"jpeg", L"png", L"webp",
+}};
 
 struct ContextMenuState {
   bool supported;
@@ -62,6 +70,31 @@ std::wstring BuildCommand(const std::wstring& executable_path,
     return Quote(executable_path) + L" \"%V\"";
   }
   return Quote(executable_path) + L" \"%1\"";
+}
+
+std::wstring FileAssociationProgId(const wchar_t* extension) {
+  return std::wstring(L"RawViewer.") + extension;
+}
+
+std::wstring FileAssociationExtensionKey(const wchar_t* extension) {
+  return std::wstring(L"Software\\Classes\\.") + extension;
+}
+
+std::wstring FileAssociationProgIdKey(const wchar_t* extension) {
+  return std::wstring(L"Software\\Classes\\") +
+         FileAssociationProgId(extension);
+}
+
+std::wstring FileAssociationCommand(const std::wstring& executable_path) {
+  return Quote(executable_path) + L" \"%1\"";
+}
+
+std::string NarrowExtension(const wchar_t* extension) {
+  std::string result;
+  for (const auto* character = extension; *character != L'\0'; ++character) {
+    result.push_back(static_cast<char>(*character));
+  }
+  return result;
 }
 
 bool SetStringValue(HKEY root, const std::wstring& sub_key,
@@ -177,6 +210,78 @@ void NotifyShellChanged() {
   ::SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
 }
 
+bool IsFileAssociationInstalled(const wchar_t* extension,
+                                const std::wstring& executable_path) {
+  std::wstring prog_id;
+  if (!ReadStringValue(HKEY_CURRENT_USER,
+                       FileAssociationExtensionKey(extension), nullptr,
+                       &prog_id) ||
+      _wcsicmp(prog_id.c_str(), FileAssociationProgId(extension).c_str()) !=
+          0) {
+    return false;
+  }
+
+  std::wstring command;
+  if (!ReadStringValue(
+          HKEY_CURRENT_USER,
+          FileAssociationProgIdKey(extension) + L"\\shell\\open\\command",
+          nullptr, &command)) {
+    return false;
+  }
+
+  return _wcsicmp(command.c_str(),
+                  FileAssociationCommand(executable_path).c_str()) == 0;
+}
+
+bool WriteFileAssociation(const wchar_t* extension,
+                          const std::wstring& executable_path) {
+  const auto prog_id = FileAssociationProgId(extension);
+  const auto prog_id_key = FileAssociationProgIdKey(extension);
+  if (!SetStringValue(HKEY_CURRENT_USER, prog_id_key, nullptr,
+                      L"Raw Viewer image")) {
+    return false;
+  }
+  if (!SetStringValue(HKEY_CURRENT_USER, prog_id_key + L"\\DefaultIcon",
+                      nullptr, Quote(executable_path) + L",0")) {
+    return false;
+  }
+  if (!SetStringValue(HKEY_CURRENT_USER,
+                      prog_id_key + L"\\shell\\open\\command", nullptr,
+                      FileAssociationCommand(executable_path))) {
+    return false;
+  }
+  return SetStringValue(HKEY_CURRENT_USER,
+                        FileAssociationExtensionKey(extension), nullptr,
+                        prog_id);
+}
+
+bool RemoveFileAssociation(const wchar_t* extension) {
+  std::wstring current_prog_id;
+  const auto extension_key = FileAssociationExtensionKey(extension);
+  if (ReadStringValue(HKEY_CURRENT_USER, extension_key, nullptr,
+                      &current_prog_id) &&
+      _wcsicmp(current_prog_id.c_str(),
+               FileAssociationProgId(extension).c_str()) == 0) {
+    HKEY key = nullptr;
+    const LONG open_result = ::RegOpenKeyExW(
+        HKEY_CURRENT_USER, extension_key.c_str(), 0, KEY_SET_VALUE, &key);
+    if (open_result != ERROR_SUCCESS) {
+      return open_result == ERROR_FILE_NOT_FOUND;
+    }
+    const LONG delete_result = ::RegDeleteValueW(key, nullptr);
+    ::RegCloseKey(key);
+    if (delete_result != ERROR_SUCCESS && delete_result != ERROR_FILE_NOT_FOUND) {
+      return false;
+    }
+  }
+
+  const LONG delete_prog_id_result =
+      ::RegDeleteTreeW(HKEY_CURRENT_USER,
+                       FileAssociationProgIdKey(extension).c_str());
+  return delete_prog_id_result == ERROR_SUCCESS ||
+         delete_prog_id_result == ERROR_FILE_NOT_FOUND;
+}
+
 ContextMenuState QueryContextMenuState() {
   const std::wstring executable_path = GetExecutablePath();
   if (executable_path.empty()) {
@@ -233,6 +338,63 @@ bool SetWindowsContextMenuEnabled(bool enabled, const std::wstring& menu_text,
     if (!WriteVerb(definition, executable_path, menu_text)) {
       if (error_message != nullptr) {
         *error_message = "Failed to write Windows Explorer context menu registry entries.";
+      }
+      return false;
+    }
+  }
+
+  NotifyShellChanged();
+  return true;
+}
+
+flutter::EncodableMap GetWindowsFileAssociationState() {
+  const std::wstring executable_path = GetExecutablePath();
+  flutter::EncodableMap bindings;
+  for (const auto* extension : kFileAssociationExtensions) {
+    bindings.emplace(
+        flutter::EncodableValue("." + NarrowExtension(extension)),
+        flutter::EncodableValue(
+            !executable_path.empty() &&
+            IsFileAssociationInstalled(extension, executable_path)));
+  }
+  return flutter::EncodableMap{
+      {flutter::EncodableValue("supported"), flutter::EncodableValue(true)},
+      {flutter::EncodableValue("bindings"), flutter::EncodableValue(bindings)},
+  };
+}
+
+bool SetWindowsFileAssociations(const std::vector<std::string>& extensions,
+                                std::string* error_message) {
+  const std::wstring executable_path = GetExecutablePath();
+  if (executable_path.empty()) {
+    if (error_message != nullptr) {
+      *error_message = "Unable to resolve the current executable path.";
+    }
+    return false;
+  }
+
+  std::set<std::string> selected;
+  for (auto extension : extensions) {
+    if (!extension.empty() && extension.front() == '.') {
+      extension.erase(extension.begin());
+    }
+    for (auto& character : extension) {
+      character = static_cast<char>(std::tolower(
+          static_cast<unsigned char>(character)));
+    }
+    selected.insert(extension);
+  }
+
+  for (const auto* extension : kFileAssociationExtensions) {
+    const std::string extension_utf8 = NarrowExtension(extension);
+    const bool should_install = selected.find(extension_utf8) != selected.end();
+    const bool success = should_install
+                             ? WriteFileAssociation(extension, executable_path)
+                             : RemoveFileAssociation(extension);
+    if (!success) {
+      if (error_message != nullptr) {
+        *error_message =
+            "Failed to update Windows file association registry entries.";
       }
       return false;
     }
