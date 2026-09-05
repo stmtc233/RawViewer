@@ -85,6 +85,8 @@ void main() {
       expect(stored.gridAspectRatio, isNull);
       expect(stored.pageSwitchAnimationEnabled, isTrue);
       expect(stored.previewOverlayOpacity, kDefaultPreviewOverlayOpacity);
+      expect(stored.previewToolbarOpacity, kDefaultPreviewOverlayOpacity);
+      expect(stored.previewFilmstripOpacity, kDefaultPreviewOverlayOpacity);
     });
 
     test('round-trips grid cross-axis count', () async {
@@ -119,6 +121,58 @@ void main() {
       expect(stored.previewOverlayOpacity, closeTo(0.8, 0.001));
     });
 
+    test('persists each preview opacity independently', () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = const PreferencesRepository();
+      await repo.savePreviewOverlayOpacity(0.5);
+      await repo.savePreviewToolbarOpacity(0.3);
+      await repo.savePreviewFilmstripOpacity(0.8);
+      var stored = await repo.loadViewPreferences();
+      expect(stored.previewOverlayOpacity, 0.5);
+      expect(stored.previewToolbarOpacity, 0.3);
+      expect(stored.previewFilmstripOpacity, 0.8);
+
+      await repo.savePreviewToolbarOpacity(0.9);
+      stored = await repo.loadViewPreferences();
+      expect(stored.previewOverlayOpacity, 0.5);
+      expect(stored.previewToolbarOpacity, 0.9);
+      expect(stored.previewFilmstripOpacity, 0.8);
+    });
+
+    test('migrates the shared opacity to each bar only once', () async {
+      SharedPreferences.setMockInitialValues({'preview_overlay_opacity': 0.65});
+      final repo = const PreferencesRepository();
+      var stored = await repo.loadViewPreferences();
+      expect(stored.previewToolbarOpacity, 0.65);
+      expect(stored.previewFilmstripOpacity, 0.65);
+
+      await repo.savePreviewOverlayOpacity(0.9);
+      stored = await repo.loadViewPreferences();
+      expect(stored.previewOverlayOpacity, 0.9);
+      expect(stored.previewToolbarOpacity, 0.65);
+      expect(stored.previewFilmstripOpacity, 0.65);
+    });
+
+    test('preserves a configured bar when migrating the other', () async {
+      SharedPreferences.setMockInitialValues({
+        'preview_overlay_opacity': 0.65,
+        'preview_toolbar_opacity': 0.3,
+      });
+      final stored = await const PreferencesRepository().loadViewPreferences();
+      expect(stored.previewToolbarOpacity, 0.3);
+      expect(stored.previewFilmstripOpacity, 0.65);
+    });
+
+    test('clamps each stored bar opacity to the slider range', () async {
+      SharedPreferences.setMockInitialValues({
+        'preview_toolbar_opacity': 0.0,
+        'preview_filmstrip_opacity': 2.0,
+      });
+      final stored = await const PreferencesRepository().loadViewPreferences();
+      expect(stored.previewToolbarOpacity, kMinPreviewOverlayOpacity);
+      expect(stored.previewFilmstripOpacity, kMaxPreviewOverlayOpacity);
+    });
+
     test('round-trips the RAW view mode', () async {
       SharedPreferences.setMockInitialValues({});
       final repo = const PreferencesRepository();
@@ -151,6 +205,8 @@ void main() {
       final stored =
           await const PreferencesRepository().loadViewPreferences();
       expect(stored.previewOverlayOpacity, kMaxPreviewOverlayOpacity);
+      expect(stored.previewToolbarOpacity, kMaxPreviewOverlayOpacity);
+      expect(stored.previewFilmstripOpacity, kMaxPreviewOverlayOpacity);
     });
   });
 

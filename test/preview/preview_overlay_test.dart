@@ -11,6 +11,8 @@ import 'package:rawviewer/media_group.dart';
 import 'package:rawviewer/native_lib.dart';
 import 'package:rawviewer/preview/image_preview_page.dart';
 import 'package:rawviewer/preview/preview_geometry.dart';
+import 'package:rawviewer/preview/widgets/preview_filmstrip.dart';
+import 'package:rawviewer/preview/widgets/preview_hover_reveal.dart';
 import 'package:rawviewer/preview/widgets/preview_overview_map.dart';
 import 'package:rawviewer/settings_page.dart';
 import 'package:rawviewer/viewer_image.dart';
@@ -81,7 +83,11 @@ void main() {
               thumbnailResizeWidth: 256,
               imageStore: _FixtureImageStore(image),
               timestampRepository: TimestampRepository(),
-              initialSettings: const ViewerSettings(previewOverlayOpacity: 0.5),
+              initialSettings: const ViewerSettings(
+                previewOverlayOpacity: 0.5,
+                previewToolbarOpacity: 0.3,
+                previewFilmstripOpacity: 0.6,
+              ),
               onClose: () {},
               onRawViewModeChanged: (_) {},
             ),
@@ -89,6 +95,17 @@ void main() {
         ),
       ));
       await tester.pumpAndSettle();
+
+      double restingOpacityFor(Finder child) => tester
+          .widget<PreviewHoverReveal>(
+            find
+                .ancestor(of: child, matching: find.byType(PreviewHoverReveal))
+                .first,
+          )
+          .restingOpacity;
+      expect(restingOpacityFor(find.byIcon(Icons.arrow_back)), 0.3);
+      expect(restingOpacityFor(find.byType(PreviewFilmstrip)), 0.6);
+      expect(restingOpacityFor(find.byIcon(Icons.zoom_in)), 0.5);
 
       Future<void> expectImageBehindBars({required bool visible}) async {
         final boundary = boundaryKey.currentContext!.findRenderObject()!
@@ -160,6 +177,7 @@ void main() {
       await zoomIn();
       await expectImageBehindBars(visible: true);
       final overviewRect = tester.getRect(find.byType(PreviewOverviewMap));
+      expect(restingOpacityFor(find.byType(PreviewOverviewMap)), 0.5);
       final controlsRect = tester.getRect(find.byIcon(Icons.zoom_in));
       final filmstripRect = tester.getRect(
         find.byKey(const ValueKey('preview-filmstrip-panel')),

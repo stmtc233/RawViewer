@@ -98,6 +98,8 @@ class _HomePageState extends State<HomePage> {
       _settings = _settings.copyWith(
         pageSwitchAnimationEnabled: stored.pageSwitchAnimationEnabled,
         previewOverlayOpacity: stored.previewOverlayOpacity,
+        previewToolbarOpacity: stored.previewToolbarOpacity,
+        previewFilmstripOpacity: stored.previewFilmstripOpacity,
         rawViewMode: stored.rawViewMode,
       );
     });
@@ -162,6 +164,12 @@ class _HomePageState extends State<HomePage> {
   Future<void> _persistPreviewOverlayOpacity(double opacity) =>
       const PreferencesRepository().savePreviewOverlayOpacity(opacity);
 
+  Future<void> _persistPreviewToolbarOpacity(double opacity) =>
+      const PreferencesRepository().savePreviewToolbarOpacity(opacity);
+
+  Future<void> _persistPreviewFilmstripOpacity(double opacity) =>
+      const PreferencesRepository().savePreviewFilmstripOpacity(opacity);
+
   Future<void> _persistRawViewMode(RawViewMode mode) =>
       const PreferencesRepository().saveRawViewMode(mode);
 
@@ -174,6 +182,10 @@ class _HomePageState extends State<HomePage> {
         settings.pageSwitchAnimationEnabled;
     final previewOverlayOpacityChanged =
         _settings.previewOverlayOpacity != settings.previewOverlayOpacity;
+    final previewToolbarOpacityChanged =
+        _settings.previewToolbarOpacity != settings.previewToolbarOpacity;
+    final previewFilmstripOpacityChanged =
+        _settings.previewFilmstripOpacity != settings.previewFilmstripOpacity;
     final rawViewModeChanged = _settings.rawViewMode != settings.rawViewMode;
 
     setState(() {
@@ -203,6 +215,12 @@ class _HomePageState extends State<HomePage> {
           settings.previewOverlayOpacity,
         ),
       );
+    }
+    if (previewToolbarOpacityChanged) {
+      unawaited(_persistPreviewToolbarOpacity(settings.previewToolbarOpacity));
+    }
+    if (previewFilmstripOpacityChanged) {
+      unawaited(_persistPreviewFilmstripOpacity(settings.previewFilmstripOpacity));
     }
     if (rawViewModeChanged) {
       unawaited(_persistRawViewMode(settings.rawViewMode));

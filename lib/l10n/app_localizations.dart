@@ -143,10 +143,22 @@ abstract class AppLocalizations {
   /// **'Image Preview'**
   String get imagePreviewSectionTitle;
 
+  /// No description provided for @previewToolbarOpacityTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Top Bar Opacity'**
+  String get previewToolbarOpacityTitle;
+
+  /// No description provided for @previewFilmstripOpacityTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigation Bar Opacity'**
+  String get previewFilmstripOpacityTitle;
+
   /// No description provided for @previewOverlayOpacityTitle.
   ///
   /// In en, this message translates to:
-  /// **'Preview Control Opacity'**
+  /// **'Tool and Overview Opacity'**
   String get previewOverlayOpacityTitle;
 
   /// No description provided for @previewOverlayOpacitySubtitle.

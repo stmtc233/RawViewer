@@ -448,11 +448,64 @@ void main() {
 
       expect(original.previewOverlayOpacity, kDefaultPreviewOverlayOpacity);
       expect(updated.previewOverlayOpacity, 0.65);
+      expect(updated.previewToolbarOpacity, kDefaultPreviewOverlayOpacity);
+      expect(updated.previewFilmstripOpacity, kDefaultPreviewOverlayOpacity);
+      final separateBars = updated
+          .copyWith(previewToolbarOpacity: 0.3, previewFilmstripOpacity: 0.8)
+          .copyWith(maxCacheSize: 1024);
+      expect(separateBars.previewOverlayOpacity, 0.65);
+      expect(separateBars.previewToolbarOpacity, 0.3);
+      expect(separateBars.previewFilmstripOpacity, 0.8);
       expect(
         updated.pageSwitchAnimationEnabled,
         original.pageSwitchAnimationEnabled,
       );
     });
+
+    for (final locale in [const Locale('en'), const Locale('zh')]) {
+      testWidgets('preview opacity controls fit a narrow window in $locale',
+          (tester) async {
+        tester.view.physicalSize = const Size(360, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(MaterialApp(
+          locale: locale,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: SettingsPage(
+            settings: const ViewerSettings(
+              previewToolbarOpacity: 0.3,
+              previewFilmstripOpacity: 0.6,
+              previewOverlayOpacity: 0.5,
+            ),
+            onClose: () {},
+            onSettingsChanged: (_) {},
+          ),
+        ));
+        await tester.pumpAndSettle();
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(SettingsPage)),
+        )!;
+        for (final (key, title, value) in [
+          ('preview-toolbar-opacity', l10n.previewToolbarOpacityTitle, 0.3),
+          ('preview-filmstrip-opacity', l10n.previewFilmstripOpacityTitle, 0.6),
+          ('preview-overlay-opacity', l10n.previewOverlayOpacityTitle, 0.5),
+        ]) {
+          final row = find.byKey(ValueKey(key));
+          await tester.scrollUntilVisible(row, 200);
+          await tester.pumpAndSettle();
+          final slider = find.descendant(of: row, matching: find.byType(Slider));
+          expect(tester.widget<Slider>(slider).value, value);
+          final sliderRect = tester.getRect(slider);
+          final titleRect = tester.getRect(find.text(title));
+          expect(titleRect.left, greaterThanOrEqualTo(0));
+          expect(titleRect.right, lessThanOrEqualTo(sliderRect.left));
+          expect(sliderRect.right, lessThanOrEqualTo(360));
+          expect(tester.takeException(), isNull);
+        }
+      });
+    }
 
     test('supports adaptive grid sizing', () {
       const settings = ViewerSettings(
@@ -542,6 +595,33 @@ void main() {
           .tapAt(tester.getCenter(previewOverlaySlider) + const Offset(50, 0));
       await tester.pump();
       expect(updatedSettings!.previewOverlayOpacity, greaterThan(0.42));
+      final toolsOpacity = updatedSettings!.previewOverlayOpacity;
+      expect(updatedSettings!.previewToolbarOpacity,
+          kDefaultPreviewOverlayOpacity);
+      expect(updatedSettings!.previewFilmstripOpacity,
+          kDefaultPreviewOverlayOpacity);
+
+      Future<void> adjustBarSlider(String key) async {
+        final row = find.byKey(ValueKey(key));
+        await tester.ensureVisible(row);
+        await tester.pumpAndSettle();
+        final slider = find.descendant(of: row, matching: find.byType(Slider));
+        await tester.tapAt(tester.getCenter(slider) + const Offset(30, 0));
+        await tester.pump();
+      }
+
+      await adjustBarSlider('preview-toolbar-opacity');
+      final toolbarOpacity = updatedSettings!.previewToolbarOpacity;
+      expect(toolbarOpacity, greaterThan(kDefaultPreviewOverlayOpacity));
+      expect(updatedSettings!.previewFilmstripOpacity,
+          kDefaultPreviewOverlayOpacity);
+      expect(updatedSettings!.previewOverlayOpacity, toolsOpacity);
+
+      await adjustBarSlider('preview-filmstrip-opacity');
+      expect(updatedSettings!.previewFilmstripOpacity,
+          greaterThan(kDefaultPreviewOverlayOpacity));
+      expect(updatedSettings!.previewToolbarOpacity, toolbarOpacity);
+      expect(updatedSettings!.previewOverlayOpacity, toolsOpacity);
     });
   });
 

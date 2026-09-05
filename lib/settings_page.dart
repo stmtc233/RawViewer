@@ -111,8 +111,10 @@ class ViewerSettings {
   // Applies to discrete mouse-wheel page changes. Touch and trackpad
   // navigation remain directly controlled by the PageView.
   final bool pageSwitchAnimationEnabled;
-  // Resting opacity for preview overlays before the pointer hovers over them.
+  // Resting opacities for tools/overview, the top bar, and the filmstrip.
   final double previewOverlayOpacity;
+  final double previewToolbarOpacity;
+  final double previewFilmstripOpacity;
   final WindowsContextMenuSettings windowsContextMenu;
 
   const ViewerSettings({
@@ -124,6 +126,8 @@ class ViewerSettings {
     this.gridAspectRatio = GridAspectRatio.ratio3x2,
     this.pageSwitchAnimationEnabled = true,
     this.previewOverlayOpacity = kDefaultPreviewOverlayOpacity,
+    this.previewToolbarOpacity = kDefaultPreviewOverlayOpacity,
+    this.previewFilmstripOpacity = kDefaultPreviewOverlayOpacity,
     this.windowsContextMenu = const WindowsContextMenuSettings(),
   });
 
@@ -136,6 +140,8 @@ class ViewerSettings {
     GridAspectRatio? gridAspectRatio,
     bool? pageSwitchAnimationEnabled,
     double? previewOverlayOpacity,
+    double? previewToolbarOpacity,
+    double? previewFilmstripOpacity,
     WindowsContextMenuSettings? windowsContextMenu,
   }) {
     return ViewerSettings(
@@ -149,6 +155,10 @@ class ViewerSettings {
           pageSwitchAnimationEnabled ?? this.pageSwitchAnimationEnabled,
       previewOverlayOpacity:
           previewOverlayOpacity ?? this.previewOverlayOpacity,
+      previewToolbarOpacity:
+          previewToolbarOpacity ?? this.previewToolbarOpacity,
+      previewFilmstripOpacity:
+          previewFilmstripOpacity ?? this.previewFilmstripOpacity,
       windowsContextMenu: windowsContextMenu ?? this.windowsContextMenu,
     );
   }
@@ -210,6 +220,50 @@ class _SettingsPageState extends State<SettingsPage> {
         children[index],
       ],
     ];
+  }
+
+  Widget _buildOpacityRow({
+    required String key,
+    required String title,
+    String? subtitle,
+    required double value,
+    required ValueChanged<double> onChanged,
+  }) {
+    final l10n = AppLocalizations.of(context)!;
+    final percent = l10n.previewOverlayOpacityPercent((value * 100).round());
+    return DesktopSettingsRow(
+      key: ValueKey(key),
+      title: title,
+      subtitle: subtitle,
+      control: SizedBox(
+        width: 190,
+        child: Row(
+          children: [
+            Expanded(
+              child: Slider(
+                value: value,
+                min: kMinPreviewOverlayOpacity,
+                max: kMaxPreviewOverlayOpacity,
+                divisions: kPreviewOverlayOpacityDivisions,
+                label: percent,
+                onChanged: onChanged,
+              ),
+            ),
+            SizedBox(
+              width: 42,
+              child: Text(
+                percent,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  color: RawViewerColors.text,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _handleWindowsContextMenuChanged(bool enabled) async {
@@ -356,51 +410,33 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 DesktopSettingsSection(
                   title: l10n.imagePreviewSectionTitle,
-                  children: [
-                    DesktopSettingsRow(
-                      key: const ValueKey('preview-overlay-opacity'),
-                      title: l10n.previewOverlayOpacityTitle,
-                      subtitle: l10n.previewOverlayOpacitySubtitle,
-                      control: SizedBox(
-                        width: 190,
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Slider(
-                                value: _currentSettings.previewOverlayOpacity,
-                                min: kMinPreviewOverlayOpacity,
-                                max: kMaxPreviewOverlayOpacity,
-                                divisions: kPreviewOverlayOpacityDivisions,
-                                label: l10n.previewOverlayOpacityPercent(
-                                  (_currentSettings.previewOverlayOpacity * 100)
-                                      .round(),
-                                ),
-                                onChanged: (value) => _updateSettings(
-                                  _currentSettings.copyWith(
-                                    previewOverlayOpacity: value,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(
-                              width: 42,
-                              child: Text(
-                                l10n.previewOverlayOpacityPercent(
-                                  (_currentSettings.previewOverlayOpacity * 100)
-                                      .round(),
-                                ),
-                                textAlign: TextAlign.right,
-                                style: const TextStyle(
-                                  color: RawViewerColors.text,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                  children: _withDividers([
+                    _buildOpacityRow(
+                      key: 'preview-toolbar-opacity',
+                      title: l10n.previewToolbarOpacityTitle,
+                      value: _currentSettings.previewToolbarOpacity,
+                      onChanged: (value) => _updateSettings(
+                        _currentSettings.copyWith(previewToolbarOpacity: value),
                       ),
                     ),
-                  ],
+                    _buildOpacityRow(
+                      key: 'preview-filmstrip-opacity',
+                      title: l10n.previewFilmstripOpacityTitle,
+                      value: _currentSettings.previewFilmstripOpacity,
+                      onChanged: (value) => _updateSettings(
+                        _currentSettings.copyWith(previewFilmstripOpacity: value),
+                      ),
+                    ),
+                    _buildOpacityRow(
+                      key: 'preview-overlay-opacity',
+                      title: l10n.previewOverlayOpacityTitle,
+                      subtitle: l10n.previewOverlayOpacitySubtitle,
+                      value: _currentSettings.previewOverlayOpacity,
+                      onChanged: (value) => _updateSettings(
+                        _currentSettings.copyWith(previewOverlayOpacity: value),
+                      ),
+                    ),
+                  ]),
                 ),
                 DesktopSettingsSection(
                   title: l10n.rawProcessingSectionTitle,

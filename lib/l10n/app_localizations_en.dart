@@ -33,7 +33,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get imagePreviewSectionTitle => 'Image Preview';
 
   @override
-  String get previewOverlayOpacityTitle => 'Preview Control Opacity';
+  String get previewToolbarOpacityTitle => 'Top Bar Opacity';
+
+  @override
+  String get previewFilmstripOpacityTitle => 'Navigation Bar Opacity';
+
+  @override
+  String get previewOverlayOpacityTitle => 'Tool and Overview Opacity';
 
   @override
   String get previewOverlayOpacitySubtitle => 'Set the resting opacity of preview controls. Hovered controls always become fully visible; 100% disables transparency.';

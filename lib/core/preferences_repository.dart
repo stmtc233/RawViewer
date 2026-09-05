@@ -35,6 +35,8 @@ class StoredViewPreferences {
   final GridAspectRatio? gridAspectRatio;
   final bool pageSwitchAnimationEnabled;
   final double previewOverlayOpacity;
+  final double previewToolbarOpacity;
+  final double previewFilmstripOpacity;
   final RawViewMode? rawViewMode;
 
   const StoredViewPreferences({
@@ -42,6 +44,8 @@ class StoredViewPreferences {
     required this.gridAspectRatio,
     required this.pageSwitchAnimationEnabled,
     required this.previewOverlayOpacity,
+    required this.previewToolbarOpacity,
+    required this.previewFilmstripOpacity,
     required this.rawViewMode,
   });
 }
@@ -67,6 +71,8 @@ class PreferencesRepository {
   static const String _pageSwitchAnimationEnabled =
       'page_switch_animation_enabled';
   static const String _previewOverlayOpacity = 'preview_overlay_opacity';
+  static const String _previewToolbarOpacity = 'preview_toolbar_opacity';
+  static const String _previewFilmstripOpacity = 'preview_filmstrip_opacity';
   static const String _rawViewMode = 'raw_view_mode';
 
   /// Superseded by [_previewOverlayOpacity]. Read only, to migrate installs
@@ -114,6 +120,11 @@ class PreferencesRepository {
 
   Future<StoredViewPreferences> loadViewPreferences() async {
     final prefs = await _prefs;
+    final overlayOpacity = resolvePreviewOverlayOpacity(
+      storedOpacity: prefs.getDouble(_previewOverlayOpacity),
+      legacyAutoTransparencyEnabled:
+          prefs.getBool(_legacyPreviewOverlayAutoTransparency),
+    );
     return StoredViewPreferences(
       crossAxisCount:
           prefs.getInt(_gridCrossAxisCount) ?? kDefaultGridCrossAxisCount,
@@ -121,14 +132,35 @@ class PreferencesRepository {
           GridAspectRatio.values.asNameMap()[prefs.getString(_gridAspectRatio)],
       pageSwitchAnimationEnabled:
           prefs.getBool(_pageSwitchAnimationEnabled) ?? true,
-      previewOverlayOpacity: resolvePreviewOverlayOpacity(
-        storedOpacity: prefs.getDouble(_previewOverlayOpacity),
-        legacyAutoTransparencyEnabled:
-            prefs.getBool(_legacyPreviewOverlayAutoTransparency),
+      previewOverlayOpacity: overlayOpacity,
+      previewToolbarOpacity: await _loadPreviewBarOpacity(
+        prefs,
+        _previewToolbarOpacity,
+        overlayOpacity,
+      ),
+      previewFilmstripOpacity: await _loadPreviewBarOpacity(
+        prefs,
+        _previewFilmstripOpacity,
+        overlayOpacity,
       ),
       rawViewMode:
           RawViewMode.values.asNameMap()[prefs.getString(_rawViewMode)],
     );
+  }
+
+  Future<double> _loadPreviewBarOpacity(
+    SharedPreferences prefs,
+    String key,
+    double fallback,
+  ) async {
+    final stored = prefs.getDouble(key);
+    if (stored == null) {
+      // Migrate once so later tool-opacity changes cannot change either bar.
+      await prefs.setDouble(key, fallback);
+    }
+    return (stored ?? fallback)
+        .clamp(kMinPreviewOverlayOpacity, kMaxPreviewOverlayOpacity)
+        .toDouble();
   }
 
   /// Resolves the overlay opacity, migrating the superseded boolean setting.
@@ -167,6 +199,16 @@ class PreferencesRepository {
   Future<void> savePreviewOverlayOpacity(double opacity) async {
     final prefs = await _prefs;
     await prefs.setDouble(_previewOverlayOpacity, opacity);
+  }
+
+  Future<void> savePreviewToolbarOpacity(double opacity) async {
+    final prefs = await _prefs;
+    await prefs.setDouble(_previewToolbarOpacity, opacity);
+  }
+
+  Future<void> savePreviewFilmstripOpacity(double opacity) async {
+    final prefs = await _prefs;
+    await prefs.setDouble(_previewFilmstripOpacity, opacity);
   }
 
   Future<void> saveRawViewMode(RawViewMode mode) async {

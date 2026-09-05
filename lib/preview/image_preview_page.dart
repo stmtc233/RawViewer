@@ -751,7 +751,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                     bottom: 0,
                     child: PreviewHoverReveal(
                       restingOpacity:
-                          widget.initialSettings.previewOverlayOpacity,
+                          widget.initialSettings.previewFilmstripOpacity,
                       child: PreviewFilmstrip(
                         mediaGroups: widget.mediaGroups,
                         currentIndex: _currentIndex,
@@ -780,7 +780,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
             left: 0,
             right: 0,
             child: PreviewHoverReveal(
-              restingOpacity: widget.initialSettings.previewOverlayOpacity,
+              restingOpacity: widget.initialSettings.previewToolbarOpacity,
               child: FutureBuilder<MediaTimestampInfo>(
                 future: _currentTimestampFuture,
                 builder: (context, snapshot) {

@@ -8,7 +8,9 @@
   "pageSwitchAnimationTitle": "切换动画",
   "pageSwitchAnimationSubtitle": "控制鼠标滚轮触发的切换动画；触控和触控板滑动始终保持跟手。",
   "imagePreviewSectionTitle": "图片预览",
-  "previewOverlayOpacityTitle": "预览控件透明度",
+  "previewToolbarOpacityTitle": "顶栏透明度",
+  "previewFilmstripOpacityTitle": "导航栏透明度",
+  "previewOverlayOpacityTitle": "工具与概览透明度",
   "previewOverlayOpacitySubtitle": "设置预览控件未悬停时的透明度；悬停后始终恢复清晰显示，100% 表示关闭透明效果。",
   "previewOverlayOpacityPercent": "{percent}%",
   "@previewOverlayOpacityPercent": {
