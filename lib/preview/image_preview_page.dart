@@ -333,6 +333,18 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     }
   }
 
+  void _jumpToPageFast(int index) {
+    if (index < 0 || index >= widget.mediaGroups.length) return;
+    _targetPage = index;
+    _preloadThumbnails(index, isFastScrolling: true);
+    _scrollStopTimer?.cancel();
+    _isFastScrolling.value = true;
+    _pageController.jumpToPage(index);
+    _scrollStopTimer = Timer(kImagePreviewRapidSwitchSettleDelay, () {
+      if (mounted) _isFastScrolling.value = false;
+    });
+  }
+
   void _jumpToPage(int index) {
     if (index < 0 || index >= widget.mediaGroups.length) {
       return;
@@ -583,6 +595,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                   centerCurrentThumbnailTooltip:
                       l10n.centerCurrentPreviewThumbnailTooltip,
                   onIndexSelected: _jumpToPage,
+                  onFastIndexSelected: _jumpToPageFast,
                 ),
               ),
             ),

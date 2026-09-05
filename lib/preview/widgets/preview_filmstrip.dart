@@ -21,6 +21,7 @@ class PreviewFilmstrip extends StatefulWidget {
   final int decodeWidth;
   final String centerCurrentThumbnailTooltip;
   final ValueChanged<int> onIndexSelected;
+  final ValueChanged<int>? onFastIndexSelected;
 
   const PreviewFilmstrip({
     super.key,
@@ -30,6 +31,7 @@ class PreviewFilmstrip extends StatefulWidget {
     required this.decodeWidth,
     required this.centerCurrentThumbnailTooltip,
     required this.onIndexSelected,
+    this.onFastIndexSelected,
   });
 
   @override
@@ -43,6 +45,7 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
   bool _showLeadingCenterArrow = false;
   bool _showTrailingCenterArrow = false;
   bool _centerRequestScheduled = false;
+
 
   @override
   void initState() {
@@ -139,6 +142,24 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
     });
   }
 
+  void _handleHorizontalDragUpdate(DragUpdateDetails details) {
+    if (!_scrollController.hasClients || widget.mediaGroups.isEmpty) return;
+    final delta = details.primaryDelta ?? 0;
+    if (delta != 0) {
+      final nextOffset = (_scrollController.offset - delta).clamp(
+        0.0, _scrollController.position.maxScrollExtent,
+      );
+      _scrollController.jumpTo(nextOffset);
+    }
+    final position = _scrollController.position;
+    final centerX = _scrollController.offset + position.viewportDimension / 2;
+    final index = ((centerX - _sidePadding - kPreviewFilmstripItemWidth / 2) /
+            kPreviewFilmstripItemExtent)
+        .round()
+        .clamp(0, widget.mediaGroups.length - 1);
+    widget.onFastIndexSelected?.call(index);
+  }
+
   void _handlePointerSignal(PointerSignalEvent event) {
     if (event is! PointerScrollEvent || !_scrollController.hasClients) {
       return;
@@ -212,7 +233,10 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
             children: [
               Listener(
                 onPointerSignal: _handlePointerSignal,
-                child: ScrollbarTheme(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onHorizontalDragUpdate: _handleHorizontalDragUpdate,
+                  child: ScrollbarTheme(
                   data: ScrollbarThemeData(
                     thumbColor: WidgetStatePropertyAll(
                       RawViewerColors.mutedText.withValues(alpha: 0.65),
@@ -260,6 +284,7 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
                       },
                     ),
                   ),
+                ),
                 ),
               ),
               if (_showLeadingCenterArrow)
