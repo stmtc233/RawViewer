@@ -61,8 +61,6 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String? _currentDirectoryPath;
   String? _deferredDirectoryPath;
-  int _openedSourceGeneration = 0;
-  Route<void>? _previewRoute;
   int? _openedDirectoryCount;
   String? _lastSyncedWindowsContextMenuText;
   List<MediaFile> _files = [];
@@ -553,7 +551,6 @@ class _HomePageState extends State<HomePage> {
         return;
       }
       final nextFiles = _deduplicateMediaFiles([...directoryFiles, ...files]);
-      _prepareForIncomingPaths();
       _applyOpenedFiles(
         files: nextFiles,
         sourceKind: _OpenedSourceKind.folder,
@@ -575,7 +572,6 @@ class _HomePageState extends State<HomePage> {
         ? files
         : _deduplicateMediaFiles([..._files, ...files]);
 
-    _prepareForIncomingPaths();
     _applyOpenedFiles(
       files: nextFiles,
       sourceKind: _OpenedSourceKind.files,
@@ -586,15 +582,6 @@ class _HomePageState extends State<HomePage> {
 
     if (shouldOpenSingleFile) {
       _scheduleSingleFilePreview(files.single.path);
-    }
-  }
-
-  void _prepareForIncomingPaths() {
-    _openedSourceGeneration++;
-    final previewRoute = _previewRoute;
-    _previewRoute = null;
-    if (previewRoute != null && previewRoute.isActive) {
-      Navigator.of(context).removeRoute(previewRoute);
     }
   }
 
@@ -627,11 +614,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _scheduleSingleFilePreview(String filePath) {
-    final generation = _openedSourceGeneration;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted ||
-          generation != _openedSourceGeneration ||
-          !(ModalRoute.of(context)?.isCurrent ?? false)) {
+      if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? false)) {
         return;
       }
       if (_files.length != 1 || _files.single.path != filePath) {
@@ -645,19 +629,14 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  Future<List<MediaGroup>?> _loadDeferredDirectoryForPreview(
-    int generation,
-  ) async {
-    if (!mounted || generation != _openedSourceGeneration) return null;
+  Future<List<MediaGroup>?> _loadDeferredDirectoryForPreview() async {
     final directoryPath = _deferredDirectoryPath;
     if (directoryPath == null) {
       return buildAdaptiveMediaGroups(_files);
     }
 
     final loadedDirectory = await _loadDeferredDirectoryFiles(directoryPath);
-    if (!mounted ||
-        generation != _openedSourceGeneration ||
-        loadedDirectory == null) {
+    if (loadedDirectory == null) {
       return null;
     }
     final mediaGroups = buildAdaptiveMediaGroups(loadedDirectory.files);
@@ -674,18 +653,12 @@ class _HomePageState extends State<HomePage> {
     return mediaGroups;
   }
 
-  Future<void> _loadDeferredDirectoryAfterClose(int generation) async {
-    if (!mounted ||
-        generation != _openedSourceGeneration ||
-        _deferredDirectoryPath == null) {
-      return;
-    }
+  Future<void> _loadDeferredDirectoryAfterClose() async {
+    if (_deferredDirectoryPath == null) return;
     final directoryPath = _deferredDirectoryPath!;
     try {
       final loadedDirectory = await _loadDeferredDirectoryFiles(directoryPath);
-      if (!mounted ||
-          generation != _openedSourceGeneration ||
-          loadedDirectory == null) {
+      if (loadedDirectory == null) {
         return;
       }
       _applyOpenedFiles(
@@ -696,9 +669,7 @@ class _HomePageState extends State<HomePage> {
         openedDirectoryCount: 1,
       );
     } catch (error) {
-      if (generation == _openedSourceGeneration) {
-        _showDirectoryLoadError(error);
-      }
+      _showDirectoryLoadError(error);
     }
   }
 
@@ -758,51 +729,47 @@ class _HomePageState extends State<HomePage> {
     final thumbnailResizeWidth =
         bucketDecodeWidth((cellWidth * dpr).clamp(100.0, 800.0));
 
-    final generation = _openedSourceGeneration;
-    final route = PageRouteBuilder<void>(
-      transitionDuration: kImagePreviewOpenTransitionDuration,
-      reverseTransitionDuration: kImagePreviewCloseTransitionDuration,
-      pageBuilder: (context, animation, secondaryAnimation) {
-        return ExcludeSemantics(
-          child: ImagePreviewPage(
-            mediaGroups: mediaGroups,
-            initialIndex: initialIndex,
-            thumbnailResizeWidth: thumbnailResizeWidth,
-            imageStore: _imageStore,
-            timestampRepository: _timestampRepository,
-            initialSettings: _settings,
-            onLoadDirectory: deferDirectoryLoad
-                ? () => _loadDeferredDirectoryForPreview(generation)
-                : null,
-            onRawViewModeChanged: (mode) => _updateSettings(
-              _settings.copyWith(rawViewMode: mode),
+    Navigator.push<void>(
+      context,
+      PageRouteBuilder(
+        transitionDuration: kImagePreviewOpenTransitionDuration,
+        reverseTransitionDuration: kImagePreviewCloseTransitionDuration,
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return ExcludeSemantics(
+            child: ImagePreviewPage(
+              mediaGroups: mediaGroups,
+              initialIndex: initialIndex,
+              thumbnailResizeWidth: thumbnailResizeWidth,
+              imageStore: _imageStore,
+              timestampRepository: _timestampRepository,
+              initialSettings: _settings,
+              onLoadDirectory:
+                  deferDirectoryLoad ? _loadDeferredDirectoryForPreview : null,
+              onRawViewModeChanged: (mode) => _updateSettings(
+                _settings.copyWith(rawViewMode: mode),
+              ),
+              onPreviewFilmstripHeightChanged: (height) => _updateSettings(
+                _settings.copyWith(previewFilmstripHeight: height),
+              ),
+              onClose: () {
+                Navigator.pop(context);
+                unawaited(_loadDeferredDirectoryAfterClose());
+              },
             ),
-            onPreviewFilmstripHeightChanged: (height) => _updateSettings(
-              _settings.copyWith(previewFilmstripHeight: height),
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
             ),
-            onClose: () {
-              if (generation != _openedSourceGeneration) return;
-              Navigator.pop(context);
-              unawaited(_loadDeferredDirectoryAfterClose(generation));
-            },
-          ),
-        );
-      },
-      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        return FadeTransition(
-          opacity: CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-            reverseCurve: Curves.easeInCubic,
-          ),
-          child: child,
-        );
-      },
+            child: child,
+          );
+        },
+      ),
     );
-    _previewRoute = route;
-    unawaited(Navigator.of(context).push(route).whenComplete(() {
-      if (identical(_previewRoute, route)) _previewRoute = null;
-    }));
   }
 
   List<MediaFile> _listRawFilesInDirectory(String directoryPath) =>
