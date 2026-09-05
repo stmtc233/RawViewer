@@ -97,6 +97,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   Offset _lastTrackpadPan = Offset.zero;
   Duration? _lastTrackpadPanTimestamp;
   double _trackpadFlingVelocity = 0;
+  int _lastScrollPrefetchIndex = -1;
   // A notifier rather than setState: flipping this must not rebuild the whole
   // PageView (and every page in it) on each scroll burst.
   final ValueNotifier<bool> _isFastScrolling = ValueNotifier<bool>(false);
@@ -181,6 +182,10 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     }
     _lastTrackpadPan = panPosition;
     _lastTrackpadPanTimestamp = event.timeStamp;
+    final page = _pageController.hasClients ? _pageController.page : null;
+    if (page != null && page.isFinite) {
+      _preloadForScrollPosition(page);
+    }
     if (panDelta == 0) {
       return;
     }
@@ -195,6 +200,13 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
         kind: event.kind,
       ),
     );
+  }
+
+  void _preloadForScrollPosition(double page) {
+    final index = page.round().clamp(0, widget.mediaGroups.length - 1);
+    if (index == _lastScrollPrefetchIndex) return;
+    _lastScrollPrefetchIndex = index;
+    _preloadThumbnails(index, isFastScrolling: true);
   }
 
   void _endTrackpadPageDrag(PointerPanZoomEndEvent event) {
@@ -540,59 +552,71 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
             bottom: _showPreviewFilmstrip
                 ? kPreviewFilmstripHeight + MediaQuery.paddingOf(context).bottom
                 : 0,
-            child: PageView.builder(
-              controller: _pageController,
-              // Trackpad pages are moved from raw pan deltas so their position
-              // remains directly coupled to the user's fingers.
-              scrollBehavior: ScrollConfiguration.of(context).copyWith(
-                dragDevices: pageDragDevices,
-              ),
-              physics: _isLocked
-                  ? const NeverScrollableScrollPhysics()
-                  : const FastPageScrollPhysics(),
-              dragStartBehavior: DragStartBehavior.down,
-              allowImplicitScrolling: true,
-              padEnds: true,
-              itemCount: widget.mediaGroups.length,
-              onPageChanged: _onPageChanged,
-              itemBuilder: (context, index) {
-                final mediaGroup = widget.mediaGroups[index];
-                final filePath = mediaGroup.primary.path;
-                return SingleImagePreview(
-                  key: ValueKey(filePath),
-                  mediaGroup: mediaGroup,
-                  thumbnailResizeWidth: widget.thumbnailResizeWidth,
-                  previewThumbnailResizeWidth: _previewFilmstripDecodeWidth,
-                  imageStore: widget.imageStore,
-                  // Safe to forward the snapshot: the child is rebuilt from
-                  // this build method, so it is never staler than this page.
-                  settings: widget.initialSettings,
-                  rotationQuarterTurns: _rotationQuarterTurns[filePath] ?? 0,
-                  viewMode: _effectiveViewModeFor(mediaGroup),
-                  onEmbeddedJpegAvailability: (hasEmbeddedJpeg) =>
-                      _recordEmbeddedJpegAvailability(
-                          filePath, hasEmbeddedJpeg),
-                  onRotationRequested: (quarterTurns) =>
-                      _rotateImage(filePath, quarterTurns),
-                  onResetRotationRequested: () => _resetImageRotation(filePath),
-                  onSwitchRequest: _switchPage,
-                  onTrackpadPanStart: _startTrackpadPageDrag,
-                  onTrackpadPanUpdate: _updateTrackpadPageDrag,
-                  onTrackpadPanEnd: _endTrackpadPageDrag,
-                  onTrackpadPanCancel: _cancelTrackpadPageDrag,
-                  isActive: index == _currentIndex,
-                  showPreviewOverview: _showPreviewOverview,
-                  overviewBottomInset: 0,
-                  isFastScrolling: _isFastScrolling,
-                  onScaleStateChanged: (isScaling) {
-                    if (_isLocked != isScaling) {
-                      setState(() {
-                        _isLocked = isScaling;
-                      });
-                    }
-                  },
-                );
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification.metrics is PageMetrics) {
+                  final metrics = notification.metrics as PageMetrics;
+                  if (metrics.page != null && metrics.page!.isFinite) {
+                    _preloadForScrollPosition(metrics.page!);
+                  }
+                }
+                return false;
               },
+              child: PageView.builder(
+                controller: _pageController,
+                // Trackpad pages are moved from raw pan deltas so their position
+                // remains directly coupled to the user's fingers.
+                scrollBehavior: ScrollConfiguration.of(context).copyWith(
+                  dragDevices: pageDragDevices,
+                ),
+                physics: _isLocked
+                    ? const NeverScrollableScrollPhysics()
+                    : const FastPageScrollPhysics(),
+                dragStartBehavior: DragStartBehavior.down,
+                allowImplicitScrolling: true,
+                padEnds: true,
+                itemCount: widget.mediaGroups.length,
+                onPageChanged: _onPageChanged,
+                itemBuilder: (context, index) {
+                  final mediaGroup = widget.mediaGroups[index];
+                  final filePath = mediaGroup.primary.path;
+                  return SingleImagePreview(
+                    key: ValueKey(filePath),
+                    mediaGroup: mediaGroup,
+                    thumbnailResizeWidth: widget.thumbnailResizeWidth,
+                    previewThumbnailResizeWidth: _previewFilmstripDecodeWidth,
+                    imageStore: widget.imageStore,
+                    // Safe to forward the snapshot: the child is rebuilt from
+                    // this build method, so it is never staler than this page.
+                    settings: widget.initialSettings,
+                    rotationQuarterTurns: _rotationQuarterTurns[filePath] ?? 0,
+                    viewMode: _effectiveViewModeFor(mediaGroup),
+                    onEmbeddedJpegAvailability: (hasEmbeddedJpeg) =>
+                        _recordEmbeddedJpegAvailability(
+                            filePath, hasEmbeddedJpeg),
+                    onRotationRequested: (quarterTurns) =>
+                        _rotateImage(filePath, quarterTurns),
+                    onResetRotationRequested: () =>
+                        _resetImageRotation(filePath),
+                    onSwitchRequest: _switchPage,
+                    onTrackpadPanStart: _startTrackpadPageDrag,
+                    onTrackpadPanUpdate: _updateTrackpadPageDrag,
+                    onTrackpadPanEnd: _endTrackpadPageDrag,
+                    onTrackpadPanCancel: _cancelTrackpadPageDrag,
+                    isActive: index == _currentIndex,
+                    showPreviewOverview: _showPreviewOverview,
+                    overviewBottomInset: 0,
+                    isFastScrolling: _isFastScrolling,
+                    onScaleStateChanged: (isScaling) {
+                      if (_isLocked != isScaling) {
+                        setState(() {
+                          _isLocked = isScaling;
+                        });
+                      }
+                    },
+                  );
+                },
+              ),
             ),
           ),
           if (_showPreviewFilmstrip)

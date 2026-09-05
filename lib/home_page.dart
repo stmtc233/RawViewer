@@ -32,7 +32,7 @@ import 'preview/image_preview_page.dart';
 import 'preview/preview_geometry.dart';
 import 'settings_page.dart';
 import 'viewer_image.dart';
-
+import 'worker_service.dart';
 
 enum _OpenedSourceKind { none, folder, files }
 
@@ -67,6 +67,7 @@ class _HomePageState extends State<HomePage> {
   final Map<String, double> _mediaAspectRatios = <String, double>{};
   final Map<String, double> _pendingMediaAspectRatios = <String, double>{};
   bool _mediaAspectRatioUpdateScheduled = false;
+  int _lastGalleryPrefetchAnchor = -1;
 
   @override
   void initState() {
@@ -132,7 +133,8 @@ class _HomePageState extends State<HomePage> {
 
   void _updateGridColumnsFromScrollDelta(double delta) {
     _gridZoomResetTimer?.cancel();
-    _gridZoomResetTimer = Timer(kGridZoomScrollResetDelay, _gridZoom.resetScroll);
+    _gridZoomResetTimer =
+        Timer(kGridZoomScrollResetDelay, _gridZoom.resetScroll);
 
     final columnChange = _gridZoom.addScrollDelta(delta);
     if (columnChange != 0) {
@@ -263,8 +265,7 @@ class _HomePageState extends State<HomePage> {
       final menuText =
           AppLocalizations.of(context)?.windowsContextMenuMenuText ??
               'Open in RawView';
-      final values =
-          await windowsShellChannel.invokeMapMethod<String, dynamic>(
+      final values = await windowsShellChannel.invokeMapMethod<String, dynamic>(
         'setContextMenuEnabled',
         {
           'enabled': enabled,
@@ -502,8 +503,7 @@ class _HomePageState extends State<HomePage> {
   List<MediaFile> _deduplicateMediaFiles(Iterable<MediaFile> files) =>
       deduplicateMediaFiles(files);
 
-  MediaFile? _mediaFileFromPath(String filePath) =>
-      mediaFileFromPath(filePath);
+  MediaFile? _mediaFileFromPath(String filePath) => mediaFileFromPath(filePath);
 
   String _currentTitle(AppLocalizations l10n) {
     if (_openedSourceKind == _OpenedSourceKind.folder) {
@@ -724,10 +724,25 @@ class _HomePageState extends State<HomePage> {
             },
           );
 
+    final scrollable = NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification is ScrollUpdateNotification ||
+            notification is UserScrollNotification) {
+          _prefetchGalleryAround(
+            mediaGroups,
+            thumbnailResizeWidth,
+            notification.metrics,
+          );
+        }
+        return false;
+      },
+      child: grid,
+    );
+
     return Stack(
       fit: StackFit.expand,
       children: [
-        grid,
+        scrollable,
         Positioned.fill(
           // This sits before the scrollable in the hit-test path, allowing
           // Ctrl+wheel to claim its signal before the grid scrolls.
@@ -740,6 +755,43 @@ class _HomePageState extends State<HomePage> {
         ),
       ],
     );
+  }
+
+  void _prefetchGalleryAround(
+    List<MediaGroup> mediaGroups,
+    int thumbnailResizeWidth,
+    ScrollMetrics metrics,
+  ) {
+    if (mediaGroups.isEmpty || metrics.maxScrollExtent <= 0) return;
+    final fraction = (metrics.pixels / metrics.maxScrollExtent).clamp(0.0, 1.0);
+    final anchor = (fraction * (mediaGroups.length - 1)).round();
+    if ((anchor - _lastGalleryPrefetchAnchor).abs() < _crossAxisCount) return;
+    _lastGalleryPrefetchAnchor = anchor;
+
+    final start = math.max(0, anchor - _crossAxisCount * 2);
+    final end = math.min(
+      mediaGroups.length,
+      anchor + _crossAxisCount * 4,
+    );
+    for (var index = start; index < end; index++) {
+      final mediaFile = mediaGroups[index].primary;
+      if (!mediaFile.isRaw) {
+        precacheImage(
+          ResizeImage(FileImage(File(mediaFile.path)),
+              width: thumbnailResizeWidth),
+          context,
+        );
+        continue;
+      }
+      unawaited(_imageStore
+          .load(
+            mediaFile.path,
+            RawLayer.thumbnail,
+            targetWidth: thumbnailResizeWidth,
+            priority: TaskPriority.low,
+          )
+          .then((image) => image?.dispose()));
+    }
   }
 
   @override
@@ -884,4 +936,3 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
-
