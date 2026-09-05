@@ -5,11 +5,22 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
 import 'core/preferences_repository.dart';
+import 'core/windows_startup.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  final binding = WidgetsFlutterBinding.ensureInitialized();
 
-  if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+  if (Platform.isWindows) {
+    // Build while preferences and native setup run, but keep the first frame
+    // off screen until the saved bounds have been applied.
+    binding.deferFirstFrame();
+    final windowReady = _initializeWindowsWindow(binding);
+    runApp(MyApp(desktopWindowReady: windowReady));
+    await windowReady;
+    return;
+  }
+
+  if (Platform.isMacOS || Platform.isLinux) {
     await windowManager.ensureInitialized();
 
     final geometry =
@@ -34,4 +45,17 @@ void main() async {
   }
 
   runApp(const MyApp());
+}
+
+Future<void> _initializeWindowsWindow(WidgetsBinding binding) async {
+  late WindowGeometry geometry;
+  try {
+    geometry = await prepareWindowsWindow();
+  } finally {
+    binding.allowFirstFrame();
+  }
+  await showWindowsWindow(
+    geometry: geometry,
+    firstFrameRasterized: binding.waitUntilFirstFrameRasterized,
+  );
 }

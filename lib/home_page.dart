@@ -48,10 +48,12 @@ class _LoadedDirectory {
 
 class HomePage extends StatefulWidget {
   final ValueChanged<AppLanguage> onAppLanguageChanged;
+  final Future<void>? desktopWindowReady;
 
   const HomePage({
     super.key,
     required this.onAppLanguageChanged,
+    this.desktopWindowReady,
   });
 
   @override
@@ -86,8 +88,7 @@ class _HomePageState extends State<HomePage> {
     _loadPreferences();
     _initCache();
     unawaited(_listenForDesktopOpenRequests());
-    unawaited(_refreshWindowsContextMenuState());
-    unawaited(_refreshFileAssociationState());
+    unawaited(_refreshWindowsContextMenuAfterFirstFrame());
   }
 
   @override
@@ -267,6 +268,14 @@ class _HomePageState extends State<HomePage> {
     final oldCache = _imageCache;
     _initCache();
     oldCache.clear();
+  }
+
+  Future<void> _refreshWindowsContextMenuAfterFirstFrame() async {
+    if (!Platform.isWindows) return;
+    await (widget.desktopWindowReady ??
+        WidgetsBinding.instance.waitUntilFirstFrameRasterized);
+    if (!mounted) return;
+    await _refreshWindowsContextMenuState();
   }
 
   Future<void> _refreshWindowsContextMenuState() async {
@@ -494,6 +503,9 @@ class _HomePageState extends State<HomePage> {
     });
 
     try {
+      final windowReady = widget.desktopWindowReady;
+      if (windowReady != null) await windowReady;
+      if (!mounted) return;
       if (Platform.isLinux) {
         final initialPaths = Platform.executableArguments;
         if (initialPaths.isNotEmpty) {
@@ -1151,7 +1163,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _showSettings() async {
-    await _refreshWindowsContextMenuState();
+    await Future.wait<void>([
+      _refreshWindowsContextMenuState(),
+      _refreshFileAssociationState(),
+    ]);
     if (!mounted || !context.mounted) {
       return;
     }

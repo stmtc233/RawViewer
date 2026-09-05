@@ -12,7 +12,9 @@ import 'settings_page.dart';
 import 'ui/app_theme.dart';
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, this.desktopWindowReady});
+
+  final Future<void>? desktopWindowReady;
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -30,8 +32,15 @@ class _MyAppState extends State<MyApp> with WindowListener {
   void initState() {
     super.initState();
     if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
-      windowManager.addListener(this);
+      unawaited(_listenForWindowChanges());
     }
+  }
+
+  Future<void> _listenForWindowChanges() async {
+    final windowReady = widget.desktopWindowReady;
+    if (windowReady != null) await windowReady;
+    // Initial move/resize events must not overwrite the geometry being restored.
+    if (mounted) windowManager.addListener(this);
   }
 
   @override
@@ -108,7 +117,10 @@ class _MyAppState extends State<MyApp> with WindowListener {
           Locale('zh'),
         ],
         theme: rawViewerTheme,
-        home: HomePage(onAppLanguageChanged: _handleAppLanguageChanged),
+        home: HomePage(
+          onAppLanguageChanged: _handleAppLanguageChanged,
+          desktopWindowReady: widget.desktopWindowReady,
+        ),
       ),
     );
   }

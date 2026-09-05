@@ -101,14 +101,8 @@ bool FlutterWindow::OnCreate() {
                       reinterpret_cast<DWORD_PTR>(this));
   }
 
-  flutter_controller_->engine()->SetNextFrameCallback([&]() {
-    this->Show();
-  });
-
-  // Flutter can complete the first frame before the "show window" callback is
-  // registered. The following call ensures a frame is pending to ensure the
-  // window is shown. It is a no-op if the first frame hasn't completed yet.
-  flutter_controller_->ForceRedraw();
+  // Dart restores the bounds and shows the window after its first rasterized
+  // frame. Showing here as well would race with saved maximized state.
 
   return true;
 }
