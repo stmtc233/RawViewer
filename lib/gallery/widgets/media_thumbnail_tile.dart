@@ -335,4 +335,3 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
     return Hero(tag: widget.filePath, child: image);
   }
 }
-

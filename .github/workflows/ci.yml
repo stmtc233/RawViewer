@@ -99,6 +99,13 @@ jobs:
         shell: bash
         run: flutter build ${{ matrix.build_target }} --release
 
+      - name: Check macOS file associations
+        if: matrix.target == 'macos'
+        shell: bash
+        run: |
+          swiftc macos/Runner/FileAssociations.swift tool/macos_file_association_check.swift -o "$RUNNER_TEMP/rawviewer-association-check"
+          "$RUNNER_TEMP/rawviewer-association-check"
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v6
         with:

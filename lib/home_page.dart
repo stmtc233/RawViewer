@@ -36,6 +36,16 @@ import 'worker_service.dart';
 
 enum _OpenedSourceKind { none, folder, files }
 
+class _LoadedDirectory {
+  const _LoadedDirectory({
+    required this.path,
+    required this.files,
+  });
+
+  final String path;
+  final List<MediaFile> files;
+}
+
 class HomePage extends StatefulWidget {
   final ValueChanged<AppLanguage> onAppLanguageChanged;
 
@@ -50,6 +60,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   String? _currentDirectoryPath;
+  String? _deferredDirectoryPath;
   int? _openedDirectoryCount;
   String? _lastSyncedWindowsContextMenuText;
   List<MediaFile> _files = [];
@@ -76,6 +87,7 @@ class _HomePageState extends State<HomePage> {
     _initCache();
     unawaited(_listenForDesktopOpenRequests());
     unawaited(_refreshWindowsContextMenuState());
+    unawaited(_refreshFileAssociationState());
   }
 
   @override
@@ -226,10 +238,12 @@ class _HomePageState extends State<HomePage> {
       unawaited(_persistPreviewToolbarOpacity(settings.previewToolbarOpacity));
     }
     if (previewFilmstripOpacityChanged) {
-      unawaited(_persistPreviewFilmstripOpacity(settings.previewFilmstripOpacity));
+      unawaited(
+          _persistPreviewFilmstripOpacity(settings.previewFilmstripOpacity));
     }
     if (previewFilmstripHeightChanged) {
-      unawaited(_persistPreviewFilmstripHeight(settings.previewFilmstripHeight));
+      unawaited(
+          _persistPreviewFilmstripHeight(settings.previewFilmstripHeight));
     }
     if (rawViewModeChanged) {
       unawaited(_persistRawViewMode(settings.rawViewMode));
@@ -278,6 +292,33 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _refreshFileAssociationState() async {
+    if (!Platform.isWindows && !Platform.isMacOS) {
+      return;
+    }
+
+    try {
+      final values = await fileAssociationChannel
+          .invokeMapMethod<String, dynamic>('getFileAssociationState');
+      if (!mounted) return;
+      setState(() {
+        _settings = _settings.copyWith(
+          fileAssociations: FileAssociationSettings.fromPlatformMap(values),
+        );
+      });
+    } on MissingPluginException {
+      // Ignore when file association integration is not implemented.
+    } on PlatformException {
+      // Ignore transient platform integration failures at startup.
+    }
+  }
+
+  Future<FileAssociationSettings> _getFileAssociationSettings() async {
+    final values = await fileAssociationChannel
+        .invokeMapMethod<String, dynamic>('getFileAssociationState');
+    return FileAssociationSettings.fromPlatformMap(values);
+  }
+
   Future<WindowsContextMenuSettings> _getWindowsContextMenuSettings() async {
     final values = await windowsShellChannel.invokeMapMethod<String, dynamic>(
       'getContextMenuState',
@@ -313,6 +354,28 @@ class _HomePageState extends State<HomePage> {
     } on MissingPluginException {
       throw Exception(
           'Windows shell integration is not supported in this build');
+    }
+  }
+
+  Future<FileAssociationSettings> _setFileAssociations(
+    Set<String> extensions,
+  ) async {
+    try {
+      final values = await fileAssociationChannel
+          .invokeMapMethod<String, dynamic>('setFileAssociations', {
+        'extensions': extensions.toList(growable: false),
+      });
+      final nextState = FileAssociationSettings.fromPlatformMap(values);
+      if (mounted) {
+        setState(() {
+          _settings = _settings.copyWith(fileAssociations: nextState);
+        });
+      }
+      return nextState;
+    } on PlatformException catch (error) {
+      throw Exception(error.message ?? 'Unknown file association error');
+    } on MissingPluginException {
+      throw Exception('File association integration is not supported');
     }
   }
 
@@ -413,7 +476,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _listenForDesktopOpenRequests() async {
-    if (!Platform.isMacOS && !Platform.isWindows) {
+    if (!Platform.isMacOS && !Platform.isWindows && !Platform.isLinux) {
       return;
     }
 
@@ -431,6 +494,14 @@ class _HomePageState extends State<HomePage> {
     });
 
     try {
+      if (Platform.isLinux) {
+        final initialPaths = Platform.executableArguments;
+        if (initialPaths.isNotEmpty) {
+          await _handleIncomingPaths(initialPaths);
+        }
+        return;
+      }
+
       final initialPaths =
           await desktopOpenChannel.invokeListMethod<String>('getInitialPaths');
       if (initialPaths != null && initialPaths.isNotEmpty) {
@@ -470,7 +541,15 @@ class _HomePageState extends State<HomePage> {
     }
 
     if (directories.isNotEmpty) {
-      final directoryFiles = directories.expand(_listRawFilesInDirectory);
+      final directoryFiles = <MediaFile>[];
+      try {
+        for (final directory in directories) {
+          directoryFiles.addAll(_listRawFilesInDirectory(directory));
+        }
+      } on FileSystemException catch (error) {
+        _showDirectoryLoadError(error);
+        return;
+      }
       final nextFiles = _deduplicateMediaFiles([...directoryFiles, ...files]);
       _applyOpenedFiles(
         files: nextFiles,
@@ -486,7 +565,9 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    final shouldReplaceCurrent = _openedSourceKind != _OpenedSourceKind.files;
+    final shouldOpenSingleFile = files.length == 1;
+    final shouldReplaceCurrent =
+        _openedSourceKind != _OpenedSourceKind.files || shouldOpenSingleFile;
     final nextFiles = shouldReplaceCurrent
         ? files
         : _deduplicateMediaFiles([..._files, ...files]);
@@ -495,7 +576,13 @@ class _HomePageState extends State<HomePage> {
       files: nextFiles,
       sourceKind: _OpenedSourceKind.files,
       clearCache: shouldReplaceCurrent,
+      deferredDirectoryPath:
+          shouldOpenSingleFile ? path.dirname(files.single.path) : null,
     );
+
+    if (shouldOpenSingleFile) {
+      _scheduleSingleFilePreview(files.single.path);
+    }
   }
 
   void _applyOpenedFiles({
@@ -504,6 +591,7 @@ class _HomePageState extends State<HomePage> {
     required bool clearCache,
     String? openedDirectoryPath,
     int? openedDirectoryCount,
+    String? deferredDirectoryPath,
   }) {
     if (!mounted) {
       return;
@@ -520,8 +608,168 @@ class _HomePageState extends State<HomePage> {
       _openedSourceKind = sourceKind;
       _currentDirectoryPath = openedDirectoryPath;
       _openedDirectoryCount = openedDirectoryCount;
+      _deferredDirectoryPath = deferredDirectoryPath;
       _files = files;
     });
+  }
+
+  void _scheduleSingleFilePreview(String filePath) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? false)) {
+        return;
+      }
+      if (_files.length != 1 || _files.single.path != filePath) {
+        return;
+      }
+      _openPreview(
+        mediaGroups: buildAdaptiveMediaGroups(_files),
+        initialIndex: 0,
+        deferDirectoryLoad: _deferredDirectoryPath != null,
+      );
+    });
+  }
+
+  Future<List<MediaGroup>?> _loadDeferredDirectoryForPreview() async {
+    final directoryPath = _deferredDirectoryPath;
+    if (directoryPath == null) {
+      return buildAdaptiveMediaGroups(_files);
+    }
+
+    final loadedDirectory = await _loadDeferredDirectoryFiles(directoryPath);
+    if (loadedDirectory == null) {
+      return null;
+    }
+    final mediaGroups = buildAdaptiveMediaGroups(loadedDirectory.files);
+    if (mediaGroups.isEmpty) {
+      return null;
+    }
+    _applyOpenedFiles(
+      files: loadedDirectory.files,
+      sourceKind: _OpenedSourceKind.folder,
+      clearCache: false,
+      openedDirectoryPath: loadedDirectory.path,
+      openedDirectoryCount: 1,
+    );
+    return mediaGroups;
+  }
+
+  Future<void> _loadDeferredDirectoryAfterClose() async {
+    if (_deferredDirectoryPath == null) return;
+    final directoryPath = _deferredDirectoryPath!;
+    try {
+      final loadedDirectory = await _loadDeferredDirectoryFiles(directoryPath);
+      if (loadedDirectory == null) {
+        return;
+      }
+      _applyOpenedFiles(
+        files: loadedDirectory.files,
+        sourceKind: _OpenedSourceKind.folder,
+        clearCache: false,
+        openedDirectoryPath: loadedDirectory.path,
+        openedDirectoryCount: 1,
+      );
+    } catch (error) {
+      _showDirectoryLoadError(error);
+    }
+  }
+
+  Future<_LoadedDirectory?> _loadDeferredDirectoryFiles(
+    String directoryPath,
+  ) async {
+    try {
+      return _LoadedDirectory(
+        path: directoryPath,
+        files: _listRawFilesInDirectory(directoryPath),
+      );
+    } on FileSystemException {
+      if (!Platform.isMacOS || !mounted) {
+        rethrow;
+      }
+
+      final l10n = AppLocalizations.of(context);
+      final selectedDirectory = await macOSDirectoryAccessChannel
+          .invokeMethod<String>('selectDirectory', {
+        'title': l10n?.grantDirectoryAccessDialogTitle,
+        'initialDirectory': directoryPath,
+      });
+      if (selectedDirectory == null) {
+        return null;
+      }
+      final resolvedDirectory =
+          path.normalize(path.absolute(selectedDirectory));
+      return _LoadedDirectory(
+        path: resolvedDirectory,
+        files: _listRawFilesInDirectory(resolvedDirectory),
+      );
+    }
+  }
+
+  void _showDirectoryLoadError(Object error) {
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
+    if (l10n == null) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(l10n.loadDirectoryFailedMessage('$error'))),
+      );
+  }
+
+  void _openPreview({
+    required List<MediaGroup> mediaGroups,
+    required int initialIndex,
+    required bool deferDirectoryLoad,
+  }) {
+    if (mediaGroups.isEmpty || !mounted) return;
+
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final totalPadding = 16.0 + (_crossAxisCount - 1) * 8.0;
+    final cellWidth = (screenWidth - totalPadding) / _crossAxisCount;
+    final thumbnailResizeWidth =
+        bucketDecodeWidth((cellWidth * dpr).clamp(100.0, 800.0));
+
+    Navigator.push<void>(
+      context,
+      PageRouteBuilder(
+        transitionDuration: kImagePreviewOpenTransitionDuration,
+        reverseTransitionDuration: kImagePreviewCloseTransitionDuration,
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return ExcludeSemantics(
+            child: ImagePreviewPage(
+              mediaGroups: mediaGroups,
+              initialIndex: initialIndex,
+              thumbnailResizeWidth: thumbnailResizeWidth,
+              imageStore: _imageStore,
+              timestampRepository: _timestampRepository,
+              initialSettings: _settings,
+              onLoadDirectory:
+                  deferDirectoryLoad ? _loadDeferredDirectoryForPreview : null,
+              onRawViewModeChanged: (mode) => _updateSettings(
+                _settings.copyWith(rawViewMode: mode),
+              ),
+              onPreviewFilmstripHeightChanged: (height) => _updateSettings(
+                _settings.copyWith(previewFilmstripHeight: height),
+              ),
+              onClose: () {
+                Navigator.pop(context);
+                unawaited(_loadDeferredDirectoryAfterClose());
+              },
+            ),
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
+            ),
+            child: child,
+          );
+        },
+      ),
+    );
   }
 
   List<MediaFile> _listRawFilesInDirectory(String directoryPath) =>
@@ -610,44 +858,10 @@ class _HomePageState extends State<HomePage> {
           ? (ratio) => _updateMediaAspectRatio(filePath, ratio)
           : null,
       onTap: () {
-        Navigator.push<void>(
-          context,
-          PageRouteBuilder(
-            transitionDuration: kImagePreviewOpenTransitionDuration,
-            reverseTransitionDuration: kImagePreviewCloseTransitionDuration,
-            pageBuilder: (context, animation, secondaryAnimation) {
-              return ExcludeSemantics(
-                child: ImagePreviewPage(
-                  mediaGroups: mediaGroups,
-                  initialIndex: index,
-                  thumbnailResizeWidth: thumbnailResizeWidth,
-                  imageStore: _imageStore,
-                  timestampRepository: _timestampRepository,
-                  initialSettings: _settings,
-                  onRawViewModeChanged: (mode) => _updateSettings(
-                    _settings.copyWith(rawViewMode: mode),
-                  ),
-                  onPreviewFilmstripHeightChanged: (height) => _updateSettings(
-                    _settings.copyWith(previewFilmstripHeight: height),
-                  ),
-                  onClose: () {
-                    Navigator.pop(context);
-                  },
-                ),
-              );
-            },
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-              return FadeTransition(
-                opacity: CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOutCubic,
-                  reverseCurve: Curves.easeInCubic,
-                ),
-                child: child,
-              );
-            },
-          ),
+        _openPreview(
+          mediaGroups: mediaGroups,
+          initialIndex: index,
+          deferDirectoryLoad: false,
         );
       },
     );
@@ -956,6 +1170,16 @@ class _HomePageState extends State<HomePage> {
               onSettingsChanged: _updateSettings,
               onWindowsContextMenuChanged:
                   Platform.isWindows ? _setWindowsContextMenuEnabled : null,
+              onFileAssociationsChanged:
+                  Platform.isMacOS ? _setFileAssociations : null,
+              onOpenDefaultAppsSettings: Platform.isWindows
+                  ? () => fileAssociationChannel
+                      .invokeMethod<void>('openDefaultAppsSettings')
+                  : null,
+              onRefreshFileAssociations:
+                  (Platform.isWindows || Platform.isMacOS)
+                      ? _getFileAssociationSettings
+                      : null,
               onClose: () {
                 Navigator.pop(dialogContext);
               },

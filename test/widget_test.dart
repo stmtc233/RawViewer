@@ -258,6 +258,122 @@ void main() {
       expect(tester.getTopLeft(zoomIn), initialPosition);
     });
 
+    testWidgets('single-file preview can load its directory on demand',
+        (tester) async {
+      final groups = [
+        const MediaGroup(
+          primary: MediaFile(
+            path: '/missing-test-image.jpg',
+            kind: MediaKind.bitmap,
+          ),
+        ),
+      ];
+      var loadCount = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ImagePreviewPage(
+            mediaGroups: groups,
+            initialIndex: 0,
+            thumbnailResizeWidth: 256,
+            imageStore: ImageStore(LruCache<String, ViewerImage>(1024)),
+            timestampRepository: TimestampRepository(),
+            initialSettings: const ViewerSettings(),
+            onLoadDirectory: () async {
+              loadCount++;
+              return [
+                ...groups,
+                const MediaGroup(
+                  primary: MediaFile(
+                    path: '/missing-test-image-2.jpg',
+                    kind: MediaKind.bitmap,
+                  ),
+                ),
+              ];
+            },
+            onClose: () {},
+            onRawViewModeChanged: (_) {},
+            onPreviewFilmstripHeightChanged: (_) {},
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final loadButton = find.byTooltip('Load images from this directory');
+      expect(loadButton, findsOneWidget);
+      expect(find.text('Load directory'), findsOneWidget);
+      expect(find.byKey(const ValueKey('preview-directory-load-panel')),
+          findsOneWidget);
+      expect(find.byType(PreviewFilmstrip), findsNothing);
+      await tester.tap(loadButton);
+      await tester.pumpAndSettle();
+
+      expect(loadCount, 1);
+      expect(find.byTooltip('Load images from this directory'), findsNothing);
+      expect(find.byKey(const ValueKey('preview-directory-load-panel')),
+          findsNothing);
+      expect(find.byType(PreviewFilmstrip), findsOneWidget);
+    });
+
+    testWidgets(
+        'single-file preview keeps directory loading available on cancel',
+        (tester) async {
+      const groups = [
+        MediaGroup(
+          primary: MediaFile(
+            path: '/missing-test-image.jpg',
+            kind: MediaKind.bitmap,
+          ),
+        ),
+      ];
+      var loadCount = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ImagePreviewPage(
+            mediaGroups: groups,
+            initialIndex: 0,
+            thumbnailResizeWidth: 256,
+            imageStore: ImageStore(LruCache<String, ViewerImage>(1024)),
+            timestampRepository: TimestampRepository(),
+            initialSettings: const ViewerSettings(),
+            onLoadDirectory: () async {
+              loadCount++;
+              return null;
+            },
+            onClose: () {},
+            onRawViewModeChanged: (_) {},
+            onPreviewFilmstripHeightChanged: (_) {},
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('Load images from this directory'));
+      await tester.pumpAndSettle();
+
+      expect(loadCount, 1);
+      expect(find.byKey(const ValueKey('preview-directory-load-panel')),
+          findsOneWidget);
+      expect(find.byType(PreviewFilmstrip), findsNothing);
+      expect(find.byTooltip('Load images from this directory'), findsOneWidget);
+      expect(find.text('Load directory'), findsOneWidget);
+    });
+
     test('keeps preview opening and discrete navigation responsive', () {
       expect(
         kImagePreviewOpenTransitionDuration,
@@ -498,7 +614,8 @@ void main() {
           final row = find.byKey(ValueKey(key));
           await tester.scrollUntilVisible(row, 200);
           await tester.pumpAndSettle();
-          final slider = find.descendant(of: row, matching: find.byType(Slider));
+          final slider =
+              find.descendant(of: row, matching: find.byType(Slider));
           expect(tester.widget<Slider>(slider).value, value);
           final sliderRect = tester.getRect(slider);
           final titleRect = tester.getRect(find.text(title));
@@ -625,6 +742,69 @@ void main() {
           greaterThan(kDefaultPreviewOverlayOpacity));
       expect(updatedSettings!.previewToolbarOpacity, toolbarOpacity);
       expect(updatedSettings!.previewOverlayOpacity, toolsOpacity);
+    });
+
+    testWidgets('updates file associations through bulk actions',
+        (tester) async {
+      final appliedExtensions = <Set<String>>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('en')],
+          home: SettingsPage(
+            settings: ViewerSettings(
+              fileAssociations: FileAssociationSettings(
+                supported: true,
+                bindings: {
+                  for (final extension in supportedExtensions) extension: false,
+                },
+              ),
+            ),
+            onClose: () {},
+            onSettingsChanged: (_) {},
+            onFileAssociationsChanged: (extensions) async {
+              appliedExtensions.add(Set<String>.of(extensions));
+              return FileAssociationSettings(
+                supported: true,
+                bindings: {
+                  for (final extension in supportedExtensions)
+                    extension: extensions.contains(extension),
+                },
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final settingsList = find.byType(Scrollable).first;
+      final actions = find.byKey(const ValueKey('file-association-actions'));
+      await tester.scrollUntilVisible(actions, 300, scrollable: settingsList);
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const ValueKey('file-association-enable-all')),
+      );
+      await tester.pumpAndSettle();
+      expect(appliedExtensions.last, unorderedEquals(supportedExtensions));
+
+      await tester.tap(
+        find.byKey(const ValueKey('file-association-enable-raw')),
+      );
+      await tester.pumpAndSettle();
+      expect(appliedExtensions.last, unorderedEquals(rawExtensions));
+
+      await tester.tap(
+        find.byKey(const ValueKey('file-association-disable-all')),
+      );
+      await tester.pumpAndSettle();
+      expect(appliedExtensions.last, isEmpty);
     });
   });
 

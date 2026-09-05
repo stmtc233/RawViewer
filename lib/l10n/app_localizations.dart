@@ -329,6 +329,66 @@ abstract class AppLocalizations {
   /// **'Failed to update Windows context menu: {error}'**
   String windowsContextMenuUpdateFailed(String error);
 
+  /// No description provided for @fileAssociationsSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Default file associations'**
+  String get fileAssociationsSectionTitle;
+
+  /// No description provided for @openDefaultAppsSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open default apps'**
+  String get openDefaultAppsSettings;
+
+  /// No description provided for @refreshFileAssociations.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh file associations'**
+  String get refreshFileAssociations;
+
+  /// No description provided for @fileAssociationDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default: Raw Viewer'**
+  String get fileAssociationDefault;
+
+  /// No description provided for @fileAssociationNotDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Raw Viewer is not the default'**
+  String get fileAssociationNotDefault;
+
+  /// No description provided for @fileAssociationFormatSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open .{extension} files with Raw Viewer'**
+  String fileAssociationFormatSubtitle(Object extension);
+
+  /// No description provided for @fileAssociationsEnableAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable all'**
+  String get fileAssociationsEnableAll;
+
+  /// No description provided for @fileAssociationsEnableRaw.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable RAW only'**
+  String get fileAssociationsEnableRaw;
+
+  /// No description provided for @fileAssociationsDisableAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable all'**
+  String get fileAssociationsDisableAll;
+
+  /// No description provided for @fileAssociationsUpdateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to update file associations: {error}'**
+  String fileAssociationsUpdateFailed(String error);
+
   /// No description provided for @homeEmptyState.
   ///
   /// In en, this message translates to:
@@ -490,6 +550,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Center current thumbnail'**
   String get centerCurrentPreviewThumbnailTooltip;
+
+  /// No description provided for @loadDirectoryTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Load images from this directory'**
+  String get loadDirectoryTooltip;
+
+  /// No description provided for @loadDirectoryButtonLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Load directory'**
+  String get loadDirectoryButtonLabel;
+
+  /// No description provided for @grantDirectoryAccessDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow Raw Viewer to access this folder'**
+  String get grantDirectoryAccessDialogTitle;
+
+  /// No description provided for @loadDirectoryFailedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load the directory: {error}'**
+  String loadDirectoryFailedMessage(String error);
 
   /// No description provided for @largerThumbnailsTooltip.
   ///

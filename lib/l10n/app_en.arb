@@ -60,6 +60,23 @@
       }
     }
   },
+  "fileAssociationsSectionTitle": "Default file associations",
+  "openDefaultAppsSettings": "Open default apps",
+  "refreshFileAssociations": "Refresh file associations",
+  "fileAssociationDefault": "Default: Raw Viewer",
+  "fileAssociationNotDefault": "Raw Viewer is not the default",
+  "fileAssociationFormatSubtitle": "Open .{extension} files with Raw Viewer",
+  "fileAssociationsEnableAll": "Enable all",
+  "fileAssociationsEnableRaw": "Enable RAW only",
+  "fileAssociationsDisableAll": "Disable all",
+  "fileAssociationsUpdateFailed": "Failed to update file associations: {error}",
+  "@fileAssociationsUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "homeEmptyState": "Open or drop RAW and image files/folders",
   "openFolder": "Open folder",
   "openFiles": "Open files",
@@ -94,6 +111,17 @@
   "showPreviewOverviewTooltip": "Show overview map",
   "hidePreviewOverviewTooltip": "Hide overview map",
   "centerCurrentPreviewThumbnailTooltip": "Center current thumbnail",
+  "loadDirectoryTooltip": "Load images from this directory",
+  "loadDirectoryButtonLabel": "Load directory",
+  "grantDirectoryAccessDialogTitle": "Allow Raw Viewer to access this folder",
+  "loadDirectoryFailedMessage": "Could not load the directory: {error}",
+  "@loadDirectoryFailedMessage": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "largerThumbnailsTooltip": "Larger thumbnails",
   "smallerThumbnailsTooltip": "Smaller thumbnails",
   "gridColumnsTooltip": "{count} columns",

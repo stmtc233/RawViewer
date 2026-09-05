@@ -132,6 +132,40 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get fileAssociationsSectionTitle => 'Default file associations';
+
+  @override
+  String get openDefaultAppsSettings => 'Open default apps';
+
+  @override
+  String get refreshFileAssociations => 'Refresh file associations';
+
+  @override
+  String get fileAssociationDefault => 'Default: Raw Viewer';
+
+  @override
+  String get fileAssociationNotDefault => 'Raw Viewer is not the default';
+
+  @override
+  String fileAssociationFormatSubtitle(Object extension) {
+    return 'Open .$extension files with Raw Viewer';
+  }
+
+  @override
+  String get fileAssociationsEnableAll => 'Enable all';
+
+  @override
+  String get fileAssociationsEnableRaw => 'Enable RAW only';
+
+  @override
+  String get fileAssociationsDisableAll => 'Disable all';
+
+  @override
+  String fileAssociationsUpdateFailed(String error) {
+    return 'Failed to update file associations: $error';
+  }
+
+  @override
   String get homeEmptyState => 'Open or drop RAW and image files/folders';
 
   @override
@@ -213,6 +247,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get centerCurrentPreviewThumbnailTooltip => 'Center current thumbnail';
+
+  @override
+  String get loadDirectoryTooltip => 'Load images from this directory';
+
+  @override
+  String get loadDirectoryButtonLabel => 'Load directory';
+
+  @override
+  String get grantDirectoryAccessDialogTitle => 'Allow Raw Viewer to access this folder';
+
+  @override
+  String loadDirectoryFailedMessage(String error) {
+    return 'Could not load the directory: $error';
+  }
 
   @override
   String get largerThumbnailsTooltip => 'Larger thumbnails';

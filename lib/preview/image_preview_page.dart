@@ -46,6 +46,7 @@ class ImagePreviewPage extends StatefulWidget {
   final ViewerSettings initialSettings;
 
   final VoidCallback onClose;
+  final Future<List<MediaGroup>?> Function()? onLoadDirectory;
 
   /// Reports a mode change so it can be persisted. The chosen mode is app-wide,
   /// not per-file: this switch is the only place it is set.
@@ -61,6 +62,7 @@ class ImagePreviewPage extends StatefulWidget {
     required this.timestampRepository,
     required this.initialSettings,
     required this.onClose,
+    this.onLoadDirectory,
     required this.onRawViewModeChanged,
     required this.onPreviewFilmstripHeightChanged,
   });
@@ -70,6 +72,7 @@ class ImagePreviewPage extends StatefulWidget {
 }
 
 class _ImagePreviewPageState extends State<ImagePreviewPage> {
+  late List<MediaGroup> _mediaGroups;
   late PageController _pageController;
   late int _currentIndex;
   late int _targetPage;
@@ -78,6 +81,9 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   late double _previewFilmstripHeight;
   bool _isFilmstripHeightDirty = false;
   bool _showPreviewOverview = true;
+  bool _isDirectoryLoaded = true;
+  bool _isLoadingDirectory = false;
+  String? _forcedPairedJpegPrimaryPath;
   final Map<String, int> _rotationQuarterTurns = <String, int>{};
   final Map<String, GlobalKey<SingleImagePreviewState>> _previewKeys =
       <String, GlobalKey<SingleImagePreviewState>>{};
@@ -113,6 +119,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   @override
   void initState() {
     super.initState();
+    _mediaGroups = List<MediaGroup>.of(widget.mediaGroups);
+    _isDirectoryLoaded = widget.onLoadDirectory == null;
     _currentIndex = widget.initialIndex;
     _targetPage = widget.initialIndex;
     _rawViewMode = widget.initialSettings.rawViewMode;
@@ -121,8 +129,60 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     );
     _pageController = PageController(initialPage: widget.initialIndex);
     _currentTimestampFuture = widget.timestampRepository.load(
-      widget.mediaGroups[_currentIndex].primary.path,
+      _mediaGroups[_currentIndex].primary.path,
     );
+  }
+
+  Future<void> _loadDirectory() async {
+    final onLoadDirectory = widget.onLoadDirectory;
+    if (onLoadDirectory == null || _isDirectoryLoaded || _isLoadingDirectory) {
+      return;
+    }
+
+    final currentPath = _mediaGroups[_currentIndex].primary.path;
+    setState(() {
+      _isLoadingDirectory = true;
+    });
+
+    try {
+      final mediaGroups = await onLoadDirectory();
+      if (!mounted || mediaGroups == null || mediaGroups.isEmpty) return;
+
+      final nextIndex = mediaGroups.indexWhere(
+        (group) =>
+            group.primary.path == currentPath ||
+            group.pairedJpeg?.path == currentPath,
+      );
+      final resolvedIndex = nextIndex < 0 ? 0 : nextIndex;
+      final resolvedGroup = mediaGroups[resolvedIndex];
+      final openedPairedJpeg =
+          resolvedGroup.pairedJpeg?.path == currentPath && resolvedGroup.isRaw;
+      setState(() {
+        _mediaGroups = mediaGroups;
+        _currentIndex = resolvedIndex;
+        _targetPage = resolvedIndex;
+        _currentTimestampFuture = widget.timestampRepository.load(currentPath);
+        _forcedPairedJpegPrimaryPath =
+            openedPairedJpeg ? resolvedGroup.primary.path : null;
+        _isDirectoryLoaded = true;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _pageController.hasClients) {
+          _pageController.jumpToPage(resolvedIndex);
+        }
+      });
+    } catch (error) {
+      if (mounted) {
+        final l10n = AppLocalizations.of(context)!;
+        _showPreviewMessage(l10n.loadDirectoryFailedMessage('$error'));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingDirectory = false;
+        });
+      }
+    }
   }
 
   @override
@@ -140,7 +200,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     setState(() {
       _currentIndex = index;
       _currentTimestampFuture = widget.timestampRepository.load(
-        widget.mediaGroups[_currentIndex].primary.path,
+        _mediaGroups[_currentIndex].primary.path,
       );
       if ((_targetPage - index).abs() <= 1) {
         _targetPage = index;
@@ -214,7 +274,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   }
 
   void _preloadForScrollPosition(double page) {
-    final index = page.round().clamp(0, widget.mediaGroups.length - 1);
+    final index = page.round().clamp(0, _mediaGroups.length - 1);
     if (index == _lastScrollPrefetchIndex) return;
     _lastScrollPrefetchIndex = index;
     _preloadThumbnails(index, isFastScrolling: true);
@@ -270,9 +330,9 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     TaskPriority priority = TaskPriority.low,
     required int targetWidth,
   }) {
-    if (index < 0 || index >= widget.mediaGroups.length) return;
+    if (index < 0 || index >= _mediaGroups.length) return;
 
-    final mediaFile = widget.mediaGroups[index].primary;
+    final mediaFile = _mediaGroups[index].primary;
     final String filePath = mediaFile.path;
 
     if (mediaFile.isRaw) {
@@ -356,11 +416,42 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     );
   }
 
+  Widget _buildDirectoryLoadPanel(AppLocalizations l10n) {
+    final bottomPadding = MediaQuery.paddingOf(context).bottom;
+    return PreviewHoverReveal(
+      restingOpacity: widget.initialSettings.previewFilmstripOpacity,
+      child: Container(
+        key: const ValueKey('preview-directory-load-panel'),
+        padding: EdgeInsets.fromLTRB(12, 10, 12, bottomPadding + 10),
+        decoration: BoxDecoration(
+          color: RawViewerColors.surface.withValues(alpha: 0.96),
+          border: const Border(
+            top: BorderSide(color: RawViewerColors.border),
+          ),
+        ),
+        child: Center(
+          child: Tooltip(
+            message: l10n.loadDirectoryTooltip,
+            child: DesktopCommandButton(
+              icon: _isLoadingDirectory
+                  ? Icons.hourglass_top_outlined
+                  : Icons.folder_open_outlined,
+              label: l10n.loadDirectoryButtonLabel,
+              onPressed: _isLoadingDirectory
+                  ? null
+                  : () => unawaited(_loadDirectory()),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _switchPage(int delta) {
     int newTarget = _targetPage + delta;
     if (newTarget < 0) newTarget = 0;
-    if (newTarget >= widget.mediaGroups.length) {
-      newTarget = widget.mediaGroups.length - 1;
+    if (newTarget >= _mediaGroups.length) {
+      newTarget = _mediaGroups.length - 1;
     }
 
     if (newTarget == _targetPage && newTarget == _currentIndex) {
@@ -423,7 +514,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   }
 
   void _jumpToPageFast(int index) {
-    if (index < 0 || index >= widget.mediaGroups.length) return;
+    if (index < 0 || index >= _mediaGroups.length) return;
     _targetPage = index;
     _preloadThumbnails(index, isFastScrolling: true);
     _scrollStopTimer?.cancel();
@@ -435,7 +526,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   }
 
   void _jumpToPage(int index) {
-    if (index < 0 || index >= widget.mediaGroups.length) {
+    if (index < 0 || index >= _mediaGroups.length) {
       return;
     }
     if (index == _currentIndex && index == _targetPage) {
@@ -491,6 +582,9 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   /// The mode this file can actually display, which may fall back from the
   /// app-wide preference when the preferred source is missing here.
   RawViewMode _effectiveViewModeFor(MediaGroup mediaGroup) {
+    if (_forcedPairedJpegPrimaryPath == mediaGroup.primary.path) {
+      return RawViewMode.pairedJpeg;
+    }
     return resolveRawViewMode(
       preferred: _rawViewMode,
       hasEmbeddedJpeg: _hasEmbeddedJpegFor(mediaGroup),
@@ -519,6 +613,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     // Apply here so the visible page changes on the next frame, and report it
     // so it is persisted for the next file and the next launch.
     setState(() {
+      _forcedPairedJpegPrimaryPath = null;
       _rawViewMode = mode;
     });
     widget.onRawViewModeChanged(mode);
@@ -604,16 +699,19 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final currentMediaGroup = widget.mediaGroups[_currentIndex];
-    final currentFilePath = widget.mediaGroups[_currentIndex].primary.path;
+    final currentMediaGroup = _mediaGroups[_currentIndex];
+    final currentFilePath = _mediaGroups[_currentIndex].primary.path;
     final currentPreviewKey = _previewKeyFor(currentFilePath);
     final currentViewMode = _effectiveViewModeFor(currentMediaGroup);
     final bottomSafePadding = MediaQuery.paddingOf(context).bottom;
     final previewFilmstripHeight = _clampedPreviewFilmstripHeight(context);
     final previewFilmstripTotalHeight =
         previewFilmstripHeight + bottomSafePadding;
+    final showDirectoryLoadPanel =
+        widget.onLoadDirectory != null && !_isDirectoryLoaded;
+    final showNavigationPanel = _showPreviewFilmstrip || showDirectoryLoadPanel;
     final previewBottomInset =
-        _showPreviewFilmstrip ? previewFilmstripTotalHeight : 0.0;
+        showNavigationPanel ? previewFilmstripTotalHeight : 0.0;
     final controlsBottomInset = bottomSafePadding + previewBottomInset + 12;
     final pageDragDevices =
         Set<PointerDeviceKind>.from(ScrollConfiguration.of(context).dragDevices)
@@ -647,10 +745,10 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                 dragStartBehavior: DragStartBehavior.down,
                 allowImplicitScrolling: true,
                 padEnds: true,
-                itemCount: widget.mediaGroups.length,
+                itemCount: _mediaGroups.length,
                 onPageChanged: _onPageChanged,
                 itemBuilder: (context, index) {
-                  final mediaGroup = widget.mediaGroups[index];
+                  final mediaGroup = _mediaGroups[index];
                   final filePath = mediaGroup.primary.path;
                   // Fit between the bars; the full-page viewport clips zoomed
                   // images only at the window edges, beyond this padding.
@@ -669,7 +767,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                       // Safe to forward the snapshot: the child is rebuilt from
                       // this build method, so it is never staler than this page.
                       settings: widget.initialSettings,
-                      rotationQuarterTurns: _rotationQuarterTurns[filePath] ?? 0,
+                      rotationQuarterTurns:
+                          _rotationQuarterTurns[filePath] ?? 0,
                       viewMode: _effectiveViewModeFor(mediaGroup),
                       onEmbeddedJpegAvailability: (hasEmbeddedJpeg) =>
                           _recordEmbeddedJpegAvailability(
@@ -753,44 +852,48 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
               ),
             ),
           ),
-          if (_showPreviewFilmstrip)
+          if (showNavigationPanel)
             Positioned(
               left: 0,
               right: 0,
               bottom: 0,
               height: previewFilmstripTotalHeight +
-                  previewFilmstripResizeHandleAboveBar,
-              child: Stack(
-                children: [
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: PreviewHoverReveal(
-                      restingOpacity:
-                          widget.initialSettings.previewFilmstripOpacity,
-                      child: PreviewFilmstrip(
-                        mediaGroups: widget.mediaGroups,
-                        currentIndex: _currentIndex,
-                        imageStore: widget.imageStore,
-                        height: previewFilmstripHeight,
-                        decodeWidth: _previewFilmstripDecodeWidth,
-                        centerCurrentThumbnailTooltip:
-                            l10n.centerCurrentPreviewThumbnailTooltip,
-                        onIndexSelected: _jumpToPage,
-                        onFastIndexSelected: _jumpToPageFast,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: previewFilmstripResizeHandleHeight,
-                    child: _buildPreviewFilmstripResizeHandle(),
-                  ),
-                ],
-              ),
+                  (_isDirectoryLoaded
+                      ? previewFilmstripResizeHandleAboveBar
+                      : 0),
+              child: _isDirectoryLoaded
+                  ? Stack(
+                      children: [
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: PreviewHoverReveal(
+                            restingOpacity:
+                                widget.initialSettings.previewFilmstripOpacity,
+                            child: PreviewFilmstrip(
+                              mediaGroups: _mediaGroups,
+                              currentIndex: _currentIndex,
+                              imageStore: widget.imageStore,
+                              height: previewFilmstripHeight,
+                              decodeWidth: _previewFilmstripDecodeWidth,
+                              centerCurrentThumbnailTooltip:
+                                  l10n.centerCurrentPreviewThumbnailTooltip,
+                              onIndexSelected: _jumpToPage,
+                              onFastIndexSelected: _jumpToPageFast,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: previewFilmstripResizeHandleHeight,
+                          child: _buildPreviewFilmstripResizeHandle(),
+                        ),
+                      ],
+                    )
+                  : _buildDirectoryLoadPanel(l10n),
             ),
           Positioned(
             top: 0,

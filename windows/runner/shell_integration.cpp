@@ -3,9 +3,11 @@
 #include <shlobj.h>
 #include <windows.h>
 #include <shellapi.h>
+#include <shlwapi.h>
 
 #include <array>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -15,6 +17,11 @@ constexpr wchar_t kDirectoryVerbKey[] =
     L"Software\\Classes\\Directory\\shell\\RawViewOpen";
 constexpr wchar_t kDirectoryBackgroundVerbKey[] =
     L"Software\\Classes\\Directory\\Background\\shell\\RawViewOpen";
+
+constexpr std::array<const wchar_t*, 13> kFileAssociationExtensions = {{
+    L"arw", L"cr2", L"cr3", L"dng", L"nef", L"orf", L"raf",
+    L"rw2", L"srw", L"jpg", L"jpeg", L"png", L"webp",
+}};
 
 struct ContextMenuState {
   bool supported;
@@ -62,6 +69,27 @@ std::wstring BuildCommand(const std::wstring& executable_path,
     return Quote(executable_path) + L" \"%V\"";
   }
   return Quote(executable_path) + L" \"%1\"";
+}
+
+std::wstring FileAssociationProgId(const wchar_t* extension) {
+  return std::wstring(L"RawViewer.") + extension;
+}
+
+std::wstring FileAssociationProgIdKey(const wchar_t* extension) {
+  return std::wstring(L"Software\\Classes\\") +
+         FileAssociationProgId(extension);
+}
+
+std::wstring FileAssociationCommand(const std::wstring& executable_path) {
+  return Quote(executable_path) + L" \"%1\"";
+}
+
+std::string NarrowExtension(const wchar_t* extension) {
+  std::string result;
+  for (const auto* character = extension; *character != L'\0'; ++character) {
+    result.push_back(static_cast<char>(*character));
+  }
+  return result;
 }
 
 bool SetStringValue(HKEY root, const std::wstring& sub_key,
@@ -177,6 +205,49 @@ void NotifyShellChanged() {
   ::SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
 }
 
+bool IsFileAssociationInstalled(const wchar_t* extension,
+                                const std::wstring& executable_path) {
+  // Ask the Shell for the effective association, including UserChoice.
+  const auto association = std::wstring(L".") + extension;
+  DWORD length = 0;
+  if (::AssocQueryStringW(ASSOCF_NONE, ASSOCSTR_EXECUTABLE,
+                          association.c_str(), nullptr, nullptr, &length) !=
+          S_FALSE ||
+      length == 0) {
+    return false;
+  }
+  std::wstring executable(length, L'\0');
+  if (::AssocQueryStringW(ASSOCF_NONE, ASSOCSTR_EXECUTABLE,
+                          association.c_str(), nullptr, executable.data(),
+                          &length) != S_OK) {
+    return false;
+  }
+  return _wcsicmp(executable.c_str(), executable_path.c_str()) == 0;
+}
+
+bool WriteFileAssociation(const wchar_t* extension,
+                          const std::wstring& executable_path) {
+  const auto prog_id = FileAssociationProgId(extension);
+  const auto prog_id_key = FileAssociationProgIdKey(extension);
+  if (!SetStringValue(HKEY_CURRENT_USER, prog_id_key, nullptr,
+                      L"Raw Viewer image")) {
+    return false;
+  }
+  if (!SetStringValue(HKEY_CURRENT_USER, prog_id_key + L"\\DefaultIcon",
+                      nullptr, Quote(executable_path) + L",0")) {
+    return false;
+  }
+  if (!SetStringValue(HKEY_CURRENT_USER,
+                      prog_id_key + L"\\shell\\open\\command", nullptr,
+                      FileAssociationCommand(executable_path))) {
+    return false;
+  }
+  const auto extension_name = std::wstring(L".") + extension;
+  return SetStringValue(
+      HKEY_CURRENT_USER, L"Software\\RawViewer\\Capabilities\\FileAssociations",
+      extension_name.c_str(), prog_id);
+}
+
 ContextMenuState QueryContextMenuState() {
   const std::wstring executable_path = GetExecutablePath();
   if (executable_path.empty()) {
@@ -239,5 +310,69 @@ bool SetWindowsContextMenuEnabled(bool enabled, const std::wstring& menu_text,
   }
 
   NotifyShellChanged();
+  return true;
+}
+
+flutter::EncodableMap GetWindowsFileAssociationState() {
+  const std::wstring executable_path = GetExecutablePath();
+  flutter::EncodableMap bindings;
+  for (const auto* extension : kFileAssociationExtensions) {
+    bindings.emplace(
+        flutter::EncodableValue("." + NarrowExtension(extension)),
+        flutter::EncodableValue(
+            !executable_path.empty() &&
+            IsFileAssociationInstalled(extension, executable_path)));
+  }
+  return flutter::EncodableMap{
+      {flutter::EncodableValue("supported"), flutter::EncodableValue(true)},
+      {flutter::EncodableValue("requiresSystemSettings"),
+       flutter::EncodableValue(true)},
+      {flutter::EncodableValue("bindings"), flutter::EncodableValue(bindings)},
+  };
+}
+
+bool OpenWindowsDefaultAppsSettings(std::string* error_message) {
+  const std::wstring executable_path = GetExecutablePath();
+  if (executable_path.empty()) {
+    if (error_message != nullptr) {
+      *error_message = "Unable to resolve the current executable path.";
+    }
+    return false;
+  }
+
+  for (const auto* extension : kFileAssociationExtensions) {
+    if (!WriteFileAssociation(extension, executable_path)) {
+      if (error_message != nullptr) {
+        *error_message =
+            "Failed to register supported Windows file types.";
+      }
+      return false;
+    }
+  }
+
+  const std::wstring capabilities = L"Software\\RawViewer\\Capabilities";
+  if (!SetStringValue(HKEY_CURRENT_USER, capabilities, L"ApplicationName",
+                      L"Raw Viewer") ||
+      !SetStringValue(HKEY_CURRENT_USER, capabilities, L"ApplicationDescription",
+                      L"RAW and standard image viewer") ||
+      !SetStringValue(HKEY_CURRENT_USER, L"Software\\RegisteredApplications",
+                      L"RawViewer", capabilities)) {
+    if (error_message != nullptr) {
+      *error_message = "Failed to register Raw Viewer in Default Apps.";
+    }
+    return false;
+  }
+  NotifyShellChanged();
+  // Windows owns default selection. Registration must not overwrite defaults
+  // or delete ProgIDs that a UserChoice entry may still reference.
+  const auto launched = reinterpret_cast<INT_PTR>(::ShellExecuteW(
+      nullptr, L"open", L"ms-settings:defaultapps?registeredAppUser=RawViewer",
+      nullptr, nullptr, SW_SHOWNORMAL));
+  if (launched <= 32) {
+    if (error_message != nullptr) {
+      *error_message = "Unable to open Windows Default Apps settings.";
+    }
+    return false;
+  }
   return true;
 }

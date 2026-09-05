@@ -245,7 +245,7 @@ class DesktopIconButton extends StatelessWidget {
 class DesktopCommandButton extends StatelessWidget {
   final IconData icon;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final bool emphasized;
 
   const DesktopCommandButton({
@@ -258,11 +258,17 @@ class DesktopCommandButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground =
-        emphasized ? RawViewerColors.text : RawViewerColors.mutedText;
-    final background = emphasized
-        ? RawViewerColors.accentMuted
-        : RawViewerColors.raisedSurface;
+    final enabled = onPressed != null;
+    final foreground = !enabled
+        ? RawViewerColors.mutedBorder
+        : emphasized
+            ? RawViewerColors.text
+            : RawViewerColors.mutedText;
+    final background = !enabled
+        ? RawViewerColors.surface
+        : emphasized
+            ? RawViewerColors.accentMuted
+            : RawViewerColors.raisedSurface;
 
     return Material(
       color: background,
@@ -278,8 +284,11 @@ class DesktopCommandButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(5),
             border: Border.all(
-              color:
-                  emphasized ? const Color(0xFF37776D) : RawViewerColors.border,
+              color: !enabled
+                  ? RawViewerColors.mutedBorder
+                  : emphasized
+                      ? const Color(0xFF37776D)
+                      : RawViewerColors.border,
             ),
           ),
           child: Row(

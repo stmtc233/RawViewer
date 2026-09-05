@@ -8,5 +8,7 @@
 flutter::EncodableMap GetWindowsContextMenuState();
 bool SetWindowsContextMenuEnabled(bool enabled, const std::wstring& menu_text,
                                   std::string* error_message);
+flutter::EncodableMap GetWindowsFileAssociationState();
+bool OpenWindowsDefaultAppsSettings(std::string* error_message);
 
 #endif  // RUNNER_SHELL_INTEGRATION_H_

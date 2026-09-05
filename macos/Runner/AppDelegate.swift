@@ -1,6 +1,29 @@
 import Cocoa
 import FlutterMacOS
 
+final class ScopedFileAccess {
+  static let shared = ScopedFileAccess()
+
+  private var accessedPaths = Set<String>()
+  private var accessedURLs: [URL] = []
+
+  private init() {}
+
+  func retainAccess(to url: URL) {
+    let normalizedURL = url.standardizedFileURL
+    let path = normalizedURL.path
+    guard accessedPaths.insert(path).inserted else {
+      return
+    }
+
+    guard normalizedURL.startAccessingSecurityScopedResource() else {
+      accessedPaths.remove(path)
+      return
+    }
+    accessedURLs.append(normalizedURL)
+  }
+}
+
 final class OpenPathChannel {
   static let shared = OpenPathChannel()
 
@@ -73,6 +96,131 @@ final class OpenPathChannel {
   }
 }
 
+final class DirectoryAccessChannel {
+  static let shared = DirectoryAccessChannel()
+
+  private let channelName = "rawviewer/macos_directory_access"
+  private weak var flutterViewController: FlutterViewController?
+
+  private init() {}
+
+  func attach(to flutterViewController: FlutterViewController) {
+    self.flutterViewController = flutterViewController
+    let channel = FlutterMethodChannel(
+      name: channelName,
+      binaryMessenger: flutterViewController.engine.binaryMessenger
+    )
+
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      guard call.method == "selectDirectory" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+
+      self.selectDirectory(arguments: call.arguments, result: result)
+    }
+  }
+
+  private func selectDirectory(arguments: Any?, result: @escaping FlutterResult) {
+    guard let window = flutterViewController?.view.window else {
+      result(FlutterError(
+        code: "window_unavailable",
+        message: "Unable to present the directory access dialog.",
+        details: nil
+      ))
+      return
+    }
+
+    let values = arguments as? [String: Any] ?? [:]
+    let dialog = NSOpenPanel()
+    dialog.canChooseFiles = false
+    dialog.canChooseDirectories = true
+    dialog.allowsMultipleSelection = false
+    dialog.showsHiddenFiles = false
+
+    if let initialDirectory = values["initialDirectory"] as? String,
+       !initialDirectory.isEmpty {
+      dialog.directoryURL = URL(fileURLWithPath: initialDirectory)
+    }
+    if let title = values["title"] as? String, !title.isEmpty {
+      dialog.title = title
+      dialog.message = title
+      dialog.prompt = title
+    }
+
+    dialog.beginSheetModal(for: window) { response in
+      guard response == .OK, let url = dialog.url else {
+        result(nil)
+        return
+      }
+
+      let selectedURL = url.standardizedFileURL
+      ScopedFileAccess.shared.retainAccess(to: selectedURL)
+      result(selectedURL.path)
+    }
+  }
+}
+
+final class FileAssociationChannel {
+  static let shared = FileAssociationChannel()
+
+  private let channelName = "rawviewer/file_associations"
+  private let associations = FileAssociations(
+    bundleIdentifier: Bundle.main.bundleIdentifier ?? ""
+  )
+  private var channel: FlutterMethodChannel?
+
+  private init() {}
+
+  func attach(to flutterViewController: FlutterViewController) {
+    let channel = FlutterMethodChannel(
+      name: channelName,
+      binaryMessenger: flutterViewController.engine.binaryMessenger
+    )
+    self.channel = channel
+
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+
+      switch call.method {
+      case "getFileAssociationState":
+        result(self.associations.state())
+      case "setFileAssociations":
+        guard let arguments = call.arguments as? [String: Any],
+              let extensions = arguments["extensions"] as? [String]
+        else {
+          result(FlutterError(
+            code: "invalid_arguments",
+            message: "Expected an extensions list.",
+            details: nil
+          ))
+          return
+        }
+
+        if let error = self.associations.setAssociations(extensions: Set(extensions)) {
+          result(FlutterError(
+            code: "file_association_error",
+            message: error,
+            details: nil
+          ))
+        } else {
+          result(self.associations.state())
+        }
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
+}
+
 @main
 class AppDelegate: FlutterAppDelegate {
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -84,11 +232,15 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   override func application(_ sender: NSApplication, openFile filename: String) -> Bool {
+    ScopedFileAccess.shared.retainAccess(to: URL(fileURLWithPath: filename))
     OpenPathChannel.shared.handle(paths: [filename])
     return true
   }
 
   override func application(_ sender: NSApplication, openFiles filenames: [String]) {
+    for filename in filenames {
+      ScopedFileAccess.shared.retainAccess(to: URL(fileURLWithPath: filename))
+    }
     OpenPathChannel.shared.handle(paths: filenames)
     sender.reply(toOpenOrPrint: .success)
   }
