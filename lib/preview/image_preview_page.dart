@@ -74,6 +74,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   bool _showPreviewFilmstrip = true;
   bool _showPreviewOverview = true;
   final Map<String, int> _rotationQuarterTurns = <String, int>{};
+  final Map<String, GlobalKey<SingleImagePreviewState>> _previewKeys =
+      <String, GlobalKey<SingleImagePreviewState>>{};
 
   /// The app-wide view mode, held here as well as in the settings.
   ///
@@ -122,6 +124,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     _trackpadVelocityTracker = null;
     _isFastScrolling.dispose();
     _pageController.dispose();
+    _previewKeys.clear();
     super.dispose();
   }
 
@@ -412,6 +415,13 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     });
   }
 
+  GlobalKey<SingleImagePreviewState> _previewKeyFor(String filePath) {
+    return _previewKeys.putIfAbsent(
+      filePath,
+      () => GlobalKey<SingleImagePreviewState>(),
+    );
+  }
+
   /// Whether [mediaGroup] is known *not* to have an embedded JPEG.
   ///
   /// Unprobed files count as having one: the preview asks for that layer on
@@ -537,7 +547,17 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     final l10n = AppLocalizations.of(context)!;
     final currentMediaGroup = widget.mediaGroups[_currentIndex];
     final currentFilePath = widget.mediaGroups[_currentIndex].primary.path;
+    final currentPreviewKey = _previewKeyFor(currentFilePath);
     final currentViewMode = _effectiveViewModeFor(currentMediaGroup);
+    final bottomSafePadding = MediaQuery.paddingOf(context).bottom;
+    // Preserve the controls' former position inside the page viewport. The
+    // viewport already reserves one bottom inset for the filmstrip, while the
+    // controls reserve their own inset as well.
+    final controlsBottomInset = bottomSafePadding +
+        (_showPreviewFilmstrip
+            ? kPreviewFilmstripHeight + bottomSafePadding
+            : 0) +
+        12;
     final previewTop =
         MediaQuery.paddingOf(context).top + kImagePreviewToolbarHeight;
     final pageDragDevices =
@@ -581,7 +601,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                   final mediaGroup = widget.mediaGroups[index];
                   final filePath = mediaGroup.primary.path;
                   return SingleImagePreview(
-                    key: ValueKey(filePath),
+                    key: _previewKeyFor(filePath),
                     mediaGroup: mediaGroup,
                     thumbnailResizeWidth: widget.thumbnailResizeWidth,
                     previewThumbnailResizeWidth: _previewFilmstripDecodeWidth,
@@ -594,8 +614,6 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                     onEmbeddedJpegAvailability: (hasEmbeddedJpeg) =>
                         _recordEmbeddedJpegAvailability(
                             filePath, hasEmbeddedJpeg),
-                    onRotationRequested: (quarterTurns) =>
-                        _rotateImage(filePath, quarterTurns),
                     onResetRotationRequested: () =>
                         _resetImageRotation(filePath),
                     onSwitchRequest: _switchPage,
@@ -616,6 +634,61 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                     },
                   );
                 },
+              ),
+            ),
+          ),
+          Positioned(
+            right: 12,
+            bottom: controlsBottomInset,
+            child: PreviewHoverReveal(
+              restingOpacity: widget.initialSettings.previewOverlayOpacity,
+              hitTestBehavior: HitTestBehavior.opaque,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: RawViewerColors.surface.withValues(alpha: 0.84),
+                  border: Border.all(color: RawViewerColors.border),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(3),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DesktopIconButton(
+                        icon: Icons.rotate_left,
+                        tooltip: l10n.rotateImageCounterclockwiseTooltip,
+                        onPressed: () => _rotateImage(currentFilePath, -1),
+                      ),
+                      const SizedBox(width: 2),
+                      DesktopIconButton(
+                        icon: Icons.rotate_right,
+                        tooltip: l10n.rotateImageTooltip,
+                        onPressed: () => _rotateImage(currentFilePath, 1),
+                      ),
+                      const SizedBox(width: 5),
+                      DesktopIconButton(
+                        icon: Icons.zoom_in,
+                        tooltip: l10n.zoomInImageTooltip,
+                        onPressed: () =>
+                            currentPreviewKey.currentState?.zoomIn(),
+                      ),
+                      const SizedBox(width: 2),
+                      DesktopIconButton(
+                        icon: Icons.zoom_out,
+                        tooltip: l10n.zoomOutImageTooltip,
+                        onPressed: () =>
+                            currentPreviewKey.currentState?.zoomOut(),
+                      ),
+                      const SizedBox(width: 2),
+                      DesktopIconButton(
+                        icon: Icons.filter_center_focus,
+                        tooltip: l10n.resetImageViewTooltip,
+                        onPressed: () =>
+                            currentPreviewKey.currentState?.resetView(),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

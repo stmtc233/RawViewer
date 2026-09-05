@@ -11,8 +11,10 @@ import 'package:rawviewer/l10n/app_localizations.dart';
 import 'package:rawviewer/app.dart';
 import 'package:rawviewer/core/decode_target.dart';
 import 'package:rawviewer/core/media_types.dart';
+import 'package:rawviewer/core/media_timestamps.dart';
 import 'package:rawviewer/core/raw_view_mode.dart';
 import 'package:rawviewer/preview/preview_geometry.dart';
+import 'package:rawviewer/preview/image_preview_page.dart';
 import 'package:rawviewer/preview/single_image_preview.dart';
 import 'package:rawviewer/ui/fast_page_scroll_physics.dart';
 import 'package:rawviewer/media_filter.dart';
@@ -148,7 +150,6 @@ void main() {
               settings: const ViewerSettings(),
               rotationQuarterTurns: 1,
               viewMode: RawViewMode.decodedRaw,
-              onRotationRequested: (_) {},
               onResetRotationRequested: () {},
               onSwitchRequest: (_) {},
               onTrackpadPanStart: (_) {},
@@ -187,12 +188,22 @@ void main() {
       expect(translation.y, closeTo(0, 0.001));
     });
 
-    testWidgets(
-        'display controls respond immediately and do not reset on a double tap',
+    testWidgets('display controls stay fixed while switching images',
         (tester) async {
-      final scrolling = ValueNotifier<bool>(false);
-      addTearDown(scrolling.dispose);
-      final imageStore = ImageStore(LruCache<String, ViewerImage>(1024));
+      final groups = [
+        const MediaGroup(
+          primary: MediaFile(
+            path: '/missing-test-image-1.jpg',
+            kind: MediaKind.bitmap,
+          ),
+        ),
+        const MediaGroup(
+          primary: MediaFile(
+            path: '/missing-test-image-2.jpg',
+            kind: MediaKind.bitmap,
+          ),
+        ),
+      ];
 
       await tester.pumpWidget(
         MaterialApp(
@@ -203,46 +214,28 @@ void main() {
             GlobalCupertinoLocalizations.delegate,
           ],
           supportedLocales: AppLocalizations.supportedLocales,
-          home: SizedBox(
-            width: 400,
-            height: 300,
-            child: SingleImagePreview(
-              mediaGroup: const MediaGroup(
-                primary: MediaFile(
-                  path: '/missing-test-image.jpg',
-                  kind: MediaKind.bitmap,
-                ),
-              ),
-              thumbnailResizeWidth: 256,
-              previewThumbnailResizeWidth: 512,
-              imageStore: imageStore,
-              settings: const ViewerSettings(),
-              rotationQuarterTurns: 0,
-              viewMode: RawViewMode.decodedRaw,
-              onRotationRequested: (_) {},
-              onResetRotationRequested: () {},
-              onSwitchRequest: (_) {},
-              onTrackpadPanStart: (_) {},
-              onTrackpadPanUpdate: (_) {},
-              onTrackpadPanEnd: (_) {},
-              onTrackpadPanCancel: () {},
-              isActive: true,
-              showPreviewOverview: false,
-              overviewBottomInset: 0,
-              isFastScrolling: scrolling,
-            ),
+          home: ImagePreviewPage(
+            mediaGroups: groups,
+            initialIndex: 0,
+            thumbnailResizeWidth: 256,
+            imageStore: ImageStore(LruCache<String, ViewerImage>(1024)),
+            timestampRepository: TimestampRepository(),
+            initialSettings: const ViewerSettings(),
+            onClose: () {},
+            onRawViewModeChanged: (_) {},
           ),
         ),
       );
       await tester.pump();
 
+      final zoomIn = find.byIcon(Icons.zoom_in);
+      final initialPosition = tester.getTopLeft(zoomIn);
       final controller = tester
-          .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+          .widget<InteractiveViewer>(find.byType(InteractiveViewer).first)
           .transformationController!;
       controller.value = Matrix4.identity()..scaleByDouble(2, 2, 2, 1);
       await tester.pump();
 
-      final zoomIn = find.byIcon(Icons.zoom_in);
       await tester.tap(zoomIn);
       await tester.pump(const Duration(milliseconds: 1));
       expect(controller.value.getMaxScaleOnAxis(), closeTo(2.5, 0.001));
@@ -250,10 +243,16 @@ void main() {
       await tester.tap(zoomIn);
       await tester.pump(const Duration(milliseconds: 1));
       expect(controller.value.getMaxScaleOnAxis(), closeTo(3.125, 0.001));
-
-      // The image's double-tap recognizer must not receive these control taps.
       await tester.pump(const Duration(milliseconds: 400));
       expect(controller.value.getMaxScaleOnAxis(), closeTo(3.125, 0.001));
+
+      await tester.drag(find.byType(PageView), const Offset(-500, 0));
+      await tester.pump(const Duration(milliseconds: 10));
+      expect(find.byIcon(Icons.zoom_in), findsOneWidget);
+      expect(tester.getTopLeft(zoomIn), initialPosition);
+      await tester.pumpAndSettle();
+
+      expect(tester.getTopLeft(zoomIn), initialPosition);
     });
 
     test('keeps preview opening and discrete navigation responsive', () {
@@ -595,8 +594,8 @@ void main() {
       // fallback image answer a request for the real embedded JPEG.
       expect(
         ImageStore.cacheKey(path, RawLayer.thumbnail, targetWidth: 512),
-        isNot(ImageStore.cacheKey(path, RawLayer.embeddedJpeg,
-            targetWidth: 512)),
+        isNot(
+            ImageStore.cacheKey(path, RawLayer.embeddedJpeg, targetWidth: 512)),
       );
     });
 

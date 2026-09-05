@@ -8,12 +8,9 @@ import '../core/decode_target.dart';
 import '../core/pointer_modifiers.dart';
 import '../core/raw_view_mode.dart';
 import '../image_store.dart';
-import '../l10n/app_localizations.dart';
 import '../media_group.dart';
 import '../settings_page.dart';
 import '../native_lib.dart';
-import '../ui/app_theme.dart';
-import '../ui/desktop_controls.dart';
 import '../ui/raw_image_widget.dart';
 import '../viewer_image.dart';
 import '../worker_service.dart';
@@ -29,7 +26,6 @@ class SingleImagePreview extends StatefulWidget {
   final ViewerSettings settings;
   final int rotationQuarterTurns;
   final RawViewMode viewMode;
-  final ValueChanged<int> onRotationRequested;
   final VoidCallback onResetRotationRequested;
   final ValueChanged<int> onSwitchRequest;
   final ValueChanged<PointerPanZoomStartEvent> onTrackpadPanStart;
@@ -55,7 +51,6 @@ class SingleImagePreview extends StatefulWidget {
     required this.settings,
     required this.rotationQuarterTurns,
     required this.viewMode,
-    required this.onRotationRequested,
     required this.onResetRotationRequested,
     required this.onSwitchRequest,
     required this.onTrackpadPanStart,
@@ -75,10 +70,10 @@ class SingleImagePreview extends StatefulWidget {
   bool get hasPairedJpeg => mediaGroup.hasPairedJpeg;
 
   @override
-  State<SingleImagePreview> createState() => _SingleImagePreviewState();
+  State<SingleImagePreview> createState() => SingleImagePreviewState();
 }
 
-class _SingleImagePreviewState extends State<SingleImagePreview> {
+class SingleImagePreviewState extends State<SingleImagePreview> {
   /// A cached thumbnail-layer image, peeked synchronously so the first frame of
   /// a page switch is never blank. Soft, and only ever a stand-in.
   ViewerImage? _thumbnailImage;
@@ -443,11 +438,20 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
     _applyScale(scaleChange, size.center(Offset.zero));
   }
 
+  /// Applies the same step as the fixed preview-page zoom-in control.
+  void zoomIn() => _zoomBy(previewControlZoomStep);
+
+  /// Applies the same step as the fixed preview-page zoom-out control.
+  void zoomOut() => _zoomBy(1 / previewControlZoomStep);
+
   void _resetView() {
     _clearFitScaleLock();
     _transformationController.value = Matrix4.identity();
     widget.onResetRotationRequested();
   }
+
+  /// Resets this page's transform and rotation.
+  void resetView() => _resetView();
 
   /// Resets zoom and pan without changing the user's rotation choice.
   ///
@@ -595,8 +599,6 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final viewportSize = constraints.biggest;
@@ -659,60 +661,6 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
                   ),
                 ),
               ),
-            Positioned(
-              right: 12,
-              bottom: MediaQuery.paddingOf(context).bottom + 12,
-              child: PreviewHoverReveal(
-                restingOpacity: widget.settings.previewOverlayOpacity,
-                // Keep button taps out of the image's double-tap recognizer;
-                // otherwise InkWell waits for the double-tap timeout.
-                hitTestBehavior: HitTestBehavior.opaque,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: RawViewerColors.surface.withValues(alpha: 0.84),
-                    border: Border.all(color: RawViewerColors.border),
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(3),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        DesktopIconButton(
-                          icon: Icons.rotate_left,
-                          tooltip: l10n.rotateImageCounterclockwiseTooltip,
-                          onPressed: () => widget.onRotationRequested(-1),
-                        ),
-                        const SizedBox(width: 2),
-                        DesktopIconButton(
-                          icon: Icons.rotate_right,
-                          tooltip: l10n.rotateImageTooltip,
-                          onPressed: () => widget.onRotationRequested(1),
-                        ),
-                        const SizedBox(width: 5),
-                        DesktopIconButton(
-                          icon: Icons.zoom_in,
-                          tooltip: l10n.zoomInImageTooltip,
-                          onPressed: () => _zoomBy(previewControlZoomStep),
-                        ),
-                        const SizedBox(width: 2),
-                        DesktopIconButton(
-                          icon: Icons.zoom_out,
-                          tooltip: l10n.zoomOutImageTooltip,
-                          onPressed: () => _zoomBy(1 / previewControlZoomStep),
-                        ),
-                        const SizedBox(width: 2),
-                        DesktopIconButton(
-                          icon: Icons.filter_center_focus,
-                          tooltip: l10n.resetImageViewTooltip,
-                          onPressed: _resetView,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
           ],
         );
       },
