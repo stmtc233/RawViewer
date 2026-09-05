@@ -18,6 +18,7 @@ class PreviewFilmstrip extends StatefulWidget {
   final List<MediaGroup> mediaGroups;
   final int currentIndex;
   final ImageStore imageStore;
+  final double height;
   final int decodeWidth;
   final String centerCurrentThumbnailTooltip;
   final ValueChanged<int> onIndexSelected;
@@ -28,6 +29,7 @@ class PreviewFilmstrip extends StatefulWidget {
     required this.mediaGroups,
     required this.currentIndex,
     required this.imageStore,
+    required this.height,
     required this.decodeWidth,
     required this.centerCurrentThumbnailTooltip,
     required this.onIndexSelected,
@@ -46,6 +48,9 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
   bool _showTrailingCenterArrow = false;
   bool _centerRequestScheduled = false;
 
+  double get _itemWidth => previewFilmstripThumbnailSize(widget.height).width;
+  double get _itemExtent => _itemWidth + 8;
+
   @override
   void initState() {
     super.initState();
@@ -57,7 +62,8 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
   @override
   void didUpdateWidget(PreviewFilmstrip oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.currentIndex != widget.currentIndex) {
+    if (oldWidget.currentIndex != widget.currentIndex ||
+        oldWidget.height != widget.height) {
       _scheduleCenterCurrent(animated: true);
     }
   }
@@ -91,13 +97,11 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
 
     final position = _scrollController.position;
     final maxScrollExtent = position.maxScrollExtent;
-    final itemStart =
-        _sidePadding + widget.currentIndex * kPreviewFilmstripItemExtent;
-    final targetOffset = (itemStart +
-            kPreviewFilmstripItemWidth / 2 -
-            position.viewportDimension / 2)
-        .clamp(0.0, maxScrollExtent)
-        .toDouble();
+    final itemStart = _sidePadding + widget.currentIndex * _itemExtent;
+    final targetOffset =
+        (itemStart + _itemWidth / 2 - position.viewportDimension / 2)
+            .clamp(0.0, maxScrollExtent)
+            .toDouble();
     if ((targetOffset - _scrollController.offset).abs() < 0.5) {
       _updateCenterArrowVisibility();
       return;
@@ -120,9 +124,8 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
     }
 
     final position = _scrollController.position;
-    final itemStart =
-        _sidePadding + widget.currentIndex * kPreviewFilmstripItemExtent;
-    final itemEnd = itemStart + kPreviewFilmstripItemWidth;
+    final itemStart = _sidePadding + widget.currentIndex * _itemExtent;
+    final itemEnd = itemStart + _itemWidth;
     final viewportStart = position.pixels;
     final viewportEnd = viewportStart + position.viewportDimension;
     final showLeading =
@@ -153,8 +156,7 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
     }
     final position = _scrollController.position;
     final centerX = _scrollController.offset + position.viewportDimension / 2;
-    final index = ((centerX - _sidePadding - kPreviewFilmstripItemWidth / 2) /
-            kPreviewFilmstripItemExtent)
+    final index = ((centerX - _sidePadding - _itemWidth / 2) / _itemExtent)
         .round()
         .clamp(0, widget.mediaGroups.length - 1);
     widget.onFastIndexSelected?.call(index);
@@ -214,13 +216,15 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
           _scheduleCenterCurrent(animated: false);
         }
         final viewportWidth = math.max(0.0, constraints.maxWidth - 24);
+        final thumbnailSize = previewFilmstripThumbnailSize(widget.height);
         final sidePadding = math.max(
           0.0,
-          (viewportWidth - kPreviewFilmstripItemWidth) / 2,
+          (viewportWidth - thumbnailSize.width) / 2,
         );
         _sidePadding = sidePadding;
         return Container(
-          height: kPreviewFilmstripHeight + bottomPadding,
+          key: const ValueKey('preview-filmstrip-panel'),
+          height: widget.height + bottomPadding,
           padding: EdgeInsets.fromLTRB(12, 10, 12, bottomPadding + 10),
           decoration: BoxDecoration(
             color: RawViewerColors.surface.withValues(alpha: 0.96),
@@ -265,9 +269,9 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
                           padding:
                               EdgeInsets.symmetric(horizontal: sidePadding),
                           scrollCacheExtent: ScrollCacheExtent.pixels(
-                            kPreviewFilmstripItemExtent * 4,
+                            _itemExtent * 4,
                           ),
-                          itemExtent: kPreviewFilmstripItemExtent,
+                          itemExtent: _itemExtent,
                           itemCount: widget.mediaGroups.length,
                           itemBuilder: (context, index) {
                             return Align(
@@ -275,8 +279,8 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
                               child: Padding(
                                 padding: const EdgeInsets.only(right: 8),
                                 child: SizedBox(
-                                  width: kPreviewFilmstripItemWidth,
-                                  height: 58,
+                                  width: thumbnailSize.width,
+                                  height: thumbnailSize.height,
                                   child: _PreviewFilmstripThumbnail(
                                     key: ValueKey(
                                       widget.mediaGroups[index].primary.path,

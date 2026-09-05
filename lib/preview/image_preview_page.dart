@@ -72,6 +72,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   late int _targetPage;
   bool _isLocked = false;
   bool _showPreviewFilmstrip = true;
+  double _previewFilmstripHeight = kPreviewFilmstripHeight;
   bool _showPreviewOverview = true;
   final Map<String, int> _rotationQuarterTurns = <String, int>{};
   final Map<String, GlobalKey<SingleImagePreviewState>> _previewKeys =
@@ -294,8 +295,49 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   }
 
   int get _previewFilmstripDecodeWidth => bucketDecodeWidth(
-        kPreviewFilmstripItemWidth * MediaQuery.devicePixelRatioOf(context),
+        previewFilmstripThumbnailSize(
+              _clampedPreviewFilmstripHeight(context),
+            ).width *
+            MediaQuery.devicePixelRatioOf(context),
       );
+
+  double _clampedPreviewFilmstripHeight(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    return clampPreviewFilmstripHeight(
+      height: _previewFilmstripHeight,
+      viewportHeight: mediaQuery.size.height,
+      topInset: mediaQuery.padding.top,
+      bottomInset: mediaQuery.padding.bottom,
+    );
+  }
+
+  void _resizePreviewFilmstrip(double verticalDelta) {
+    final nextHeight = clampPreviewFilmstripHeight(
+      height: _previewFilmstripHeight - verticalDelta,
+      viewportHeight: MediaQuery.sizeOf(context).height,
+      topInset: MediaQuery.paddingOf(context).top,
+      bottomInset: MediaQuery.paddingOf(context).bottom,
+    );
+    if ((nextHeight - _previewFilmstripHeight).abs() < 0.1) {
+      return;
+    }
+    setState(() {
+      _previewFilmstripHeight = nextHeight;
+    });
+  }
+
+  Widget _buildPreviewFilmstripResizeHandle() {
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeUpDown,
+      child: GestureDetector(
+        key: const ValueKey('preview-filmstrip-resize-handle'),
+        behavior: HitTestBehavior.opaque,
+        onVerticalDragUpdate: (details) =>
+            _resizePreviewFilmstrip(details.delta.dy),
+        child: const SizedBox.expand(),
+      ),
+    );
+  }
 
   void _switchPage(int delta) {
     int newTarget = _targetPage + delta;
@@ -550,13 +592,14 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     final currentPreviewKey = _previewKeyFor(currentFilePath);
     final currentViewMode = _effectiveViewModeFor(currentMediaGroup);
     final bottomSafePadding = MediaQuery.paddingOf(context).bottom;
+    final previewFilmstripHeight = _clampedPreviewFilmstripHeight(context);
+    final previewFilmstripTotalHeight =
+        previewFilmstripHeight + bottomSafePadding;
     // Preserve the controls' former position inside the page viewport. The
     // viewport already reserves one bottom inset for the filmstrip, while the
     // controls reserve their own inset as well.
     final controlsBottomInset = bottomSafePadding +
-        (_showPreviewFilmstrip
-            ? kPreviewFilmstripHeight + bottomSafePadding
-            : 0) +
+        (_showPreviewFilmstrip ? previewFilmstripTotalHeight : 0) +
         12;
     final previewTop =
         MediaQuery.paddingOf(context).top + kImagePreviewToolbarHeight;
@@ -569,9 +612,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
         children: [
           Positioned.fill(
             top: previewTop,
-            bottom: _showPreviewFilmstrip
-                ? kPreviewFilmstripHeight + MediaQuery.paddingOf(context).bottom
-                : 0,
+            bottom: _showPreviewFilmstrip ? previewFilmstripTotalHeight : 0,
             child: NotificationListener<ScrollNotification>(
               onNotification: (notification) {
                 if (notification.metrics is PageMetrics) {
@@ -697,18 +738,38 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
               left: 0,
               right: 0,
               bottom: 0,
-              child: PreviewHoverReveal(
-                restingOpacity: widget.initialSettings.previewOverlayOpacity,
-                child: PreviewFilmstrip(
-                  mediaGroups: widget.mediaGroups,
-                  currentIndex: _currentIndex,
-                  imageStore: widget.imageStore,
-                  decodeWidth: _previewFilmstripDecodeWidth,
-                  centerCurrentThumbnailTooltip:
-                      l10n.centerCurrentPreviewThumbnailTooltip,
-                  onIndexSelected: _jumpToPage,
-                  onFastIndexSelected: _jumpToPageFast,
-                ),
+              height: previewFilmstripTotalHeight +
+                  previewFilmstripResizeHandleAboveBar,
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: PreviewHoverReveal(
+                      restingOpacity:
+                          widget.initialSettings.previewOverlayOpacity,
+                      child: PreviewFilmstrip(
+                        mediaGroups: widget.mediaGroups,
+                        currentIndex: _currentIndex,
+                        imageStore: widget.imageStore,
+                        height: previewFilmstripHeight,
+                        decodeWidth: _previewFilmstripDecodeWidth,
+                        centerCurrentThumbnailTooltip:
+                            l10n.centerCurrentPreviewThumbnailTooltip,
+                        onIndexSelected: _jumpToPage,
+                        onFastIndexSelected: _jumpToPageFast,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: previewFilmstripResizeHandleHeight,
+                    child: _buildPreviewFilmstripResizeHandle(),
+                  ),
+                ],
               ),
             ),
           Positioned(

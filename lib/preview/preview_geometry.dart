@@ -7,8 +7,13 @@ const Duration kImagePreviewOpenTransitionDuration =
 const Duration kImagePreviewCloseTransitionDuration =
     Duration(milliseconds: 80);
 const double kImagePreviewToolbarHeight = 52;
+// The default height for the bottom thumbnail navigation bar. The user can
+// adjust this for the lifetime of an open preview.
 const double kPreviewFilmstripHeight = 88;
+const double kMinPreviewFilmstripHeight = 72;
+const double kMaxPreviewFilmstripHeight = 320;
 const double kPreviewFilmstripItemWidth = 88;
+const double kPreviewFilmstripItemHeight = 58;
 const double kPreviewFilmstripItemExtent = 96;
 const double kPreviewOverviewMapWidth = 180;
 const double kPreviewOverviewMapHeight = 120;
@@ -29,6 +34,10 @@ const double previewOverviewGap = 10;
 const double previewFilmstripScrollbarThickness = 8;
 const double previewFilmstripScrollbarMainAxisMargin = 4;
 const double previewFilmstripVisibilityEpsilon = 0.5;
+const double previewFilmstripResizeHandleHeight = 20;
+const double previewFilmstripResizeHandleAboveBar = 14;
+const double previewFilmstripVerticalChromeHeight = 30;
+const double previewFilmstripMinimumContentHeight = 160;
 const Duration previewOverlayFadeDuration = Duration(milliseconds: 140);
 const double previewFitScale = 1.0;
 const double previewScaleEpsilon = 0.01;
@@ -37,6 +46,37 @@ const Duration previewFitScaleLockDuration = Duration(milliseconds: 100);
 const double previewTrackpadScaleSlop = 0.015;
 const double trackpadPageDragSensitivity = 2.5;
 const double trackpadFlingMinVelocity = 350;
+
+/// Keeps the resizable filmstrip from obscuring the preview image entirely.
+double clampPreviewFilmstripHeight({
+  required double height,
+  required double viewportHeight,
+  required double topInset,
+  required double bottomInset,
+}) {
+  final viewportMaximum = viewportHeight -
+      topInset -
+      bottomInset -
+      kImagePreviewToolbarHeight -
+      previewFilmstripMinimumContentHeight;
+  final maximum = math.max(
+    kMinPreviewFilmstripHeight,
+    math.min(kMaxPreviewFilmstripHeight, viewportMaximum),
+  );
+  return height.clamp(kMinPreviewFilmstripHeight, maximum).toDouble();
+}
+
+/// Scales the horizontal thumbnails with the navigation bar's usable height.
+Size previewFilmstripThumbnailSize(double filmstripHeight) {
+  final height = math.max(
+    32.0,
+    filmstripHeight - previewFilmstripVerticalChromeHeight,
+  );
+  return Size(
+    height * kPreviewFilmstripItemWidth / kPreviewFilmstripItemHeight,
+    height,
+  );
+}
 
 double clampPreviewScale(double scale) {
   return scale.clamp(kMinPreviewScale, kMaxPreviewScale).toDouble();

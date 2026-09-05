@@ -16,6 +16,7 @@ import 'package:rawviewer/core/raw_view_mode.dart';
 import 'package:rawviewer/preview/preview_geometry.dart';
 import 'package:rawviewer/preview/image_preview_page.dart';
 import 'package:rawviewer/preview/single_image_preview.dart';
+import 'package:rawviewer/preview/widgets/preview_filmstrip.dart';
 import 'package:rawviewer/ui/fast_page_scroll_physics.dart';
 import 'package:rawviewer/media_filter.dart';
 import 'package:rawviewer/media_group.dart';
@@ -276,6 +277,104 @@ void main() {
       expect(
         kImagePreviewRapidSwitchSettleDelay,
         const Duration(milliseconds: 140),
+      );
+    });
+
+    test('clamps the resizable filmstrip and scales its thumbnails', () {
+      expect(
+        clampPreviewFilmstripHeight(
+          height: 400,
+          viewportHeight: 600,
+          topInset: 0,
+          bottomInset: 0,
+        ),
+        kMaxPreviewFilmstripHeight,
+      );
+      expect(
+        clampPreviewFilmstripHeight(
+          height: 1,
+          viewportHeight: 600,
+          topInset: 0,
+          bottomInset: 0,
+        ),
+        kMinPreviewFilmstripHeight,
+      );
+      expect(
+        previewFilmstripThumbnailSize(kPreviewFilmstripHeight),
+        const Size(kPreviewFilmstripItemWidth, kPreviewFilmstripItemHeight),
+      );
+    });
+
+    testWidgets('resizes the bottom filmstrip from its top boundary',
+        (tester) async {
+      final groups = [
+        const MediaGroup(
+          primary: MediaFile(
+            path: '/missing-test-image.jpg',
+            kind: MediaKind.bitmap,
+          ),
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ImagePreviewPage(
+            mediaGroups: groups,
+            initialIndex: 0,
+            thumbnailResizeWidth: 256,
+            imageStore: ImageStore(LruCache<String, ViewerImage>(1024)),
+            timestampRepository: TimestampRepository(),
+            initialSettings: const ViewerSettings(),
+            onClose: () {},
+            onRawViewModeChanged: (_) {},
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final handle = find.byKey(
+        const ValueKey('preview-filmstrip-resize-handle'),
+      );
+      expect(handle, findsOneWidget);
+      final cursor = tester.widget<MouseRegion>(
+        find.ancestor(of: handle, matching: find.byType(MouseRegion)).first,
+      );
+      expect(cursor.cursor, SystemMouseCursors.resizeUpDown);
+      final filmstripPanel = find.byKey(
+        const ValueKey('preview-filmstrip-panel'),
+      );
+      final handleRect = tester.getRect(handle);
+      final filmstripRect = tester.getRect(filmstripPanel);
+      expect(
+        handleRect.top,
+        filmstripRect.top - previewFilmstripResizeHandleAboveBar,
+      );
+      expect(
+        handleRect.bottom,
+        filmstripRect.top +
+            previewFilmstripResizeHandleHeight -
+            previewFilmstripResizeHandleAboveBar,
+      );
+
+      await tester.drag(handle, const Offset(0, -100));
+      await tester.pump();
+      expect(
+        tester.widget<PreviewFilmstrip>(find.byType(PreviewFilmstrip)).height,
+        kPreviewFilmstripHeight + 100,
+      );
+
+      await tester.drag(handle, const Offset(0, 500));
+      await tester.pump();
+      expect(
+        tester.widget<PreviewFilmstrip>(find.byType(PreviewFilmstrip)).height,
+        kMinPreviewFilmstripHeight,
       );
     });
 
