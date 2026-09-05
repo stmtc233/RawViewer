@@ -6,11 +6,13 @@ import '../preview_geometry.dart';
 class PreviewHoverReveal extends StatefulWidget {
   final Widget child;
   final double restingOpacity;
+  final HitTestBehavior hitTestBehavior;
 
   const PreviewHoverReveal({
     super.key,
     required this.child,
     required this.restingOpacity,
+    this.hitTestBehavior = HitTestBehavior.translucent,
   });
 
   @override
@@ -34,7 +36,7 @@ class _PreviewHoverRevealState extends State<PreviewHoverReveal> {
     final opacity = _isHovered ? 1.0 : widget.restingOpacity;
 
     return Listener(
-      behavior: HitTestBehavior.translucent,
+      behavior: widget.hitTestBehavior,
       onPointerDown: (event) {
         // Touch screens have no hover state, so reveal the controls on touch.
         if (event.kind != PointerDeviceKind.mouse &&
@@ -57,4 +59,3 @@ class _PreviewHoverRevealState extends State<PreviewHoverReveal> {
     );
   }
 }
-

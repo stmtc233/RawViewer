@@ -664,6 +664,9 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
               bottom: MediaQuery.paddingOf(context).bottom + 12,
               child: PreviewHoverReveal(
                 restingOpacity: widget.settings.previewOverlayOpacity,
+                // Keep button taps out of the image's double-tap recognizer;
+                // otherwise InkWell waits for the double-tap timeout.
+                hitTestBehavior: HitTestBehavior.opaque,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: RawViewerColors.surface.withValues(alpha: 0.84),

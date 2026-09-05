@@ -187,6 +187,75 @@ void main() {
       expect(translation.y, closeTo(0, 0.001));
     });
 
+    testWidgets(
+        'display controls respond immediately and do not reset on a double tap',
+        (tester) async {
+      final scrolling = ValueNotifier<bool>(false);
+      addTearDown(scrolling.dispose);
+      final imageStore = ImageStore(LruCache<String, ViewerImage>(1024));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: SizedBox(
+            width: 400,
+            height: 300,
+            child: SingleImagePreview(
+              mediaGroup: const MediaGroup(
+                primary: MediaFile(
+                  path: '/missing-test-image.jpg',
+                  kind: MediaKind.bitmap,
+                ),
+              ),
+              thumbnailResizeWidth: 256,
+              previewThumbnailResizeWidth: 512,
+              imageStore: imageStore,
+              settings: const ViewerSettings(),
+              rotationQuarterTurns: 0,
+              viewMode: RawViewMode.decodedRaw,
+              onRotationRequested: (_) {},
+              onResetRotationRequested: () {},
+              onSwitchRequest: (_) {},
+              onTrackpadPanStart: (_) {},
+              onTrackpadPanUpdate: (_) {},
+              onTrackpadPanEnd: (_) {},
+              onTrackpadPanCancel: () {},
+              isActive: true,
+              showPreviewOverview: false,
+              overviewBottomInset: 0,
+              isFastScrolling: scrolling,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final controller = tester
+          .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+          .transformationController!;
+      controller.value = Matrix4.identity()..scaleByDouble(2, 2, 2, 1);
+      await tester.pump();
+
+      final zoomIn = find.byIcon(Icons.zoom_in);
+      await tester.tap(zoomIn);
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(controller.value.getMaxScaleOnAxis(), closeTo(2.5, 0.001));
+
+      await tester.tap(zoomIn);
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(controller.value.getMaxScaleOnAxis(), closeTo(3.125, 0.001));
+
+      // The image's double-tap recognizer must not receive these control taps.
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(controller.value.getMaxScaleOnAxis(), closeTo(3.125, 0.001));
+    });
+
     test('keeps preview opening and discrete navigation responsive', () {
       expect(
         kImagePreviewOpenTransitionDuration,
