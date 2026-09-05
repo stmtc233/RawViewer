@@ -308,6 +308,7 @@ void main() {
 
       final loadButton = find.byTooltip('Load images from this directory');
       expect(loadButton, findsOneWidget);
+      expect(find.text('Load directory'), findsOneWidget);
       expect(find.byKey(const ValueKey('preview-directory-load-panel')),
           findsOneWidget);
       expect(find.byType(PreviewFilmstrip), findsNothing);
@@ -370,6 +371,7 @@ void main() {
           findsOneWidget);
       expect(find.byType(PreviewFilmstrip), findsNothing);
       expect(find.byTooltip('Load images from this directory'), findsOneWidget);
+      expect(find.text('Load directory'), findsOneWidget);
     });
 
     test('keeps preview opening and discrete navigation responsive', () {

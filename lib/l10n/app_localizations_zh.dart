@@ -231,6 +231,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get loadDirectoryTooltip => '加载此目录中的图片';
 
   @override
+  String get loadDirectoryButtonLabel => '加载目录';
+
+  @override
   String get grantDirectoryAccessDialogTitle => '允许 Raw Viewer 访问此文件夹';
 
   @override

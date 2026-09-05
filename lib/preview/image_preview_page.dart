@@ -430,14 +430,17 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
           ),
         ),
         child: Center(
-          child: DesktopIconButton(
-            icon: _isLoadingDirectory
-                ? Icons.hourglass_top_outlined
-                : Icons.folder_open_outlined,
-            tooltip: l10n.loadDirectoryTooltip,
-            onPressed: _isLoadingDirectory
-                ? null
-                : () => unawaited(_loadDirectory()),
+          child: Tooltip(
+            message: l10n.loadDirectoryTooltip,
+            child: DesktopCommandButton(
+              icon: _isLoadingDirectory
+                  ? Icons.hourglass_top_outlined
+                  : Icons.folder_open_outlined,
+              label: l10n.loadDirectoryButtonLabel,
+              onPressed: _isLoadingDirectory
+                  ? null
+                  : () => unawaited(_loadDirectory()),
+            ),
           ),
         ),
       ),

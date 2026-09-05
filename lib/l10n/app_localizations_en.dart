@@ -231,6 +231,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loadDirectoryTooltip => 'Load images from this directory';
 
   @override
+  String get loadDirectoryButtonLabel => 'Load directory';
+
+  @override
   String get grantDirectoryAccessDialogTitle => 'Allow Raw Viewer to access this folder';
 
   @override

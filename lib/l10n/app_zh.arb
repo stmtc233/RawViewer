@@ -105,6 +105,7 @@
   "hidePreviewOverviewTooltip": "隐藏鸟瞰图",
   "centerCurrentPreviewThumbnailTooltip": "居中当前缩略图",
   "loadDirectoryTooltip": "加载此目录中的图片",
+  "loadDirectoryButtonLabel": "加载目录",
   "grantDirectoryAccessDialogTitle": "允许 Raw Viewer 访问此文件夹",
   "loadDirectoryFailedMessage": "无法加载目录：{error}",
   "@loadDirectoryFailedMessage": {

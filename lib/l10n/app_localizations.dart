@@ -515,6 +515,12 @@ abstract class AppLocalizations {
   /// **'Load images from this directory'**
   String get loadDirectoryTooltip;
 
+  /// No description provided for @loadDirectoryButtonLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Load directory'**
+  String get loadDirectoryButtonLabel;
+
   /// No description provided for @grantDirectoryAccessDialogTitle.
   ///
   /// In en, this message translates to:
