@@ -1,5 +1,4 @@
 import Cocoa
-import CoreServices
 import FlutterMacOS
 
 final class ScopedFileAccess {
@@ -170,10 +169,9 @@ final class FileAssociationChannel {
   static let shared = FileAssociationChannel()
 
   private let channelName = "rawviewer/file_associations"
-  private let supportedExtensions = [
-    "arw", "cr2", "cr3", "dng", "nef", "orf", "raf", "rw2", "srw",
-    "jpg", "jpeg", "png", "webp",
-  ]
+  private let associations = FileAssociations(
+    bundleIdentifier: Bundle.main.bundleIdentifier ?? ""
+  )
   private var channel: FlutterMethodChannel?
 
   private init() {}
@@ -193,7 +191,7 @@ final class FileAssociationChannel {
 
       switch call.method {
       case "getFileAssociationState":
-        result(self.state())
+        result(self.associations.state())
       case "setFileAssociations":
         guard let arguments = call.arguments as? [String: Any],
               let extensions = arguments["extensions"] as? [String]
@@ -206,14 +204,14 @@ final class FileAssociationChannel {
           return
         }
 
-        if let error = self.setAssociations(extensions: Set(extensions)) {
+        if let error = self.associations.setAssociations(extensions: Set(extensions)) {
           result(FlutterError(
             code: "file_association_error",
             message: error,
             details: nil
           ))
         } else {
-          result(self.state())
+          result(self.associations.state())
         }
       default:
         result(FlutterMethodNotImplemented)
@@ -221,57 +219,6 @@ final class FileAssociationChannel {
     }
   }
 
-  private func contentTypeIdentifier(for fileExtension: String) -> String {
-    return "com.rawviewer.\(fileExtension)"
-  }
-
-  private func isAssociated(fileExtension: String) -> Bool {
-    guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
-      return false
-    }
-    let contentType = contentTypeIdentifier(for: fileExtension) as CFString
-    guard let handler = LSCopyDefaultRoleHandlerForContentType(
-      contentType,
-      LSRolesMask.all
-    )?.takeRetainedValue() as String?
-    else {
-      return false
-    }
-    return handler == bundleIdentifier
-  }
-
-  private func state() -> [String: Any] {
-    var bindings: [String: Bool] = [:]
-    for fileExtension in supportedExtensions {
-      bindings[".\(fileExtension)"] = isAssociated(fileExtension: fileExtension)
-    }
-    return ["supported": true, "bindings": bindings]
-  }
-
-  private func setAssociations(extensions: Set<String>) -> String? {
-    guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
-      return "Unable to resolve the application bundle identifier."
-    }
-
-    for fileExtension in supportedExtensions {
-      let extensionWithDot = ".\(fileExtension)"
-      let shouldAssociate = extensions.contains(fileExtension) ||
-        extensions.contains(extensionWithDot)
-      let contentType = contentTypeIdentifier(for: fileExtension) as CFString
-      let handler: CFString = shouldAssociate
-        ? bundleIdentifier as CFString
-        : "" as CFString
-      let status = LSSetDefaultRoleHandlerForContentType(
-        contentType,
-        LSRolesMask.all,
-        handler
-      )
-      if status != noErr {
-        return "Failed to update the default application for .\(fileExtension) (\(status))."
-      }
-    }
-    return nil
-  }
 }
 
 @main

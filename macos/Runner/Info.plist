@@ -30,22 +30,21 @@
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
-			<string>Owner</string>
+			<string>Alternate</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.rawviewer.arw</string>
-				<string>com.rawviewer.cr2</string>
-				<string>com.rawviewer.cr3</string>
-				<string>com.rawviewer.dng</string>
-				<string>com.rawviewer.nef</string>
-				<string>com.rawviewer.orf</string>
-				<string>com.rawviewer.raf</string>
-				<string>com.rawviewer.rw2</string>
-				<string>com.rawviewer.srw</string>
-				<string>com.rawviewer.jpg</string>
-				<string>com.rawviewer.jpeg</string>
-				<string>com.rawviewer.png</string>
-				<string>com.rawviewer.webp</string>
+				<string>com.sony.arw-raw-image</string>
+				<string>com.canon.cr2-raw-image</string>
+				<string>com.canon.cr3-raw-image</string>
+				<string>com.adobe.raw-image</string>
+				<string>com.nikon.raw-image</string>
+				<string>com.olympus.raw-image</string>
+				<string>com.fuji.raw-image</string>
+				<string>com.panasonic.rw2-raw-image</string>
+				<string>com.samsung.raw-image</string>
+				<string>org.webmproject.webp</string>
+				<string>public.jpeg</string>
+				<string>public.png</string>
 			</array>
 		</dict>
 	</array>
@@ -53,131 +52,81 @@
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.rawviewer.arw</string>
-			<key>UTTypeDescription</key>
-			<string>Sony ARW image</string>
+			<string>com.sony.arw-raw-image</string>
 			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string></array>
+			<array><string>public.camera-raw-image</string></array>
 			<key>UTTypeTagSpecification</key>
 			<dict><key>public.filename-extension</key><array><string>arw</string></array></dict>
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.rawviewer.cr2</string>
-			<key>UTTypeDescription</key>
-			<string>Canon CR2 image</string>
+			<string>com.canon.cr2-raw-image</string>
 			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string></array>
+			<array><string>public.camera-raw-image</string></array>
 			<key>UTTypeTagSpecification</key>
 			<dict><key>public.filename-extension</key><array><string>cr2</string></array></dict>
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.rawviewer.cr3</string>
-			<key>UTTypeDescription</key>
-			<string>Canon CR3 image</string>
+			<string>com.canon.cr3-raw-image</string>
 			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string></array>
+			<array><string>public.camera-raw-image</string></array>
 			<key>UTTypeTagSpecification</key>
 			<dict><key>public.filename-extension</key><array><string>cr3</string></array></dict>
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.rawviewer.dng</string>
-			<key>UTTypeDescription</key>
-			<string>DNG image</string>
+			<string>com.adobe.raw-image</string>
 			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string></array>
+			<array><string>public.camera-raw-image</string></array>
 			<key>UTTypeTagSpecification</key>
 			<dict><key>public.filename-extension</key><array><string>dng</string></array></dict>
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.rawviewer.nef</string>
-			<key>UTTypeDescription</key>
-			<string>Nikon NEF image</string>
+			<string>com.nikon.raw-image</string>
 			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string></array>
+			<array><string>public.camera-raw-image</string></array>
 			<key>UTTypeTagSpecification</key>
 			<dict><key>public.filename-extension</key><array><string>nef</string></array></dict>
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.rawviewer.orf</string>
-			<key>UTTypeDescription</key>
-			<string>Olympus ORF image</string>
+			<string>com.olympus.raw-image</string>
 			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string></array>
+			<array><string>public.camera-raw-image</string></array>
 			<key>UTTypeTagSpecification</key>
 			<dict><key>public.filename-extension</key><array><string>orf</string></array></dict>
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.rawviewer.raf</string>
-			<key>UTTypeDescription</key>
-			<string>Fujifilm RAF image</string>
+			<string>com.fuji.raw-image</string>
 			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string></array>
+			<array><string>public.camera-raw-image</string></array>
 			<key>UTTypeTagSpecification</key>
 			<dict><key>public.filename-extension</key><array><string>raf</string></array></dict>
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.rawviewer.rw2</string>
-			<key>UTTypeDescription</key>
-			<string>Panasonic RW2 image</string>
+			<string>com.panasonic.rw2-raw-image</string>
 			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string></array>
+			<array><string>public.camera-raw-image</string></array>
 			<key>UTTypeTagSpecification</key>
 			<dict><key>public.filename-extension</key><array><string>rw2</string></array></dict>
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.rawviewer.srw</string>
-			<key>UTTypeDescription</key>
-			<string>Samsung SRW image</string>
+			<string>com.samsung.raw-image</string>
 			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string></array>
+			<array><string>public.camera-raw-image</string></array>
 			<key>UTTypeTagSpecification</key>
 			<dict><key>public.filename-extension</key><array><string>srw</string></array></dict>
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.rawviewer.jpg</string>
-			<key>UTTypeDescription</key>
-			<string>JPEG image</string>
+			<string>org.webmproject.webp</string>
 			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string></array>
-			<key>UTTypeTagSpecification</key>
-			<dict><key>public.filename-extension</key><array><string>jpg</string></array></dict>
-		</dict>
-		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>com.rawviewer.jpeg</string>
-			<key>UTTypeDescription</key>
-			<string>JPEG image</string>
-			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string></array>
-			<key>UTTypeTagSpecification</key>
-			<dict><key>public.filename-extension</key><array><string>jpeg</string></array></dict>
-		</dict>
-		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>com.rawviewer.png</string>
-			<key>UTTypeDescription</key>
-			<string>PNG image</string>
-			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string></array>
-			<key>UTTypeTagSpecification</key>
-			<dict><key>public.filename-extension</key><array><string>png</string></array></dict>
-		</dict>
-		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>com.rawviewer.webp</string>
-			<key>UTTypeDescription</key>
-			<string>WebP image</string>
-			<key>UTTypeConformsTo</key>
-			<array><string>public.data</string></array>
+			<array><string>public.image</string></array>
 			<key>UTTypeTagSpecification</key>
 			<dict><key>public.filename-extension</key><array><string>webp</string></array></dict>
 		</dict>
