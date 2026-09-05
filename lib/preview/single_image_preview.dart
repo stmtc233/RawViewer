@@ -740,10 +740,12 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
           )
         else if (isSharpeningInBackground)
           // Decoding in the background; keep showing what we already have.
-          const Positioned(
-            top: 24,
+          Positioned(
+            top: MediaQuery.paddingOf(context).top +
+                kImagePreviewToolbarHeight +
+                24,
             left: 16,
-            child: ExcludeSemantics(
+            child: const ExcludeSemantics(
               child: SizedBox(
                 width: 18,
                 height: 18,

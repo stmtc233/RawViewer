@@ -595,14 +595,9 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     final previewFilmstripHeight = _clampedPreviewFilmstripHeight(context);
     final previewFilmstripTotalHeight =
         previewFilmstripHeight + bottomSafePadding;
-    // Preserve the controls' former position inside the page viewport. The
-    // viewport already reserves one bottom inset for the filmstrip, while the
-    // controls reserve their own inset as well.
-    final controlsBottomInset = bottomSafePadding +
-        (_showPreviewFilmstrip ? previewFilmstripTotalHeight : 0) +
-        12;
-    final previewTop =
-        MediaQuery.paddingOf(context).top + kImagePreviewToolbarHeight;
+    final overviewBottomInset =
+        _showPreviewFilmstrip ? previewFilmstripTotalHeight : 0.0;
+    final controlsBottomInset = bottomSafePadding + overviewBottomInset + 12;
     final pageDragDevices =
         Set<PointerDeviceKind>.from(ScrollConfiguration.of(context).dragDevices)
           ..remove(PointerDeviceKind.trackpad);
@@ -611,8 +606,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
       body: Stack(
         children: [
           Positioned.fill(
-            top: previewTop,
-            bottom: _showPreviewFilmstrip ? previewFilmstripTotalHeight : 0,
+            // Paint beneath the translucent toolbar and filmstrip.
             child: NotificationListener<ScrollNotification>(
               onNotification: (notification) {
                 if (notification.metrics is PageMetrics) {
@@ -664,7 +658,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                     onTrackpadPanCancel: _cancelTrackpadPageDrag,
                     isActive: index == _currentIndex,
                     showPreviewOverview: _showPreviewOverview,
-                    overviewBottomInset: 0,
+                    overviewBottomInset: overviewBottomInset,
                     isFastScrolling: _isFastScrolling,
                     onScaleStateChanged: (isScaling) {
                       if (_isLocked != isScaling) {
