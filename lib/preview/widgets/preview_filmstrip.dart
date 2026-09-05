@@ -46,7 +46,6 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
   bool _showTrailingCenterArrow = false;
   bool _centerRequestScheduled = false;
 
-
   @override
   void initState() {
     super.initState();
@@ -147,7 +146,8 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
     final delta = details.primaryDelta ?? 0;
     if (delta != 0) {
       final nextOffset = (_scrollController.offset - delta).clamp(
-        0.0, _scrollController.position.maxScrollExtent,
+        0.0,
+        _scrollController.position.maxScrollExtent,
       );
       _scrollController.jumpTo(nextOffset);
     }
@@ -237,54 +237,64 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
                   behavior: HitTestBehavior.translucent,
                   onHorizontalDragUpdate: _handleHorizontalDragUpdate,
                   child: ScrollbarTheme(
-                  data: ScrollbarThemeData(
-                    thumbColor: WidgetStatePropertyAll(
-                      RawViewerColors.mutedText.withValues(alpha: 0.65),
-                    ),
-                    mainAxisMargin: previewFilmstripScrollbarMainAxisMargin,
-                  ),
-                  child: Scrollbar(
-                    controller: _scrollController,
-                    scrollbarOrientation: ScrollbarOrientation.bottom,
-                    thumbVisibility: false,
-                    trackVisibility: false,
-                    thickness: previewFilmstripScrollbarThickness,
-                    radius: const Radius.circular(1),
-                    child: ListView.builder(
-                      controller: _scrollController,
-                      scrollDirection: Axis.horizontal,
-                      physics: const ClampingScrollPhysics(),
-                      padding: EdgeInsets.symmetric(horizontal: sidePadding),
-                      scrollCacheExtent: ScrollCacheExtent.pixels(
-                        kPreviewFilmstripItemExtent * 4,
+                    data: ScrollbarThemeData(
+                      thumbColor: WidgetStatePropertyAll(
+                        RawViewerColors.mutedText.withValues(alpha: 0.65),
                       ),
-                      itemExtent: kPreviewFilmstripItemExtent,
-                      itemCount: widget.mediaGroups.length,
-                      itemBuilder: (context, index) {
-                        return Align(
-                          alignment: Alignment.centerLeft,
-                          child: Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: SizedBox(
-                              width: kPreviewFilmstripItemWidth,
-                              height: 58,
-                              child: _PreviewFilmstripThumbnail(
-                                key: ValueKey(
-                                  widget.mediaGroups[index].primary.path,
-                                ),
-                                mediaGroup: widget.mediaGroups[index],
-                                imageStore: widget.imageStore,
-                                decodeWidth: widget.decodeWidth,
-                                selected: index == widget.currentIndex,
-                                onTap: () => widget.onIndexSelected(index),
-                              ),
-                            ),
+                      mainAxisMargin: previewFilmstripScrollbarMainAxisMargin,
+                    ),
+                    child: Scrollbar(
+                      controller: _scrollController,
+                      scrollbarOrientation: ScrollbarOrientation.bottom,
+                      thumbVisibility: false,
+                      trackVisibility: false,
+                      thickness: previewFilmstripScrollbarThickness,
+                      radius: const Radius.circular(
+                        previewFilmstripScrollbarThickness / 2,
+                      ),
+                      child: Padding(
+                        // Reserve the thumb's cross-axis space so it does not
+                        // paint over the bottom edge of the thumbnails.
+                        padding: const EdgeInsets.only(
+                          bottom: previewFilmstripScrollbarThickness,
+                        ),
+                        child: ListView.builder(
+                          controller: _scrollController,
+                          scrollDirection: Axis.horizontal,
+                          physics: const ClampingScrollPhysics(),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: sidePadding),
+                          scrollCacheExtent: ScrollCacheExtent.pixels(
+                            kPreviewFilmstripItemExtent * 4,
                           ),
-                        );
-                      },
+                          itemExtent: kPreviewFilmstripItemExtent,
+                          itemCount: widget.mediaGroups.length,
+                          itemBuilder: (context, index) {
+                            return Align(
+                              alignment: Alignment.centerLeft,
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: SizedBox(
+                                  width: kPreviewFilmstripItemWidth,
+                                  height: 58,
+                                  child: _PreviewFilmstripThumbnail(
+                                    key: ValueKey(
+                                      widget.mediaGroups[index].primary.path,
+                                    ),
+                                    mediaGroup: widget.mediaGroups[index],
+                                    imageStore: widget.imageStore,
+                                    decodeWidth: widget.decodeWidth,
+                                    selected: index == widget.currentIndex,
+                                    onTap: () => widget.onIndexSelected(index),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
                   ),
-                ),
                 ),
               ),
               if (_showLeadingCenterArrow)

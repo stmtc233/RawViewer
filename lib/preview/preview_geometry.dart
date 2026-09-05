@@ -24,7 +24,9 @@ const double kMaxPreviewScale = 5.0;
 // --- internal to preview ---
 const double previewImageControlsHeight = 42;
 const double previewOverviewGap = 10;
-const double previewFilmstripScrollbarThickness = 2;
+// Keep the filmstrip scrollbar large enough to grab comfortably on desktop
+// while still fitting unobtrusively within the navigation bar.
+const double previewFilmstripScrollbarThickness = 8;
 const double previewFilmstripScrollbarMainAxisMargin = 4;
 const double previewFilmstripVisibilityEpsilon = 0.5;
 const Duration previewOverlayFadeDuration = Duration(milliseconds: 140);
