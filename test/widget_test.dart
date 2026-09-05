@@ -11,9 +11,12 @@ import 'package:rawviewer/l10n/app_localizations.dart';
 import 'package:rawviewer/app.dart';
 import 'package:rawviewer/core/decode_target.dart';
 import 'package:rawviewer/core/media_types.dart';
+import 'package:rawviewer/core/raw_view_mode.dart';
 import 'package:rawviewer/preview/preview_geometry.dart';
+import 'package:rawviewer/preview/single_image_preview.dart';
 import 'package:rawviewer/ui/fast_page_scroll_physics.dart';
 import 'package:rawviewer/media_filter.dart';
+import 'package:rawviewer/media_group.dart';
 import 'package:rawviewer/native_lib.dart';
 import 'package:rawviewer/settings_page.dart';
 import 'package:rawviewer/ui/app_theme.dart';
@@ -112,6 +115,76 @@ void main() {
         ),
         isTrue,
       );
+    });
+
+    testWidgets('double tap resets zoom and pan without rotating',
+        (tester) async {
+      final scrolling = ValueNotifier<bool>(false);
+      addTearDown(scrolling.dispose);
+      final imageStore = ImageStore(LruCache<String, ViewerImage>(1024));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: SizedBox(
+            width: 400,
+            height: 300,
+            child: SingleImagePreview(
+              mediaGroup: const MediaGroup(
+                primary: MediaFile(
+                  path: '/missing-test-image.jpg',
+                  kind: MediaKind.bitmap,
+                ),
+              ),
+              thumbnailResizeWidth: 256,
+              previewThumbnailResizeWidth: 512,
+              imageStore: imageStore,
+              settings: const ViewerSettings(),
+              rotationQuarterTurns: 1,
+              viewMode: RawViewMode.decodedRaw,
+              onRotationRequested: (_) {},
+              onResetRotationRequested: () {},
+              onSwitchRequest: (_) {},
+              onTrackpadPanStart: (_) {},
+              onTrackpadPanUpdate: (_) {},
+              onTrackpadPanEnd: (_) {},
+              onTrackpadPanCancel: () {},
+              isActive: true,
+              showPreviewOverview: false,
+              overviewBottomInset: 0,
+              isFastScrolling: scrolling,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final viewer = tester.widget<InteractiveViewer>(
+        find.byType(InteractiveViewer),
+      );
+      final controller = viewer.transformationController!;
+      controller.value = Matrix4.identity()
+        ..translateByDouble(-40, -25, 0, 1)
+        ..scaleByDouble(2, 2, 2, 1);
+      await tester.pump();
+      expect(controller.value.getMaxScaleOnAxis(), closeTo(2, 0.001));
+
+      const tapPosition = Offset(200, 150);
+      await tester.tapAt(tapPosition);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tapAt(tapPosition);
+      await tester.pump(const Duration(milliseconds: 350));
+
+      expect(controller.value.getMaxScaleOnAxis(), closeTo(1, 0.001));
+      final translation = controller.value.getTranslation();
+      expect(translation.x, closeTo(0, 0.001));
+      expect(translation.y, closeTo(0, 0.001));
     });
 
     test('keeps preview opening and discrete navigation responsive', () {

@@ -449,6 +449,16 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
     widget.onResetRotationRequested();
   }
 
+  /// Resets zoom and pan without changing the user's rotation choice.
+  ///
+  /// Double-tapping is a quick way to return to the fitted image after
+  /// zooming. Rotation has its own controls, so it should not be changed as a
+  /// side effect of this gesture.
+  void _resetZoom() {
+    _clearFitScaleLock();
+    _transformationController.value = Matrix4.identity();
+  }
+
   void _handlePointerSignal(PointerSignalEvent event) {
     if (event is PointerScaleEvent) {
       GestureBinding.instance.pointerSignalResolver.register(event, (event) {
@@ -602,25 +612,29 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
               onPointerCancel: _onPointerCancel,
               onPointerHover: _onPointerHover,
               child: Center(
-                child: InteractiveViewer(
-                  transformationController: _transformationController,
-                  minScale: kMinPreviewScale,
-                  maxScale: kMaxPreviewScale,
-                  panEnabled: _panEnabled,
-                  scaleEnabled: _scaleEnabled,
-                  child: RotatedBox(
-                    quarterTurns: widget.rotationQuarterTurns,
-                    child: _isShowingPairedJpeg
-                        ? _buildBitmapPreview(
-                            widget.mediaGroup.pairedJpeg!.path)
-                        : widget.isRaw
-                            ? _buildRawPreview()
-                            : Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  _buildBitmapPreview(widget.filePath)
-                                ],
-                              ),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onDoubleTap: _resetZoom,
+                  child: InteractiveViewer(
+                    transformationController: _transformationController,
+                    minScale: kMinPreviewScale,
+                    maxScale: kMaxPreviewScale,
+                    panEnabled: _panEnabled,
+                    scaleEnabled: _scaleEnabled,
+                    child: RotatedBox(
+                      quarterTurns: widget.rotationQuarterTurns,
+                      child: _isShowingPairedJpeg
+                          ? _buildBitmapPreview(
+                              widget.mediaGroup.pairedJpeg!.path)
+                          : widget.isRaw
+                              ? _buildRawPreview()
+                              : Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    _buildBitmapPreview(widget.filePath)
+                                  ],
+                                ),
+                    ),
                   ),
                 ),
               ),
