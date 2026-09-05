@@ -10,6 +10,7 @@ import 'package:rawviewer/lru_cache.dart';
 import 'package:rawviewer/l10n/app_localizations.dart';
 import 'package:rawviewer/app.dart';
 import 'package:rawviewer/core/decode_target.dart';
+import 'package:rawviewer/core/preview_filmstrip_size.dart';
 import 'package:rawviewer/core/media_types.dart';
 import 'package:rawviewer/core/media_timestamps.dart';
 import 'package:rawviewer/core/raw_view_mode.dart';
@@ -224,6 +225,7 @@ void main() {
             initialSettings: const ViewerSettings(),
             onClose: () {},
             onRawViewModeChanged: (_) {},
+            onPreviewFilmstripHeightChanged: (_) {},
           ),
         ),
       );
@@ -334,6 +336,7 @@ void main() {
             initialSettings: const ViewerSettings(),
             onClose: () {},
             onRawViewModeChanged: (_) {},
+            onPreviewFilmstripHeightChanged: (_) {},
           ),
         ),
       );

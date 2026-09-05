@@ -90,6 +90,7 @@ void main() {
               ),
               onClose: () {},
               onRawViewModeChanged: (_) {},
+              onPreviewFilmstripHeightChanged: (_) {},
             ),
           ),
         ),

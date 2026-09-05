@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rawviewer/core/preferences_repository.dart';
+import 'package:rawviewer/core/preview_filmstrip_size.dart';
 import 'package:rawviewer/core/raw_view_mode.dart';
 import 'package:rawviewer/settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -87,6 +88,7 @@ void main() {
       expect(stored.previewOverlayOpacity, kDefaultPreviewOverlayOpacity);
       expect(stored.previewToolbarOpacity, kDefaultPreviewOverlayOpacity);
       expect(stored.previewFilmstripOpacity, kDefaultPreviewOverlayOpacity);
+      expect(stored.previewFilmstripHeight, kPreviewFilmstripHeight);
     });
 
     test('round-trips grid cross-axis count', () async {
@@ -137,6 +139,35 @@ void main() {
       expect(stored.previewOverlayOpacity, 0.5);
       expect(stored.previewToolbarOpacity, 0.9);
       expect(stored.previewFilmstripOpacity, 0.8);
+    });
+
+    test('round-trips filmstrip height across unrelated setting changes',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = const PreferencesRepository();
+      await repo.savePreviewFilmstripHeight(187.5);
+      final stored = await repo.loadViewPreferences();
+      final settings = const ViewerSettings()
+          .copyWith(previewFilmstripHeight: stored.previewFilmstripHeight)
+          .copyWith(previewToolbarOpacity: 0.7);
+      await repo.savePreviewToolbarOpacity(settings.previewToolbarOpacity);
+      expect(settings.previewFilmstripHeight, 187.5);
+      expect((await repo.loadViewPreferences()).previewFilmstripHeight, 187.5);
+    });
+
+    test('normalizes invalid stored filmstrip heights', () async {
+      for (final (height, expected) in [
+        (1.0, kMinPreviewFilmstripHeight),
+        (500.0, kMaxPreviewFilmstripHeight),
+        (double.nan, kPreviewFilmstripHeight),
+        (double.infinity, kPreviewFilmstripHeight),
+      ]) {
+        SharedPreferences.setMockInitialValues({
+          'preview_filmstrip_height': height,
+        });
+        final stored = await const PreferencesRepository().loadViewPreferences();
+        expect(stored.previewFilmstripHeight, expected);
+      }
     });
 
     test('migrates the shared opacity to each bar only once', () async {

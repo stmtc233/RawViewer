@@ -100,6 +100,7 @@ class _HomePageState extends State<HomePage> {
         previewOverlayOpacity: stored.previewOverlayOpacity,
         previewToolbarOpacity: stored.previewToolbarOpacity,
         previewFilmstripOpacity: stored.previewFilmstripOpacity,
+        previewFilmstripHeight: stored.previewFilmstripHeight,
         rawViewMode: stored.rawViewMode,
       );
     });
@@ -170,6 +171,9 @@ class _HomePageState extends State<HomePage> {
   Future<void> _persistPreviewFilmstripOpacity(double opacity) =>
       const PreferencesRepository().savePreviewFilmstripOpacity(opacity);
 
+  Future<void> _persistPreviewFilmstripHeight(double height) =>
+      const PreferencesRepository().savePreviewFilmstripHeight(height);
+
   Future<void> _persistRawViewMode(RawViewMode mode) =>
       const PreferencesRepository().saveRawViewMode(mode);
 
@@ -186,6 +190,8 @@ class _HomePageState extends State<HomePage> {
         _settings.previewToolbarOpacity != settings.previewToolbarOpacity;
     final previewFilmstripOpacityChanged =
         _settings.previewFilmstripOpacity != settings.previewFilmstripOpacity;
+    final previewFilmstripHeightChanged =
+        _settings.previewFilmstripHeight != settings.previewFilmstripHeight;
     final rawViewModeChanged = _settings.rawViewMode != settings.rawViewMode;
 
     setState(() {
@@ -221,6 +227,9 @@ class _HomePageState extends State<HomePage> {
     }
     if (previewFilmstripOpacityChanged) {
       unawaited(_persistPreviewFilmstripOpacity(settings.previewFilmstripOpacity));
+    }
+    if (previewFilmstripHeightChanged) {
+      unawaited(_persistPreviewFilmstripHeight(settings.previewFilmstripHeight));
     }
     if (rawViewModeChanged) {
       unawaited(_persistRawViewMode(settings.rawViewMode));
@@ -617,6 +626,9 @@ class _HomePageState extends State<HomePage> {
                   initialSettings: _settings,
                   onRawViewModeChanged: (mode) => _updateSettings(
                     _settings.copyWith(rawViewMode: mode),
+                  ),
+                  onPreviewFilmstripHeightChanged: (height) => _updateSettings(
+                    _settings.copyWith(previewFilmstripHeight: height),
                   ),
                   onClose: () {
                     Navigator.pop(context);

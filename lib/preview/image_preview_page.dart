@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 
 import '../core/decode_target.dart';
+import '../core/preview_filmstrip_size.dart';
 import '../core/media_timestamps.dart';
 import '../core/media_types.dart';
 import '../core/raw_view_mode.dart';
@@ -49,6 +50,7 @@ class ImagePreviewPage extends StatefulWidget {
   /// Reports a mode change so it can be persisted. The chosen mode is app-wide,
   /// not per-file: this switch is the only place it is set.
   final ValueChanged<RawViewMode> onRawViewModeChanged;
+  final ValueChanged<double> onPreviewFilmstripHeightChanged;
 
   const ImagePreviewPage({
     super.key,
@@ -60,6 +62,7 @@ class ImagePreviewPage extends StatefulWidget {
     required this.initialSettings,
     required this.onClose,
     required this.onRawViewModeChanged,
+    required this.onPreviewFilmstripHeightChanged,
   });
 
   @override
@@ -72,7 +75,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   late int _targetPage;
   bool _isLocked = false;
   bool _showPreviewFilmstrip = true;
-  double _previewFilmstripHeight = kPreviewFilmstripHeight;
+  late double _previewFilmstripHeight;
+  bool _isFilmstripHeightDirty = false;
   bool _showPreviewOverview = true;
   final Map<String, int> _rotationQuarterTurns = <String, int>{};
   final Map<String, GlobalKey<SingleImagePreviewState>> _previewKeys =
@@ -112,6 +116,9 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     _currentIndex = widget.initialIndex;
     _targetPage = widget.initialIndex;
     _rawViewMode = widget.initialSettings.rawViewMode;
+    _previewFilmstripHeight = normalizePreviewFilmstripHeight(
+      widget.initialSettings.previewFilmstripHeight,
+    );
     _pageController = PageController(initialPage: widget.initialIndex);
     _currentTimestampFuture = widget.timestampRepository.load(
       widget.mediaGroups[_currentIndex].primary.path,
@@ -312,8 +319,9 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   }
 
   void _resizePreviewFilmstrip(double verticalDelta) {
+    if (verticalDelta == 0) return;
     final nextHeight = clampPreviewFilmstripHeight(
-      height: _previewFilmstripHeight - verticalDelta,
+      height: _clampedPreviewFilmstripHeight(context) - verticalDelta,
       viewportHeight: MediaQuery.sizeOf(context).height,
       topInset: MediaQuery.paddingOf(context).top,
       bottomInset: MediaQuery.paddingOf(context).bottom,
@@ -323,7 +331,14 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     }
     setState(() {
       _previewFilmstripHeight = nextHeight;
+      _isFilmstripHeightDirty = true;
     });
+  }
+
+  void _commitPreviewFilmstripHeight() {
+    if (!_isFilmstripHeightDirty) return;
+    _isFilmstripHeightDirty = false;
+    widget.onPreviewFilmstripHeightChanged(_previewFilmstripHeight);
   }
 
   Widget _buildPreviewFilmstripResizeHandle() {
@@ -334,6 +349,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
         behavior: HitTestBehavior.opaque,
         onVerticalDragUpdate: (details) =>
             _resizePreviewFilmstrip(details.delta.dy),
+        onVerticalDragEnd: (_) => _commitPreviewFilmstripHeight(),
+        onVerticalDragCancel: _commitPreviewFilmstripHeight,
         child: const SizedBox.expand(),
       ),
     );

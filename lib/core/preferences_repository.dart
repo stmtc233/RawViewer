@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../settings_page.dart';
+import 'preview_filmstrip_size.dart';
 import 'raw_view_mode.dart';
 
 /// Default column count for the thumbnail grid.
@@ -37,6 +38,7 @@ class StoredViewPreferences {
   final double previewOverlayOpacity;
   final double previewToolbarOpacity;
   final double previewFilmstripOpacity;
+  final double previewFilmstripHeight;
   final RawViewMode? rawViewMode;
 
   const StoredViewPreferences({
@@ -46,6 +48,7 @@ class StoredViewPreferences {
     required this.previewOverlayOpacity,
     required this.previewToolbarOpacity,
     required this.previewFilmstripOpacity,
+    required this.previewFilmstripHeight,
     required this.rawViewMode,
   });
 }
@@ -73,6 +76,7 @@ class PreferencesRepository {
   static const String _previewOverlayOpacity = 'preview_overlay_opacity';
   static const String _previewToolbarOpacity = 'preview_toolbar_opacity';
   static const String _previewFilmstripOpacity = 'preview_filmstrip_opacity';
+  static const String _previewFilmstripHeight = 'preview_filmstrip_height';
   static const String _rawViewMode = 'raw_view_mode';
 
   /// Superseded by [_previewOverlayOpacity]. Read only, to migrate installs
@@ -142,6 +146,9 @@ class PreferencesRepository {
         prefs,
         _previewFilmstripOpacity,
         overlayOpacity,
+      ),
+      previewFilmstripHeight: normalizePreviewFilmstripHeight(
+        prefs.getDouble(_previewFilmstripHeight) ?? kPreviewFilmstripHeight,
       ),
       rawViewMode:
           RawViewMode.values.asNameMap()[prefs.getString(_rawViewMode)],
@@ -214,5 +221,13 @@ class PreferencesRepository {
   Future<void> saveRawViewMode(RawViewMode mode) async {
     final prefs = await _prefs;
     await prefs.setString(_rawViewMode, mode.name);
+  }
+
+  Future<void> savePreviewFilmstripHeight(double height) async {
+    final prefs = await _prefs;
+    await prefs.setDouble(
+      _previewFilmstripHeight,
+      normalizePreviewFilmstripHeight(height),
+    );
   }
 }

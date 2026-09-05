@@ -2,16 +2,13 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../core/preview_filmstrip_size.dart';
+
 const Duration kImagePreviewOpenTransitionDuration =
     Duration(milliseconds: 100);
 const Duration kImagePreviewCloseTransitionDuration =
     Duration(milliseconds: 80);
 const double kImagePreviewToolbarHeight = 52;
-// The default height for the bottom thumbnail navigation bar. The user can
-// adjust this for the lifetime of an open preview.
-const double kPreviewFilmstripHeight = 88;
-const double kMinPreviewFilmstripHeight = 72;
-const double kMaxPreviewFilmstripHeight = 320;
 const double kPreviewFilmstripItemWidth = 88;
 const double kPreviewFilmstripItemHeight = 58;
 const double kPreviewFilmstripItemExtent = 96;

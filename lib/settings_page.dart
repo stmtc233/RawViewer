@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'core/preview_filmstrip_size.dart';
 import 'core/raw_view_mode.dart';
 import 'l10n/app_localizations.dart';
 import 'ui/app_theme.dart';
@@ -115,6 +116,7 @@ class ViewerSettings {
   final double previewOverlayOpacity;
   final double previewToolbarOpacity;
   final double previewFilmstripOpacity;
+  final double previewFilmstripHeight;
   final WindowsContextMenuSettings windowsContextMenu;
 
   const ViewerSettings({
@@ -128,6 +130,7 @@ class ViewerSettings {
     this.previewOverlayOpacity = kDefaultPreviewOverlayOpacity,
     this.previewToolbarOpacity = kDefaultPreviewOverlayOpacity,
     this.previewFilmstripOpacity = kDefaultPreviewOverlayOpacity,
+    this.previewFilmstripHeight = kPreviewFilmstripHeight,
     this.windowsContextMenu = const WindowsContextMenuSettings(),
   });
 
@@ -142,6 +145,7 @@ class ViewerSettings {
     double? previewOverlayOpacity,
     double? previewToolbarOpacity,
     double? previewFilmstripOpacity,
+    double? previewFilmstripHeight,
     WindowsContextMenuSettings? windowsContextMenu,
   }) {
     return ViewerSettings(
@@ -159,6 +163,8 @@ class ViewerSettings {
           previewToolbarOpacity ?? this.previewToolbarOpacity,
       previewFilmstripOpacity:
           previewFilmstripOpacity ?? this.previewFilmstripOpacity,
+      previewFilmstripHeight:
+          previewFilmstripHeight ?? this.previewFilmstripHeight,
       windowsContextMenu: windowsContextMenu ?? this.windowsContextMenu,
     );
   }
