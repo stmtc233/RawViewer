@@ -595,9 +595,9 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     final previewFilmstripHeight = _clampedPreviewFilmstripHeight(context);
     final previewFilmstripTotalHeight =
         previewFilmstripHeight + bottomSafePadding;
-    final overviewBottomInset =
+    final previewBottomInset =
         _showPreviewFilmstrip ? previewFilmstripTotalHeight : 0.0;
-    final controlsBottomInset = bottomSafePadding + overviewBottomInset + 12;
+    final controlsBottomInset = bottomSafePadding + previewBottomInset + 12;
     final pageDragDevices =
         Set<PointerDeviceKind>.from(ScrollConfiguration.of(context).dragDevices)
           ..remove(PointerDeviceKind.trackpad);
@@ -635,38 +635,47 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                 itemBuilder: (context, index) {
                   final mediaGroup = widget.mediaGroups[index];
                   final filePath = mediaGroup.primary.path;
-                  return SingleImagePreview(
-                    key: _previewKeyFor(filePath),
-                    mediaGroup: mediaGroup,
-                    thumbnailResizeWidth: widget.thumbnailResizeWidth,
-                    previewThumbnailResizeWidth: _previewFilmstripDecodeWidth,
-                    imageStore: widget.imageStore,
-                    // Safe to forward the snapshot: the child is rebuilt from
-                    // this build method, so it is never staler than this page.
-                    settings: widget.initialSettings,
-                    rotationQuarterTurns: _rotationQuarterTurns[filePath] ?? 0,
-                    viewMode: _effectiveViewModeFor(mediaGroup),
-                    onEmbeddedJpegAvailability: (hasEmbeddedJpeg) =>
-                        _recordEmbeddedJpegAvailability(
-                            filePath, hasEmbeddedJpeg),
-                    onResetRotationRequested: () =>
-                        _resetImageRotation(filePath),
-                    onSwitchRequest: _switchPage,
-                    onTrackpadPanStart: _startTrackpadPageDrag,
-                    onTrackpadPanUpdate: _updateTrackpadPageDrag,
-                    onTrackpadPanEnd: _endTrackpadPageDrag,
-                    onTrackpadPanCancel: _cancelTrackpadPageDrag,
-                    isActive: index == _currentIndex,
-                    showPreviewOverview: _showPreviewOverview,
-                    overviewBottomInset: overviewBottomInset,
-                    isFastScrolling: _isFastScrolling,
-                    onScaleStateChanged: (isScaling) {
-                      if (_isLocked != isScaling) {
-                        setState(() {
-                          _isLocked = isScaling;
-                        });
-                      }
-                    },
+                  // Fit between the bars; the full-page viewport clips zoomed
+                  // images only at the window edges, beyond this padding.
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      top: MediaQuery.paddingOf(context).top +
+                          kImagePreviewToolbarHeight,
+                      bottom: previewBottomInset,
+                    ),
+                    child: SingleImagePreview(
+                      key: _previewKeyFor(filePath),
+                      mediaGroup: mediaGroup,
+                      thumbnailResizeWidth: widget.thumbnailResizeWidth,
+                      previewThumbnailResizeWidth: _previewFilmstripDecodeWidth,
+                      imageStore: widget.imageStore,
+                      // Safe to forward the snapshot: the child is rebuilt from
+                      // this build method, so it is never staler than this page.
+                      settings: widget.initialSettings,
+                      rotationQuarterTurns: _rotationQuarterTurns[filePath] ?? 0,
+                      viewMode: _effectiveViewModeFor(mediaGroup),
+                      onEmbeddedJpegAvailability: (hasEmbeddedJpeg) =>
+                          _recordEmbeddedJpegAvailability(
+                              filePath, hasEmbeddedJpeg),
+                      onResetRotationRequested: () =>
+                          _resetImageRotation(filePath),
+                      onSwitchRequest: _switchPage,
+                      onTrackpadPanStart: _startTrackpadPageDrag,
+                      onTrackpadPanUpdate: _updateTrackpadPageDrag,
+                      onTrackpadPanEnd: _endTrackpadPageDrag,
+                      onTrackpadPanCancel: _cancelTrackpadPageDrag,
+                      isActive: index == _currentIndex,
+                      showPreviewOverview: _showPreviewOverview,
+                      overviewBottomInset: 0,
+                      isFastScrolling: _isFastScrolling,
+                      onScaleStateChanged: (isScaling) {
+                        if (_isLocked != isScaling) {
+                          setState(() {
+                            _isLocked = isScaling;
+                          });
+                        }
+                      },
+                    ),
                   );
                 },
               ),

@@ -39,7 +39,7 @@ class _FixtureImageStore extends ImageStore {
 
 void main() {
   for (final size in [const Size(800, 600), const Size(360, 800)]) {
-    testWidgets('image remains visible beneath preview bars at $size',
+    testWidgets('image fits between bars and zooms beneath them at $size',
         (tester) async {
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
@@ -90,7 +90,7 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      Future<void> expectImageBehindBars() async {
+      Future<void> expectImageBehindBars({required bool visible}) async {
         final boundary = boundaryKey.currentContext!.findRenderObject()!
             as RenderRepaintBoundary;
         await tester.runAsync(() async {
@@ -103,19 +103,50 @@ void main() {
               size.height.toInt() - 8
             ]) {
               final offset = (y * screenshot.width + 2) * 4;
-              expect(pixels.getUint8(offset),
-                  greaterThan(pixels.getUint8(offset + 1) + 80),
-                  reason: 'The red image must show through the bar at y=$y');
+              final redExcess =
+                  pixels.getUint8(offset) - pixels.getUint8(offset + 1);
+              expect(redExcess, visible ? greaterThan(80) : lessThan(20),
+                  reason: 'Image behind the bar at y=$y: visible=$visible');
             }
+            final centerOffset = ((screenshot.height ~/ 2) * screenshot.width +
+                    screenshot.width ~/ 2) *
+                4;
+            expect(pixels.getUint8(centerOffset),
+                greaterThan(pixels.getUint8(centerOffset + 1) + 80));
           } finally {
             screenshot.dispose();
           }
         });
       }
 
-      await expectImageBehindBars();
+      Future<void> zoomIn() async {
+        for (var i = 0; i < 6; i++) {
+          await tester.tap(find.byIcon(Icons.zoom_in));
+          await tester.pumpAndSettle();
+        }
+      }
+
+      void expectFittedViewport() {
+        final fittedRect = tester.getRect(find.byType(InteractiveViewer));
+        expect(fittedRect.top, safePadding.top + kImagePreviewToolbarHeight);
+        expect(
+            fittedRect.bottom,
+            tester
+                .getTopLeft(
+                  find.byKey(const ValueKey('preview-filmstrip-panel')),
+                )
+                .dy);
+      }
+
+      await expectImageBehindBars(visible: false);
+      expectFittedViewport();
       final initialViewport = tester.getRect(find.byType(PageView));
       expect(initialViewport, Offset.zero & size);
+      await zoomIn();
+      await expectImageBehindBars(visible: true);
+      await tester.tap(find.byIcon(Icons.filter_center_focus));
+      await tester.pumpAndSettle();
+      await expectImageBehindBars(visible: false);
 
       await tester.drag(
         find.byKey(const ValueKey('preview-filmstrip-resize-handle')),
@@ -123,10 +154,11 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(tester.getRect(find.byType(PageView)), initialViewport);
-      await expectImageBehindBars();
+      expectFittedViewport();
+      await expectImageBehindBars(visible: false);
 
-      await tester.tap(find.byIcon(Icons.zoom_in));
-      await tester.pumpAndSettle();
+      await zoomIn();
+      await expectImageBehindBars(visible: true);
       final overviewRect = tester.getRect(find.byType(PreviewOverviewMap));
       final controlsRect = tester.getRect(find.byIcon(Icons.zoom_in));
       final filmstripRect = tester.getRect(

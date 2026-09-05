@@ -603,6 +603,7 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
       builder: (context, constraints) {
         final viewportSize = constraints.biggest;
         return Stack(
+          clipBehavior: Clip.none,
           children: [
             Listener(
               onPointerSignal: _handlePointerSignal,
@@ -618,6 +619,9 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
                   behavior: HitTestBehavior.opaque,
                   onDoubleTap: _resetZoom,
                   child: InteractiveViewer(
+                    // The page viewport clips at the window edges, allowing
+                    // zoomed content to paint beneath the translucent bars.
+                    clipBehavior: Clip.none,
                     transformationController: _transformationController,
                     minScale: kMinPreviewScale,
                     maxScale: kMaxPreviewScale,
@@ -740,12 +744,10 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
           )
         else if (isSharpeningInBackground)
           // Decoding in the background; keep showing what we already have.
-          Positioned(
-            top: MediaQuery.paddingOf(context).top +
-                kImagePreviewToolbarHeight +
-                24,
+          const Positioned(
+            top: 24,
             left: 16,
-            child: const ExcludeSemantics(
+            child: ExcludeSemantics(
               child: SizedBox(
                 width: 18,
                 height: 18,
