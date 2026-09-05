@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../core/decode_target.dart';
 import '../core/pointer_modifiers.dart';
+import '../core/raw_view_mode.dart';
 import '../image_store.dart';
 import '../l10n/app_localizations.dart';
 import '../media_group.dart';
@@ -17,7 +18,6 @@ import '../ui/raw_image_widget.dart';
 import '../viewer_image.dart';
 import '../worker_service.dart';
 import 'preview_geometry.dart';
-import 'preview_models.dart';
 import 'widgets/preview_hover_reveal.dart';
 import 'widgets/preview_overview_map.dart';
 
@@ -28,7 +28,7 @@ class SingleImagePreview extends StatefulWidget {
   final ImageStore imageStore;
   final ViewerSettings settings;
   final int rotationQuarterTurns;
-  final PreviewSource previewSource;
+  final RawViewMode viewMode;
   final ValueChanged<int> onRotationRequested;
   final VoidCallback onResetRotationRequested;
   final ValueChanged<int> onSwitchRequest;
@@ -42,6 +42,10 @@ class SingleImagePreview extends StatefulWidget {
   final ValueNotifier<bool> isFastScrolling;
   final ValueChanged<bool>? onScaleStateChanged;
 
+  /// Reports whether this RAW turned out to carry an embedded JPEG, so the
+  /// preview's mode switch can grey out that option.
+  final ValueChanged<bool>? onEmbeddedJpegAvailability;
+
   const SingleImagePreview({
     super.key,
     required this.mediaGroup,
@@ -50,7 +54,7 @@ class SingleImagePreview extends StatefulWidget {
     required this.imageStore,
     required this.settings,
     required this.rotationQuarterTurns,
-    required this.previewSource,
+    required this.viewMode,
     required this.onRotationRequested,
     required this.onResetRotationRequested,
     required this.onSwitchRequest,
@@ -63,6 +67,7 @@ class SingleImagePreview extends StatefulWidget {
     required this.overviewBottomInset,
     required this.isFastScrolling,
     this.onScaleStateChanged,
+    this.onEmbeddedJpegAvailability,
   });
 
   String get filePath => mediaGroup.primary.path;
@@ -74,11 +79,21 @@ class SingleImagePreview extends StatefulWidget {
 }
 
 class _SingleImagePreviewState extends State<SingleImagePreview> {
-  ViewerImage? _fastPreviewImage;
+  /// A cached thumbnail-layer image, peeked synchronously so the first frame of
+  /// a page switch is never blank. Soft, and only ever a stand-in.
+  ViewerImage? _thumbnailImage;
+
+  /// The RAW's embedded JPEG. Both a display mode of its own and the interim
+  /// sharp image while a decode runs.
+  ViewerImage? _embeddedJpegImage;
   ViewerImage? _decodedRawPreviewImage;
-  bool _hasFullResolutionFastPreview = false;
-  bool _fullResolutionFastPreviewRequested = false;
+
+  bool _embeddedJpegRequested = false;
   bool _isLoadingDecodedRawPreview = false;
+
+  /// Captured once, on purpose: this doubles as part of the decode cache key,
+  /// so changing it mid-page would strand the image already on screen under a
+  /// key nothing asks for again. A new value takes effect on the next preview.
   late int _rawDecodeHalfSize;
   final TransformationController _transformationController =
       TransformationController();
@@ -98,43 +113,36 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
 
   /// Only the expensive decoded-RAW task is tracked for cancellation.
   ///
-  /// The fast preview is deliberately never cancelled: it is cheap, and the
-  /// worker dedupes it by path, so cancelling ours would also resolve a grid
-  /// tile's shared request to null and leave that tile showing a broken image.
+  /// The thumbnail and embedded-JPEG layers are deliberately never cancelled:
+  /// they are cheap, and the worker dedupes them by path, so cancelling ours
+  /// would also resolve a grid tile's shared request to null and leave that
+  /// tile showing a broken image.
   WorkerTask<LibRawImage?>? _decodedRawTask;
 
-  bool get _isShowingPairedJpeg => widget.previewSource == PreviewSource.jpeg;
-  bool get _preferFastPreviewForRaw =>
-      widget.previewSource == PreviewSource.fastPreview;
+  bool get _isShowingPairedJpeg => widget.viewMode == RawViewMode.pairedJpeg;
+  bool get _isShowingEmbeddedJpeg =>
+      widget.viewMode == RawViewMode.embeddedJpeg;
 
   @override
   void initState() {
     super.initState();
     _rawDecodeHalfSize = widget.settings.useHalfSizeRawDecode ? 1 : 0;
 
-    // Take a cached fast preview synchronously so the first frame of a page
-    // switch already paints an image instead of an empty preview area. Prefer
-    // the full-resolution entry, but fall back to the grid's thumbnail-sized
-    // one: showing it slightly soft for a moment beats showing black.
+    // Take a cached thumbnail-layer image synchronously so the first frame of a
+    // page switch already paints something instead of an empty preview area.
+    // It is soft, but soft beats black, and it is replaced as soon as the real
+    // layer for this view mode arrives.
     if (widget.isRaw) {
-      _fastPreviewImage = widget.imageStore.peek(
-        widget.filePath,
-        RawLayer.fastPreview,
-      );
-      if (_fastPreviewImage != null) {
-        _hasFullResolutionFastPreview = true;
-      } else {
-        _fastPreviewImage = widget.imageStore.peek(
-              widget.filePath,
-              RawLayer.fastPreview,
-              targetWidth: widget.thumbnailResizeWidth,
-            ) ??
-            widget.imageStore.peek(
-              widget.filePath,
-              RawLayer.fastPreview,
-              targetWidth: widget.previewThumbnailResizeWidth,
-            );
-      }
+      _thumbnailImage = widget.imageStore.peek(
+            widget.filePath,
+            RawLayer.thumbnail,
+            targetWidth: widget.thumbnailResizeWidth,
+          ) ??
+          widget.imageStore.peek(
+            widget.filePath,
+            RawLayer.thumbnail,
+            targetWidth: widget.previewThumbnailResizeWidth,
+          );
     }
 
     unawaited(_loadRawDisplayLayers());
@@ -162,16 +170,16 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
       _transformationController.value = Matrix4.identity();
     }
 
-    if (widget.previewSource != oldWidget.previewSource) {
-      if (widget.previewSource != PreviewSource.decodedRaw) {
+    if (widget.viewMode != oldWidget.viewMode) {
+      if (widget.viewMode != RawViewMode.decodedRaw) {
         _decodedRawTask?.cancel();
         _decodedRawTask = null;
         _isLoadingDecodedRawPreview = false;
-      } else if (widget.isActive &&
-          !widget.isFastScrolling.value &&
-          _decodedRawPreviewImage == null) {
-        unawaited(_loadRawDisplayLayers());
       }
+      // The embedded JPEG serves both its own mode and the interim image while
+      // a decode runs, so a mode change may need a layer that was never asked
+      // for yet.
+      unawaited(_loadRawDisplayLayers());
     }
 
     if (widget.isActive && !oldWidget.isActive) {
@@ -185,7 +193,8 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
     widget.isFastScrolling.removeListener(_onFastScrollingChanged);
     _clearFitScaleLock();
     _decodedRawTask?.cancel();
-    _fastPreviewImage?.dispose();
+    _thumbnailImage?.dispose();
+    _embeddedJpegImage?.dispose();
     _decodedRawPreviewImage?.dispose();
     _transformationController.removeListener(_onTransformationChange);
     _transformationController.dispose();
@@ -246,42 +255,18 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
   }
 
   Future<void> _loadRawDisplayLayers() async {
-    // For non-RAW files, we rely entirely on Flutter's Image.file
-    if (!widget.isRaw || !widget.isActive) return;
+    // Bitmap files and the paired-JPEG mode rely entirely on Flutter's own
+    // file/image pipeline.
+    if (!widget.isRaw || !widget.isActive || _isShowingPairedJpeg) return;
 
-    if (!_hasFullResolutionFastPreview &&
-        !_fullResolutionFastPreviewRequested) {
-      _fullResolutionFastPreviewRequested = true;
-      final fastPreviewPriority =
-          widget.isFastScrolling.value ? TaskPriority.low : TaskPriority.high;
+    // The embedded JPEG is wanted in both RAW modes: as the image itself in
+    // embedded mode, and as the interim sharp image while a decode runs. It is
+    // also the probe that tells the mode switch whether this file has one.
+    await _loadEmbeddedJpeg();
 
-      // No targetWidth: this is the full-screen layer, so keep the preview's
-      // own resolution rather than the grid's thumbnail size.
-      final fastPreviewImage = await widget.imageStore.load(
-        widget.filePath,
-        RawLayer.fastPreview,
-        priority: fastPreviewPriority,
-      );
-
-      if (!mounted) {
-        fastPreviewImage?.dispose();
-        return;
-      }
-
-      if (fastPreviewImage != null) {
-        setState(() {
-          _fastPreviewImage?.dispose();
-          _fastPreviewImage = fastPreviewImage;
-          _hasFullResolutionFastPreview = true;
-        });
-      }
-    }
-
-    if (!widget.isActive || widget.isFastScrolling.value) {
-      return;
-    }
-
-    if (_preferFastPreviewForRaw || _isShowingPairedJpeg) return;
+    if (!widget.isActive || widget.isFastScrolling.value) return;
+    if (_isShowingEmbeddedJpeg && _embeddedJpegImage != null) return;
+    if (_isShowingPairedJpeg) return;
     if (_decodedRawPreviewImage != null) return;
 
     setState(() {
@@ -299,8 +284,8 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
     // A cancelled or superseded load must not overwrite what is on screen.
     if (!mounted ||
         !widget.isActive ||
-        _preferFastPreviewForRaw ||
-        _isShowingPairedJpeg) {
+        _isShowingPairedJpeg ||
+        (_isShowingEmbeddedJpeg && _embeddedJpegImage != null)) {
       decodedRawPreviewImage?.dispose();
       if (mounted && _isLoadingDecodedRawPreview) {
         setState(() {
@@ -317,6 +302,36 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
       }
       _isLoadingDecodedRawPreview = false;
     });
+  }
+
+  /// Loads the embedded JPEG once per file and reports whether it exists.
+  ///
+  /// No `targetWidth`: this is a full-screen layer, so it keeps the embedded
+  /// JPEG's own resolution rather than the grid's thumbnail size.
+  Future<void> _loadEmbeddedJpeg() async {
+    if (_embeddedJpegRequested) return;
+    _embeddedJpegRequested = true;
+
+    final priority =
+        widget.isFastScrolling.value ? TaskPriority.low : TaskPriority.high;
+    final image = await widget.imageStore.load(
+      widget.filePath,
+      RawLayer.embeddedJpeg,
+      priority: priority,
+    );
+
+    if (!mounted) {
+      image?.dispose();
+      return;
+    }
+
+    if (image != null) {
+      setState(() {
+        _embeddedJpegImage?.dispose();
+        _embeddedJpegImage = image;
+      });
+    }
+    widget.onEmbeddedJpegAvailability?.call(image != null);
   }
 
   void _applyScale(
@@ -642,14 +657,26 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
     );
   }
 
+  /// The single RAW image to paint, best available first.
+  ///
+  /// In embedded-JPEG mode the embedded JPEG wins, and the decoded layer only
+  /// appears when this file has no embedded JPEG at all (the mode is greyed out
+  /// and falls back rather than showing nothing). In decoded mode the decode
+  /// wins once it lands, with the embedded JPEG as the interim sharp image.
+  /// The cached thumbnail is the last resort in both.
+  ViewerImage? get _displayedImage {
+    if (_isShowingEmbeddedJpeg) {
+      return _embeddedJpegImage ?? _decodedRawPreviewImage ?? _thumbnailImage;
+    }
+    return _decodedRawPreviewImage ?? _embeddedJpegImage ?? _thumbnailImage;
+  }
+
   Widget _buildOverviewImage() {
     if (_isShowingPairedJpeg) {
       return _buildOverviewBitmap(widget.mediaGroup.pairedJpeg!.path);
     }
     if (widget.isRaw) {
-      final image = _preferFastPreviewForRaw
-          ? _fastPreviewImage
-          : _decodedRawPreviewImage ?? _fastPreviewImage;
+      final image = _displayedImage;
       if (image != null) {
         return RawImage(
           image: image.image,
@@ -678,13 +705,15 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
 
   /// Paints exactly one RAW image layer.
   ///
-  /// The decoded layer fully covers the fast preview, so stacking both would
-  /// pay for a large overdraw every frame with nothing to show for it. The
-  /// spinner only appears when there is genuinely nothing to display yet.
+  /// The best available layer fully covers the ones beneath it, so stacking
+  /// them would pay for a large overdraw every frame with nothing to show for
+  /// it. The centred spinner only appears when there is genuinely nothing to
+  /// display yet.
   Widget _buildRawPreview() {
-    final showDecoded =
-        _decodedRawPreviewImage != null && !_preferFastPreviewForRaw;
-    final displayed = showDecoded ? _decodedRawPreviewImage : _fastPreviewImage;
+    final displayed = _displayedImage;
+    final isSharpeningInBackground = _isLoadingDecodedRawPreview &&
+        displayed != null &&
+        displayed != _decodedRawPreviewImage;
 
     return Stack(
       fit: StackFit.expand,
@@ -699,8 +728,8 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
           const Center(
             child: ExcludeSemantics(child: CircularProgressIndicator()),
           )
-        else if (_isLoadingDecodedRawPreview && !showDecoded)
-          // Sharpening in the background; keep showing the fast preview.
+        else if (isSharpeningInBackground)
+          // Decoding in the background; keep showing what we already have.
           const Positioned(
             top: 24,
             left: 16,

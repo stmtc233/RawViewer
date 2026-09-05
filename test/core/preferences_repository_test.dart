@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rawviewer/core/preferences_repository.dart';
+import 'package:rawviewer/core/raw_view_mode.dart';
 import 'package:rawviewer/settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -116,6 +117,31 @@ void main() {
       await repo.savePreviewOverlayOpacity(0.8);
       final stored = await repo.loadViewPreferences();
       expect(stored.previewOverlayOpacity, closeTo(0.8, 0.001));
+    });
+
+    test('round-trips the RAW view mode', () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = const PreferencesRepository();
+      await repo.saveRawViewMode(RawViewMode.embeddedJpeg);
+      final stored = await repo.loadViewPreferences();
+      expect(stored.rawViewMode, RawViewMode.embeddedJpeg);
+    });
+
+    test('leaves the RAW view mode null when nothing is stored', () async {
+      // Null means "never chosen", so the caller keeps the ViewerSettings
+      // default rather than being forced onto a mode.
+      SharedPreferences.setMockInitialValues({});
+      final stored =
+          await const PreferencesRepository().loadViewPreferences();
+      expect(stored.rawViewMode, isNull);
+    });
+
+    test('ignores an unrecognised stored RAW view mode', () async {
+      // A key written by a newer build must not crash an older one.
+      SharedPreferences.setMockInitialValues({'raw_view_mode': 'fastPreview'});
+      final stored =
+          await const PreferencesRepository().loadViewPreferences();
+      expect(stored.rawViewMode, isNull);
     });
 
     test('migrates legacy auto-transparency-disabled key on first load', () async {

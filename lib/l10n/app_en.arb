@@ -22,11 +22,6 @@
   "languageSystem": "Follow system",
   "languageChineseSimplified": "简体中文",
   "languageEnglish": "English",
-  "rawPreviewSourceSectionTitle": "RAW Preview Source",
-  "fastPreviewTitle": "Fast Preview",
-  "fastPreviewSubtitle": "Show the cached fast preview first, then keep using the fast preview layer. This usually uses the embedded preview and falls back to fast RAW processing when unavailable.",
-  "decodedRawPreviewTitle": "Decoded RAW",
-  "decodedRawPreviewSubtitle": "Show the cached fast preview first, then decode RAW for the final image.",
   "rawProcessingSectionTitle": "RAW Processing",
   "halfSizeRawDecodeTitle": "Half-size RAW Decode",
   "halfSizeRawDecodeSubtitle": "Decode the final RAW image at 50% resolution for better speed. Disable for full resolution.",
@@ -165,7 +160,10 @@
     }
   },
   "mediaFilterEmptyState": "No images match the current filter",
-  "fastPreviewShortLabel": "FAST",
+  "rawViewModeTooltip": "View mode",
+  "embeddedJpegModeLabel": "Embedded JPG",
+  "decodedRawModeLabel": "RAW",
+  "pairedJpegModeLabel": "JPG",
   "rawShortLabel": "RAW",
   "rawJpegShortLabel": "R&J",
   "imageShortLabel": "IMG"

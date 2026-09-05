@@ -10,6 +10,7 @@ import 'package:path/path.dart' as path;
 import '../core/decode_target.dart';
 import '../core/media_timestamps.dart';
 import '../core/media_types.dart';
+import '../core/raw_view_mode.dart';
 import '../image_store.dart';
 import '../l10n/app_localizations.dart';
 import '../media_group.dart';
@@ -31,8 +32,22 @@ class ImagePreviewPage extends StatefulWidget {
   final int thumbnailResizeWidth;
   final ImageStore imageStore;
   final TimestampRepository timestampRepository;
-  final ViewerSettings settings;
+  /// Settings as they were when this route was pushed — a snapshot, not a
+  /// live view.
+  ///
+  /// This page is a route: its `pageBuilder` runs once, so later changes to the
+  /// app's settings never reach this object. Read it for values that only need
+  /// to be right at open time, and seed local state from it for anything the
+  /// user can change from inside the preview (see `_rawViewMode`). Making a
+  /// setting live here means lifting it into an InheritedWidget or a
+  /// ValueListenable, not reading this field again.
+  final ViewerSettings initialSettings;
+
   final VoidCallback onClose;
+
+  /// Reports a mode change so it can be persisted. The chosen mode is app-wide,
+  /// not per-file: this switch is the only place it is set.
+  final ValueChanged<RawViewMode> onRawViewModeChanged;
 
   const ImagePreviewPage({
     super.key,
@@ -41,8 +56,9 @@ class ImagePreviewPage extends StatefulWidget {
     required this.thumbnailResizeWidth,
     required this.imageStore,
     required this.timestampRepository,
-    required this.settings,
+    required this.initialSettings,
     required this.onClose,
+    required this.onRawViewModeChanged,
   });
 
   @override
@@ -57,8 +73,20 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   bool _showPreviewFilmstrip = true;
   bool _showPreviewOverview = true;
   final Map<String, int> _rotationQuarterTurns = <String, int>{};
-  final Map<String, PreviewSource> _previewSources =
-      <String, PreviewSource>{};
+
+  /// The app-wide view mode, held here as well as in the settings.
+  ///
+  /// [ImagePreviewPage.initialSettings] is a snapshot taken when the route was
+  /// pushed, so writing the mode only into the settings would not change what
+  /// is on screen until the preview was reopened. Owning it here is what makes
+  /// the switch take effect immediately; the change is still reported upward so
+  /// it persists and outlives this route.
+  late RawViewMode _rawViewMode;
+
+  /// Which RAW files were found to carry an embedded JPEG, learned from the
+  /// preview's own load of that layer. Absent means "not probed yet", which is
+  /// treated as available so the switch does not flicker to greyed and back.
+  final Map<String, bool> _hasEmbeddedJpeg = <String, bool>{};
   bool _isExportingEmbeddedJpeg = false;
 
   DateTime? _lastSwitchTime;
@@ -78,6 +106,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     super.initState();
     _currentIndex = widget.initialIndex;
     _targetPage = widget.initialIndex;
+    _rawViewMode = widget.initialSettings.rawViewMode;
     _pageController = PageController(initialPage: widget.initialIndex);
     _currentTimestampFuture = widget.timestampRepository.load(
       widget.mediaGroups[_currentIndex].primary.path,
@@ -215,7 +244,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
       unawaited(widget.imageStore
           .load(
             filePath,
-            RawLayer.fastPreview,
+            RawLayer.thumbnail,
             targetWidth: _previewFilmstripDecodeWidth,
             priority: TaskPriority.low,
           )
@@ -272,7 +301,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     // Touch and trackpad swipes move the PageView directly and never take this
     // branch. Disabling the setting therefore only removes animation from
     // discrete mouse-wheel navigation.
-    if (!widget.settings.pageSwitchAnimationEnabled) {
+    if (!widget.initialSettings.pageSwitchAnimationEnabled) {
       _scrollStopTimer?.cancel();
       _isFastScrolling.value = false;
       _pageController.jumpToPage(_targetPage);
@@ -317,7 +346,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     _scrollStopTimer?.cancel();
     _isFastScrolling.value = false;
 
-    if (!widget.settings.pageSwitchAnimationEnabled) {
+    if (!widget.initialSettings.pageSwitchAnimationEnabled) {
       _pageController.jumpToPage(index);
       return;
     }
@@ -344,21 +373,47 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     });
   }
 
-  PreviewSource _previewSourceFor(MediaGroup mediaGroup) {
-    return _previewSources[mediaGroup.primary.path] ??
-        (widget.settings.preferFastPreviewForRaw
-            ? PreviewSource.fastPreview
-            : PreviewSource.decodedRaw);
+  /// Whether [mediaGroup] is known *not* to have an embedded JPEG.
+  ///
+  /// Unprobed files count as having one: the preview asks for that layer on
+  /// every RAW page, so the answer arrives before the user can act on it.
+  bool _hasEmbeddedJpegFor(MediaGroup mediaGroup) =>
+      _hasEmbeddedJpeg[mediaGroup.primary.path] ?? true;
+
+  /// The mode this file can actually display, which may fall back from the
+  /// app-wide preference when the preferred source is missing here.
+  RawViewMode _effectiveViewModeFor(MediaGroup mediaGroup) {
+    return resolveRawViewMode(
+      preferred: _rawViewMode,
+      hasEmbeddedJpeg: _hasEmbeddedJpegFor(mediaGroup),
+      hasPairedJpeg: mediaGroup.hasPairedJpeg,
+    );
   }
 
-  void _selectPreviewSource(MediaGroup mediaGroup, PreviewSource source) {
-    if (!mediaGroup.isRaw ||
-        (source == PreviewSource.jpeg && !mediaGroup.hasPairedJpeg)) {
+  void _recordEmbeddedJpegAvailability(String filePath, bool hasEmbeddedJpeg) {
+    if (_hasEmbeddedJpeg[filePath] == hasEmbeddedJpeg) return;
+    setState(() {
+      _hasEmbeddedJpeg[filePath] = hasEmbeddedJpeg;
+    });
+  }
+
+  void _selectViewMode(MediaGroup mediaGroup, RawViewMode mode) {
+    if (!mediaGroup.isRaw || mode == _rawViewMode) {
       return;
     }
+    if (!isRawViewModeAvailable(
+      mode,
+      hasEmbeddedJpeg: _hasEmbeddedJpegFor(mediaGroup),
+      hasPairedJpeg: mediaGroup.hasPairedJpeg,
+    )) {
+      return;
+    }
+    // Apply here so the visible page changes on the next frame, and report it
+    // so it is persisted for the next file and the next launch.
     setState(() {
-      _previewSources[mediaGroup.primary.path] = source;
+      _rawViewMode = mode;
     });
+    widget.onRawViewModeChanged(mode);
   }
 
   Future<void> _exportEmbeddedJpeg(String filePath) async {
@@ -416,28 +471,25 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     return error.toString();
   }
 
-  IconData _previewSourceIcon(PreviewSource source) {
-    switch (source) {
-      case PreviewSource.fastPreview:
-        return Icons.bolt_outlined;
-      case PreviewSource.decodedRaw:
+  IconData _viewModeIcon(RawViewMode mode) {
+    switch (mode) {
+      case RawViewMode.embeddedJpeg:
+        return Icons.photo_camera_back_outlined;
+      case RawViewMode.decodedRaw:
         return Icons.camera_alt_outlined;
-      case PreviewSource.jpeg:
+      case RawViewMode.pairedJpeg:
         return Icons.image_outlined;
     }
   }
 
-  String _previewSourceLabel(
-    AppLocalizations l10n,
-    PreviewSource source,
-  ) {
-    switch (source) {
-      case PreviewSource.fastPreview:
-        return l10n.fastPreviewShortLabel;
-      case PreviewSource.decodedRaw:
-        return l10n.rawShortLabel;
-      case PreviewSource.jpeg:
-        return 'JPG';
+  String _viewModeLabel(AppLocalizations l10n, RawViewMode mode) {
+    switch (mode) {
+      case RawViewMode.embeddedJpeg:
+        return l10n.embeddedJpegModeLabel;
+      case RawViewMode.decodedRaw:
+        return l10n.decodedRawModeLabel;
+      case RawViewMode.pairedJpeg:
+        return l10n.pairedJpegModeLabel;
     }
   }
 
@@ -446,7 +498,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     final l10n = AppLocalizations.of(context)!;
     final currentMediaGroup = widget.mediaGroups[_currentIndex];
     final currentFilePath = widget.mediaGroups[_currentIndex].primary.path;
-    final currentPreviewSource = _previewSourceFor(currentMediaGroup);
+    final currentViewMode = _effectiveViewModeFor(currentMediaGroup);
     final previewTop =
         MediaQuery.paddingOf(context).top + kImagePreviewToolbarHeight;
     final pageDragDevices =
@@ -485,9 +537,14 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                   thumbnailResizeWidth: widget.thumbnailResizeWidth,
                   previewThumbnailResizeWidth: _previewFilmstripDecodeWidth,
                   imageStore: widget.imageStore,
-                  settings: widget.settings,
+                  // Safe to forward the snapshot: the child is rebuilt from
+                  // this build method, so it is never staler than this page.
+                  settings: widget.initialSettings,
                   rotationQuarterTurns: _rotationQuarterTurns[filePath] ?? 0,
-                  previewSource: _previewSourceFor(mediaGroup),
+                  viewMode: _effectiveViewModeFor(mediaGroup),
+                  onEmbeddedJpegAvailability: (hasEmbeddedJpeg) =>
+                      _recordEmbeddedJpegAvailability(
+                          filePath, hasEmbeddedJpeg),
                   onRotationRequested: (quarterTurns) =>
                       _rotateImage(filePath, quarterTurns),
                   onResetRotationRequested: () => _resetImageRotation(filePath),
@@ -517,7 +574,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
               right: 0,
               bottom: 0,
               child: PreviewHoverReveal(
-                restingOpacity: widget.settings.previewOverlayOpacity,
+                restingOpacity: widget.initialSettings.previewOverlayOpacity,
                 child: PreviewFilmstrip(
                   mediaGroups: widget.mediaGroups,
                   currentIndex: _currentIndex,
@@ -534,12 +591,13 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
             left: 0,
             right: 0,
             child: PreviewHoverReveal(
-              restingOpacity: widget.settings.previewOverlayOpacity,
+              restingOpacity: widget.initialSettings.previewOverlayOpacity,
               child: FutureBuilder<MediaTimestampInfo>(
                 future: _currentTimestampFuture,
                 builder: (context, snapshot) {
                   final timestampText = snapshot.hasData
-                      ? snapshot.data!.format(widget.settings.timeDisplaySource)
+                      ? snapshot.data!
+                          .format(widget.initialSettings.timeDisplaySource)
                       : '---- -- -- --:--:--';
                   return Container(
                     decoration: BoxDecoration(
@@ -629,44 +687,38 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                               ),
                               if (currentMediaGroup.isRaw) ...[
                                 const SizedBox(width: 8),
-                                DesktopPopupMenuButton<PreviewSource>(
-                                  tooltip: l10n.rawPreviewSourceSectionTitle,
-                                  initialValue: currentPreviewSource,
-                                  onSelected: (source) => _selectPreviewSource(
+                                DesktopPopupMenuButton<RawViewMode>(
+                                  tooltip: l10n.rawViewModeTooltip,
+                                  initialValue: currentViewMode,
+                                  onSelected: (mode) => _selectViewMode(
                                     currentMediaGroup,
-                                    source,
+                                    mode,
                                   ),
                                   child: DesktopPopupMenuLabelTrigger(
-                                    icon: _previewSourceIcon(
-                                      currentPreviewSource,
-                                    ),
-                                    label: _previewSourceLabel(
+                                    icon: _viewModeIcon(currentViewMode),
+                                    label: _viewModeLabel(
                                       l10n,
-                                      currentPreviewSource,
+                                      currentViewMode,
                                     ),
                                   ),
+                                  // Every mode is always listed; the ones this
+                                  // file cannot show are greyed out rather than
+                                  // removed, so the menu never changes shape.
                                   itemBuilder: (context) => [
-                                    desktopPopupMenuItem(
-                                      value: PreviewSource.fastPreview,
-                                      icon: Icons.bolt_outlined,
-                                      selected: currentPreviewSource ==
-                                          PreviewSource.fastPreview,
-                                      label: l10n.fastPreviewShortLabel,
-                                    ),
-                                    desktopPopupMenuItem(
-                                      value: PreviewSource.decodedRaw,
-                                      icon: Icons.camera_alt_outlined,
-                                      selected: currentPreviewSource ==
-                                          PreviewSource.decodedRaw,
-                                      label: l10n.rawShortLabel,
-                                    ),
-                                    if (currentMediaGroup.hasPairedJpeg)
+                                    for (final mode in RawViewMode.values)
                                       desktopPopupMenuItem(
-                                        value: PreviewSource.jpeg,
-                                        icon: Icons.image_outlined,
-                                        selected: currentPreviewSource ==
-                                            PreviewSource.jpeg,
-                                        label: 'JPG',
+                                        value: mode,
+                                        icon: _viewModeIcon(mode),
+                                        selected: currentViewMode == mode,
+                                        enabled: isRawViewModeAvailable(
+                                          mode,
+                                          hasEmbeddedJpeg: _hasEmbeddedJpegFor(
+                                            currentMediaGroup,
+                                          ),
+                                          hasPairedJpeg:
+                                              currentMediaGroup.hasPairedJpeg,
+                                        ),
+                                        label: _viewModeLabel(l10n, mode),
                                       ),
                                   ],
                                 ),

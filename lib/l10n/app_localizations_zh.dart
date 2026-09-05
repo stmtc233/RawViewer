@@ -56,21 +56,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get languageEnglish => 'English';
 
   @override
-  String get rawPreviewSourceSectionTitle => 'RAW 预览来源';
-
-  @override
-  String get fastPreviewTitle => '快速预览';
-
-  @override
-  String get fastPreviewSubtitle => '先显示缓存的快速预览，再继续使用快速预览层。通常优先使用内嵌预览，缺失时回退到快速 RAW 处理。';
-
-  @override
-  String get decodedRawPreviewTitle => 'RAW 解码图像';
-
-  @override
-  String get decodedRawPreviewSubtitle => '先显示缓存的快速预览，再解码 RAW 作为最终图像。';
-
-  @override
   String get rawProcessingSectionTitle => 'RAW 处理';
 
   @override
@@ -288,7 +273,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mediaFilterEmptyState => '没有符合当前筛选条件的图片';
 
   @override
-  String get fastPreviewShortLabel => 'FAST';
+  String get rawViewModeTooltip => '查看模式';
+
+  @override
+  String get embeddedJpegModeLabel => '内嵌 JPG';
+
+  @override
+  String get decodedRawModeLabel => 'RAW';
+
+  @override
+  String get pairedJpegModeLabel => 'JPG';
 
   @override
   String get rawShortLabel => 'RAW';

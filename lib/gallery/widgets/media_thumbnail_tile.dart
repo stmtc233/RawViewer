@@ -112,7 +112,7 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
 
     // A cache hit resolves synchronously, so the very first frame already has
     // the image rather than flashing a placeholder.
-    final cached = widget.imageStore.peek(widget.filePath, RawLayer.fastPreview,
+    final cached = widget.imageStore.peek(widget.filePath, RawLayer.thumbnail,
         targetWidth: widget.resizeWidth);
     if (cached != null) {
       _fastPreview = cached;
@@ -133,7 +133,7 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
     // by ignoring a stale result via [generation].
     final image = await widget.imageStore.load(
       widget.filePath,
-      RawLayer.fastPreview,
+      RawLayer.thumbnail,
       targetWidth: widget.resizeWidth,
     );
 

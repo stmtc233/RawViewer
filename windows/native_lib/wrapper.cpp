@@ -61,8 +61,9 @@ bool is_cancelled(void* cancel_token) {
     return flag != nullptr && flag->load(std::memory_order_relaxed);
 }
 
-// Extract only the JPEG bytes stored in the RAW container. Unlike the fast
-// preview path below, this deliberately does not fall back to RAW processing.
+// Extract only the JPEG bytes stored in the RAW container. Unlike the thumbnail
+// layer below, this deliberately does not fall back to RAW processing, so a
+// null result is the authoritative "this file has no embedded JPEG".
 ThumbnailResult extract_embedded_jpeg(LibRaw& RawProcessor) {
     ThumbnailResult result = empty_thumbnail();
 
@@ -143,12 +144,14 @@ bool fill_rgba_from_processed(ImageResult& result,
   return true;
 }
 
-// Build the RAW fast preview layer.
+// Build the RAW thumbnail layer: the cheapest image we can produce.
 //
 // Prefer the embedded preview via unpack_thumb(). Encoded JPEG previews are
 // passed straight through because the engine decodes JPEG efficiently already.
-// If the file exposes no usable preview, fall back to a half-size RAW decode so
-// the UI still gets a fast first image.
+// If the file exposes no usable preview, fall back to a half-size RAW decode
+// so the UI still gets an image quickly. The payload is therefore not
+// necessarily the embedded JPEG — get_embedded_jpeg() is the no-fallback
+// path for callers that need that distinction.
 ThumbnailResult process_thumbnail(LibRaw& raw_processor, void* cancel_token) {
     ThumbnailResult result = empty_thumbnail();
 
@@ -192,7 +195,7 @@ ThumbnailResult process_thumbnail(LibRaw& raw_processor, void* cancel_token) {
         return result;
     }
 
-    // Fallback: generate a RAW fast preview from decoded RAW data.
+    // Fallback: no usable embedded preview, so decode the RAW at half size.
     raw_processor.imgdata.params.use_camera_wb = 1;
     raw_processor.imgdata.params.half_size = 1;
     raw_processor.imgdata.params.output_bps = 8;
@@ -271,8 +274,8 @@ extern "C" {
         delete static_cast<std::atomic<bool>*>(token);
     }
 
-    // Despite the ABI name, get_thumbnail semantically returns the RAW fast
-    // preview layer.
+    // Despite the ABI name, get_thumbnail returns the RAW thumbnail layer,
+    // which may be a RAW decode rather than an embedded thumbnail.
     EXPORT void get_thumbnail(const wchar_t* file_path, void* cancel_token,
                               ThumbnailResult* out) {
         if (out == nullptr) return;

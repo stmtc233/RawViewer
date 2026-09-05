@@ -22,11 +22,6 @@
   "languageSystem": "跟随系统",
   "languageChineseSimplified": "简体中文",
   "languageEnglish": "English",
-  "rawPreviewSourceSectionTitle": "RAW 预览来源",
-  "fastPreviewTitle": "快速预览",
-  "fastPreviewSubtitle": "先显示缓存的快速预览，再继续使用快速预览层。通常优先使用内嵌预览，缺失时回退到快速 RAW 处理。",
-  "decodedRawPreviewTitle": "RAW 解码图像",
-  "decodedRawPreviewSubtitle": "先显示缓存的快速预览，再解码 RAW 作为最终图像。",
   "rawProcessingSectionTitle": "RAW 处理",
   "halfSizeRawDecodeTitle": "半尺寸 RAW 解码",
   "halfSizeRawDecodeSubtitle": "将 RAW 最终图像按 50% 分辨率解码以提升速度。关闭后使用完整分辨率。",
@@ -165,7 +160,10 @@
     }
   },
   "mediaFilterEmptyState": "没有符合当前筛选条件的图片",
-  "fastPreviewShortLabel": "FAST",
+  "rawViewModeTooltip": "查看模式",
+  "embeddedJpegModeLabel": "内嵌 JPG",
+  "decodedRawModeLabel": "RAW",
+  "pairedJpegModeLabel": "JPG",
   "rawShortLabel": "RAW",
   "rawJpegShortLabel": "R&J",
   "imageShortLabel": "IMG"

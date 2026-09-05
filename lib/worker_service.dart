@@ -7,7 +7,7 @@ import 'native_lib.dart';
 
 enum TaskPriority { high, low }
 
-enum _RequestType { rawFastPreview, decodedRawPreview }
+enum _RequestType { rawThumbnail, embeddedJpeg, decodedRawPreview }
 
 /// Decodes RAW previews on a pool of isolates.
 ///
@@ -126,12 +126,21 @@ class WorkerService {
     }
   }
 
-  // RAW fast preview layer: prefer embedded preview data and fall back to a
-  // fast RAW-generated preview when the file has no embedded preview.
-  WorkerTask<LibRawImage?> requestRawFastPreview(String path,
+  // RAW thumbnail layer: the cheapest image LibRaw can produce — embedded
+  // preview data when present, a half-size RAW decode otherwise.
+  WorkerTask<LibRawImage?> requestRawThumbnail(String path,
       {TaskPriority priority = TaskPriority.high}) {
     return WorkerTask._(
-        this, _nextRequestId++, path, _RequestType.rawFastPreview,
+        this, _nextRequestId++, path, _RequestType.rawThumbnail,
+        priority: priority);
+  }
+
+  // The JPEG embedded in the RAW container, with no fallback: a null result
+  // means this file carries no embedded JPEG.
+  WorkerTask<LibRawImage?> requestEmbeddedJpeg(String path,
+      {TaskPriority priority = TaskPriority.high}) {
+    return WorkerTask._(
+        this, _nextRequestId++, path, _RequestType.embeddedJpeg,
         priority: priority);
   }
 
@@ -358,13 +367,15 @@ void _workerEntry(SendPort mainSendPort) {
     activeTokens[message.requestId] = token;
 
     try {
-      final LibRawImage? result;
-      if (message.type == _RequestType.rawFastPreview) {
-        result = getRawFastPreviewSync(message.path, cancelToken: token);
-      } else {
-        result = getDecodedRawPreviewSync(message.path,
-            halfSize: message.halfSize, cancelToken: token);
-      }
+      // The embedded-JPEG extraction ABI takes no cancel token: it is a
+      // container read with no demosaic, so there is nothing worth aborting.
+      final result = switch (message.type) {
+        _RequestType.rawThumbnail =>
+          getRawThumbnailSync(message.path, cancelToken: token),
+        _RequestType.embeddedJpeg => getEmbeddedJpegImageSync(message.path),
+        _RequestType.decodedRawPreview => getDecodedRawPreviewSync(message.path,
+            halfSize: message.halfSize, cancelToken: token),
+      };
 
       port.send(_WorkerResponse(requestId: message.requestId, image: result));
     } catch (e) {
