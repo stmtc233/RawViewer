@@ -61,6 +61,10 @@
     }
   },
   "fileAssociationsSectionTitle": "默认打开格式",
+  "openDefaultAppsSettings": "打开默认应用设置",
+  "refreshFileAssociations": "刷新文件关联",
+  "fileAssociationDefault": "默认应用：Raw Viewer",
+  "fileAssociationNotDefault": "Raw Viewer 不是默认应用",
   "fileAssociationFormatSubtitle": "使用 Raw Viewer 打开 .{extension} 文件",
   "fileAssociationsEnableAll": "开启所有",
   "fileAssociationsEnableRaw": "仅开启 RAW",

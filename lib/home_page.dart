@@ -315,6 +315,12 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<FileAssociationSettings> _getFileAssociationSettings() async {
+    final values = await fileAssociationChannel
+        .invokeMapMethod<String, dynamic>('getFileAssociationState');
+    return FileAssociationSettings.fromPlatformMap(values);
+  }
+
   Future<WindowsContextMenuSettings> _getWindowsContextMenuSettings() async {
     final values = await windowsShellChannel.invokeMapMethod<String, dynamic>(
       'getContextMenuState',
@@ -1198,8 +1204,14 @@ class _HomePageState extends State<HomePage> {
               onWindowsContextMenuChanged:
                   Platform.isWindows ? _setWindowsContextMenuEnabled : null,
               onFileAssociationsChanged:
+                  Platform.isMacOS ? _setFileAssociations : null,
+              onOpenDefaultAppsSettings: Platform.isWindows
+                  ? () => fileAssociationChannel
+                      .invokeMethod<void>('openDefaultAppsSettings')
+                  : null,
+              onRefreshFileAssociations:
                   (Platform.isWindows || Platform.isMacOS)
-                      ? _setFileAssociations
+                      ? _getFileAssociationSettings
                       : null,
               onClose: () {
                 Navigator.pop(dialogContext);

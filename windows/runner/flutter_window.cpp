@@ -316,51 +316,14 @@ void FlutterWindow::ConfigureFileAssociationChannel() {
           return;
         }
 
-        if (call.method_name() == "setFileAssociations") {
-          const auto* arguments =
-              std::get_if<flutter::EncodableMap>(call.arguments());
-          if (arguments == nullptr) {
-            result->Error("invalid_arguments",
-                          "Expected a map containing extensions.");
-            return;
-          }
-
-          const auto extensions_it =
-              arguments->find(flutter::EncodableValue("extensions"));
-          if (extensions_it == arguments->end()) {
-            result->Error("invalid_arguments",
-                          "Expected an extensions list.");
-            return;
-          }
-
-          const auto* extension_list =
-              std::get_if<flutter::EncodableList>(&extensions_it->second);
-          if (extension_list == nullptr) {
-            result->Error("invalid_arguments",
-                          "Expected extensions as a list of strings.");
-            return;
-          }
-
-          std::vector<std::string> extensions;
-          extensions.reserve(extension_list->size());
-          for (const auto& value : *extension_list) {
-            const auto* extension = std::get_if<std::string>(&value);
-            if (extension == nullptr) {
-              result->Error("invalid_arguments",
-                            "Expected extensions as a list of strings.");
-              return;
-            }
-            extensions.push_back(*extension);
-          }
-
+        if (call.method_name() == "openDefaultAppsSettings") {
           std::string error_message;
-          if (!SetWindowsFileAssociations(extensions, &error_message)) {
+          if (!OpenWindowsDefaultAppsSettings(&error_message)) {
             result->Error("file_association_error", error_message);
             return;
           }
 
-          result->Success(
-              flutter::EncodableValue(GetWindowsFileAssociationState()));
+          result->Success();
           return;
         }
 

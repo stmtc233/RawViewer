@@ -335,6 +335,30 @@ abstract class AppLocalizations {
   /// **'Default file associations'**
   String get fileAssociationsSectionTitle;
 
+  /// No description provided for @openDefaultAppsSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open default apps'**
+  String get openDefaultAppsSettings;
+
+  /// No description provided for @refreshFileAssociations.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh file associations'**
+  String get refreshFileAssociations;
+
+  /// No description provided for @fileAssociationDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default: Raw Viewer'**
+  String get fileAssociationDefault;
+
+  /// No description provided for @fileAssociationNotDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Raw Viewer is not the default'**
+  String get fileAssociationNotDefault;
+
   /// No description provided for @fileAssociationFormatSubtitle.
   ///
   /// In en, this message translates to:

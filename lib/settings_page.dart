@@ -102,10 +102,12 @@ typedef WindowsContextMenuToggleHandler = Future<WindowsContextMenuSettings>
 
 class FileAssociationSettings {
   final bool supported;
+  final bool requiresSystemSettings;
   final Map<String, bool> bindings;
 
   const FileAssociationSettings({
     this.supported = false,
+    this.requiresSystemSettings = false,
     this.bindings = const <String, bool>{},
   });
 
@@ -113,10 +115,13 @@ class FileAssociationSettings {
 
   FileAssociationSettings copyWith({
     bool? supported,
+    bool? requiresSystemSettings,
     Map<String, bool>? bindings,
   }) {
     return FileAssociationSettings(
       supported: supported ?? this.supported,
+      requiresSystemSettings:
+          requiresSystemSettings ?? this.requiresSystemSettings,
       bindings: bindings ?? this.bindings,
     );
   }
@@ -133,6 +138,7 @@ class FileAssociationSettings {
     }
     return FileAssociationSettings(
       supported: values?['supported'] == true,
+      requiresSystemSettings: values?['requiresSystemSettings'] == true,
       bindings: bindings,
     );
   }
@@ -223,6 +229,8 @@ class SettingsPage extends StatefulWidget {
   final ValueChanged<ViewerSettings> onSettingsChanged;
   final WindowsContextMenuToggleHandler? onWindowsContextMenuChanged;
   final FileAssociationChangeHandler? onFileAssociationsChanged;
+  final Future<void> Function()? onOpenDefaultAppsSettings;
+  final Future<FileAssociationSettings> Function()? onRefreshFileAssociations;
 
   const SettingsPage({
     super.key,
@@ -231,13 +239,16 @@ class SettingsPage extends StatefulWidget {
     required this.onSettingsChanged,
     this.onWindowsContextMenuChanged,
     this.onFileAssociationsChanged,
+    this.onOpenDefaultAppsSettings,
+    this.onRefreshFileAssociations,
   });
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _SettingsPageState extends State<SettingsPage>
+    with WidgetsBindingObserver {
   late ViewerSettings _currentSettings;
   bool _isUpdatingWindowsContextMenu = false;
   bool _isUpdatingFileAssociations = false;
@@ -257,6 +268,20 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     _currentSettings = widget.settings;
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshFileAssociations());
+    }
   }
 
   void _updateSettings(ViewerSettings settings) {
@@ -270,7 +295,8 @@ class _SettingsPageState extends State<SettingsPage> {
       Platform.isWindows && widget.onWindowsContextMenuChanged != null;
 
   bool get _showFileAssociationSection =>
-      widget.onFileAssociationsChanged != null &&
+      (widget.onFileAssociationsChanged != null ||
+          widget.onOpenDefaultAppsSettings != null) &&
       _currentSettings.fileAssociations.supported;
 
   List<Widget> _withDividers(List<Widget> children) {
@@ -409,12 +435,43 @@ class _SettingsPageState extends State<SettingsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.fileAssociationsUpdateFailed('$error'))),
       );
+      await _refreshFileAssociations();
     } finally {
       if (mounted) {
         setState(() {
           _isUpdatingFileAssociations = false;
         });
       }
+    }
+  }
+
+  Future<void> _refreshFileAssociations() async {
+    final refresh = widget.onRefreshFileAssociations;
+    if (refresh == null) return;
+    try {
+      final nextState = await refresh();
+      if (!mounted) return;
+      _updateSettings(_currentSettings.copyWith(fileAssociations: nextState));
+    } on Exception {
+      // Preserve the last known state if the platform is temporarily unavailable.
+    }
+  }
+
+  Future<void> _openDefaultAppsSettings() async {
+    final open = widget.onOpenDefaultAppsSettings;
+    if (open == null || _isUpdatingFileAssociations) return;
+    setState(() => _isUpdatingFileAssociations = true);
+    try {
+      await open();
+      await _refreshFileAssociations();
+    } catch (error) {
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.fileAssociationsUpdateFailed('$error'))),
+      );
+    } finally {
+      if (mounted) setState(() => _isUpdatingFileAssociations = false);
     }
   }
 
@@ -428,39 +485,53 @@ class _SettingsPageState extends State<SettingsPage> {
         spacing: 8,
         runSpacing: 8,
         children: [
-          DesktopCommandButton(
-            key: const ValueKey('file-association-enable-all'),
-            icon: Icons.done_all,
-            label: l10n.fileAssociationsEnableAll,
-            onPressed: enabled
-                ? () => unawaited(
-                      _updateFileAssociations(
-                        Set<String>.of(supportedExtensions),
-                      ),
-                    )
-                : null,
-            emphasized: true,
-          ),
-          DesktopCommandButton(
-            key: const ValueKey('file-association-enable-raw'),
-            icon: Icons.camera_alt_outlined,
-            label: l10n.fileAssociationsEnableRaw,
-            onPressed: enabled
-                ? () => unawaited(
-                      _updateFileAssociations(
-                        Set<String>.of(rawExtensions),
-                      ),
-                    )
-                : null,
-          ),
-          DesktopCommandButton(
-            key: const ValueKey('file-association-disable-all'),
-            icon: Icons.block_outlined,
-            label: l10n.fileAssociationsDisableAll,
-            onPressed: enabled
-                ? () => unawaited(_updateFileAssociations(const <String>{}))
-                : null,
-          ),
+          if (_currentSettings.fileAssociations.requiresSystemSettings) ...[
+            DesktopCommandButton(
+              key: const ValueKey('file-association-system-settings'),
+              icon: Icons.open_in_new,
+              label: l10n.openDefaultAppsSettings,
+              onPressed: enabled ? _openDefaultAppsSettings : null,
+            ),
+            DesktopIconButton(
+              icon: Icons.refresh,
+              tooltip: l10n.refreshFileAssociations,
+              onPressed: _refreshFileAssociations,
+            ),
+          ] else ...[
+            DesktopCommandButton(
+              key: const ValueKey('file-association-enable-all'),
+              icon: Icons.done_all,
+              label: l10n.fileAssociationsEnableAll,
+              onPressed: enabled
+                  ? () => unawaited(
+                        _updateFileAssociations(
+                          Set<String>.of(supportedExtensions),
+                        ),
+                      )
+                  : null,
+              emphasized: true,
+            ),
+            DesktopCommandButton(
+              key: const ValueKey('file-association-enable-raw'),
+              icon: Icons.camera_alt_outlined,
+              label: l10n.fileAssociationsEnableRaw,
+              onPressed: enabled
+                  ? () => unawaited(
+                        _updateFileAssociations(
+                          Set<String>.of(rawExtensions),
+                        ),
+                      )
+                  : null,
+            ),
+            DesktopCommandButton(
+              key: const ValueKey('file-association-disable-all'),
+              icon: Icons.block_outlined,
+              label: l10n.fileAssociationsDisableAll,
+              onPressed: enabled
+                  ? () => unawaited(_updateFileAssociations(const <String>{}))
+                  : null,
+            ),
+          ],
         ],
       ),
     );
@@ -722,23 +793,38 @@ class _SettingsPageState extends State<SettingsPage> {
                           subtitle: l10n.fileAssociationFormatSubtitle(
                             extension.substring(1).toUpperCase(),
                           ),
-                          control: _isUpdatingFileAssociations
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                          control: _currentSettings
+                                  .fileAssociations.requiresSystemSettings
+                              ? Tooltip(
+                                  message: _currentSettings.fileAssociations
+                                          .isBound(extension)
+                                      ? l10n.fileAssociationDefault
+                                      : l10n.fileAssociationNotDefault,
+                                  child: Icon(
+                                    _currentSettings.fileAssociations
+                                            .isBound(extension)
+                                        ? Icons.check_circle_outline
+                                        : Icons.radio_button_unchecked,
+                                    size: 20,
                                   ),
                                 )
-                              : Switch(
-                                  value: _currentSettings.fileAssociations
-                                      .isBound(extension),
-                                  onChanged: (value) =>
-                                      _handleFileAssociationChanged(
-                                    extension,
-                                    value,
-                                  ),
-                                ),
+                              : _isUpdatingFileAssociations
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Switch(
+                                      value: _currentSettings.fileAssociations
+                                          .isBound(extension),
+                                      onChanged: (value) =>
+                                          _handleFileAssociationChanged(
+                                        extension,
+                                        value,
+                                      ),
+                                    ),
                         ),
                     ]),
                   ),

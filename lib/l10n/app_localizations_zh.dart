@@ -135,6 +135,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get fileAssociationsSectionTitle => '默认打开格式';
 
   @override
+  String get openDefaultAppsSettings => '打开默认应用设置';
+
+  @override
+  String get refreshFileAssociations => '刷新文件关联';
+
+  @override
+  String get fileAssociationDefault => '默认应用：Raw Viewer';
+
+  @override
+  String get fileAssociationNotDefault => 'Raw Viewer 不是默认应用';
+
+  @override
   String fileAssociationFormatSubtitle(Object extension) {
     return '使用 Raw Viewer 打开 .$extension 文件';
   }

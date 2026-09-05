@@ -61,6 +61,10 @@
     }
   },
   "fileAssociationsSectionTitle": "Default file associations",
+  "openDefaultAppsSettings": "Open default apps",
+  "refreshFileAssociations": "Refresh file associations",
+  "fileAssociationDefault": "Default: Raw Viewer",
+  "fileAssociationNotDefault": "Raw Viewer is not the default",
   "fileAssociationFormatSubtitle": "Open .{extension} files with Raw Viewer",
   "fileAssociationsEnableAll": "Enable all",
   "fileAssociationsEnableRaw": "Enable RAW only",

@@ -19,7 +19,7 @@ Raw Viewer allows photographers and enthusiasts to seamlessly view, browse, and 
 - **EXIF Metadata:** Reads and displays true image capture timestamps directly from EXIF data.
 - **Smooth Interaction:** Fast page scroll, smooth pinch-to-zoom (touch), and scroll-to-zoom (mouse) functionality.
 - **Windows Context Menu:** Lets you install an “Open in RawView” Explorer entry for the current user, supporting files, multi-file selection, folders, and folder background opening.
-- **Default File Associations:** Registers supported image formats on Windows and macOS, with per-format switches in Settings.
+- **Default File Associations:** Registers supported image formats on Windows and macOS. Windows uses the system Default Apps settings and displays effective associations; macOS provides per-format switches.
 - **Single-File Open:** Opening one image jumps directly to its preview; neighboring files are loaded only when requested from the preview toolbar or when returning to the gallery.
 - **Cross-Platform:** Built for desktop (Windows, macOS) and mobile (Android) natively.
 

@@ -13,6 +13,7 @@ void main() {
     });
 
     expect(state.supported, isTrue);
+    expect(state.requiresSystemSettings, isFalse);
     expect(state.isBound('.arw'), isTrue);
     expect(state.isBound('.jpg'), isFalse);
     expect(state.bindings.keys, containsAll(supportedExtensions));
@@ -26,5 +27,17 @@ void main() {
 
     expect(state.bindings, isEmpty);
     expect(state.isBound('.arw'), isFalse);
+  });
+
+  test('preserves the system-managed association capability', () {
+    final state = FileAssociationSettings.fromPlatformMap({
+      'supported': true,
+      'requiresSystemSettings': true,
+      'bindings': {'.jpg': false},
+    });
+    expect(state.requiresSystemSettings, isTrue);
+    expect(state.copyWith(bindings: {'.jpg': true}).requiresSystemSettings,
+        isTrue);
+    expect(state.isBound('.jpg'), isFalse);
   });
 }

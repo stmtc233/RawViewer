@@ -135,6 +135,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get fileAssociationsSectionTitle => 'Default file associations';
 
   @override
+  String get openDefaultAppsSettings => 'Open default apps';
+
+  @override
+  String get refreshFileAssociations => 'Refresh file associations';
+
+  @override
+  String get fileAssociationDefault => 'Default: Raw Viewer';
+
+  @override
+  String get fileAssociationNotDefault => 'Raw Viewer is not the default';
+
+  @override
   String fileAssociationFormatSubtitle(Object extension) {
     return 'Open .$extension files with Raw Viewer';
   }

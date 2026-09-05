@@ -45,19 +45,22 @@ Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Registry]
-Root: HKCU; Subkey: "Software\Classes\.arw"; ValueType: string; ValueName: ""; ValueData: "RawViewer.arw"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.cr2"; ValueType: string; ValueName: ""; ValueData: "RawViewer.cr2"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.cr3"; ValueType: string; ValueName: ""; ValueData: "RawViewer.cr3"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.dng"; ValueType: string; ValueName: ""; ValueData: "RawViewer.dng"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.nef"; ValueType: string; ValueName: ""; ValueData: "RawViewer.nef"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.orf"; ValueType: string; ValueName: ""; ValueData: "RawViewer.orf"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.raf"; ValueType: string; ValueName: ""; ValueData: "RawViewer.raf"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.rw2"; ValueType: string; ValueName: ""; ValueData: "RawViewer.rw2"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.srw"; ValueType: string; ValueName: ""; ValueData: "RawViewer.srw"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.jpg"; ValueType: string; ValueName: ""; ValueData: "RawViewer.jpg"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.jpeg"; ValueType: string; ValueName: ""; ValueData: "RawViewer.jpeg"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.png"; ValueType: string; ValueName: ""; ValueData: "RawViewer.png"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.webp"; ValueType: string; ValueName: ""; ValueData: "RawViewer.webp"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueName: "RawViewer"; ValueData: "Software\RawViewer\Capabilities"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\RawViewer\Capabilities"; ValueType: string; ValueName: "ApplicationName"; ValueData: "Raw Viewer"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\RawViewer\Capabilities"; ValueType: string; ValueName: "ApplicationDescription"; ValueData: "RAW and standard image viewer"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".arw"; ValueData: "RawViewer.arw"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".cr2"; ValueData: "RawViewer.cr2"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".cr3"; ValueData: "RawViewer.cr3"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".dng"; ValueData: "RawViewer.dng"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".nef"; ValueData: "RawViewer.nef"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".orf"; ValueData: "RawViewer.orf"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".raf"; ValueData: "RawViewer.raf"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".rw2"; ValueData: "RawViewer.rw2"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".srw"; ValueData: "RawViewer.srw"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".jpg"; ValueData: "RawViewer.jpg"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".jpeg"; ValueData: "RawViewer.jpeg"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".png"; ValueData: "RawViewer.png"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".webp"; ValueData: "RawViewer.webp"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.arw"; ValueType: string; ValueName: ""; ValueData: "Raw Viewer image"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.cr2"; ValueType: string; ValueName: ""; ValueData: "Raw Viewer image"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.cr3"; ValueType: string; ValueName: ""; ValueData: "Raw Viewer image"; Flags: uninsdeletekey
