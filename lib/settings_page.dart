@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -269,7 +270,6 @@ class _SettingsPageState extends State<SettingsPage> {
       Platform.isWindows && widget.onWindowsContextMenuChanged != null;
 
   bool get _showFileAssociationSection =>
-      (Platform.isWindows || Platform.isMacOS) &&
       widget.onFileAssociationsChanged != null &&
       _currentSettings.fileAssociations.supported;
 
@@ -380,26 +380,27 @@ class _SettingsPageState extends State<SettingsPage> {
     String extension,
     bool enabled,
   ) async {
+    final nextBindings = Map<String, bool>.from(
+      _currentSettings.fileAssociations.bindings,
+    )..[extension] = enabled;
+    await _updateFileAssociations({
+      for (final supportedExtension in supportedExtensions)
+        if (nextBindings[supportedExtension] == true) supportedExtension,
+    });
+  }
+
+  Future<void> _updateFileAssociations(Set<String> extensions) async {
     final onFileAssociationsChanged = widget.onFileAssociationsChanged;
     if (onFileAssociationsChanged == null || _isUpdatingFileAssociations) {
       return;
     }
-
-    final nextBindings = Map<String, bool>.from(
-      _currentSettings.fileAssociations.bindings,
-    )..[extension] = enabled;
 
     setState(() {
       _isUpdatingFileAssociations = true;
     });
 
     try {
-      final nextState = await onFileAssociationsChanged(
-        nextBindings.entries
-            .where((entry) => entry.value)
-            .map((entry) => entry.key)
-            .toSet(),
-      );
+      final nextState = await onFileAssociationsChanged(extensions);
       if (!mounted) return;
       _updateSettings(_currentSettings.copyWith(fileAssociations: nextState));
     } catch (error) {
@@ -415,6 +416,54 @@ class _SettingsPageState extends State<SettingsPage> {
         });
       }
     }
+  }
+
+  Widget _buildFileAssociationActions(AppLocalizations l10n) {
+    final enabled = !_isUpdatingFileAssociations;
+
+    return Padding(
+      key: const ValueKey('file-association-actions'),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          DesktopCommandButton(
+            key: const ValueKey('file-association-enable-all'),
+            icon: Icons.done_all,
+            label: l10n.fileAssociationsEnableAll,
+            onPressed: enabled
+                ? () => unawaited(
+                      _updateFileAssociations(
+                        Set<String>.of(supportedExtensions),
+                      ),
+                    )
+                : null,
+            emphasized: true,
+          ),
+          DesktopCommandButton(
+            key: const ValueKey('file-association-enable-raw'),
+            icon: Icons.camera_alt_outlined,
+            label: l10n.fileAssociationsEnableRaw,
+            onPressed: enabled
+                ? () => unawaited(
+                      _updateFileAssociations(
+                        Set<String>.of(rawExtensions),
+                      ),
+                    )
+                : null,
+          ),
+          DesktopCommandButton(
+            key: const ValueKey('file-association-disable-all'),
+            icon: Icons.block_outlined,
+            label: l10n.fileAssociationsDisableAll,
+            onPressed: enabled
+                ? () => unawaited(_updateFileAssociations(const <String>{}))
+                : null,
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -665,6 +714,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   DesktopSettingsSection(
                     title: l10n.fileAssociationsSectionTitle,
                     children: _withDividers([
+                      _buildFileAssociationActions(l10n),
                       for (final extension in supportedExtensions)
                         DesktopSettingsRow(
                           key: ValueKey('file-association-$extension'),

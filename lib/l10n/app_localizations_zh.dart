@@ -140,6 +140,15 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get fileAssociationsEnableAll => '开启所有';
+
+  @override
+  String get fileAssociationsEnableRaw => '仅开启 RAW';
+
+  @override
+  String get fileAssociationsDisableAll => '全部关闭';
+
+  @override
   String fileAssociationsUpdateFailed(String error) {
     return '更新文件关联失败：$error';
   }

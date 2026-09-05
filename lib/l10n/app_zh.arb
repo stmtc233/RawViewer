@@ -62,6 +62,9 @@
   },
   "fileAssociationsSectionTitle": "默认打开格式",
   "fileAssociationFormatSubtitle": "使用 Raw Viewer 打开 .{extension} 文件",
+  "fileAssociationsEnableAll": "开启所有",
+  "fileAssociationsEnableRaw": "仅开启 RAW",
+  "fileAssociationsDisableAll": "全部关闭",
   "fileAssociationsUpdateFailed": "更新文件关联失败：{error}",
   "@fileAssociationsUpdateFailed": {
     "placeholders": {

@@ -341,6 +341,24 @@ abstract class AppLocalizations {
   /// **'Open .{extension} files with Raw Viewer'**
   String fileAssociationFormatSubtitle(Object extension);
 
+  /// No description provided for @fileAssociationsEnableAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable all'**
+  String get fileAssociationsEnableAll;
+
+  /// No description provided for @fileAssociationsEnableRaw.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable RAW only'**
+  String get fileAssociationsEnableRaw;
+
+  /// No description provided for @fileAssociationsDisableAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable all'**
+  String get fileAssociationsDisableAll;
+
   /// No description provided for @fileAssociationsUpdateFailed.
   ///
   /// In en, this message translates to:

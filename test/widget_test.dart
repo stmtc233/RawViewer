@@ -743,6 +743,69 @@ void main() {
       expect(updatedSettings!.previewToolbarOpacity, toolbarOpacity);
       expect(updatedSettings!.previewOverlayOpacity, toolsOpacity);
     });
+
+    testWidgets('updates file associations through bulk actions',
+        (tester) async {
+      final appliedExtensions = <Set<String>>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('en')],
+          home: SettingsPage(
+            settings: ViewerSettings(
+              fileAssociations: FileAssociationSettings(
+                supported: true,
+                bindings: {
+                  for (final extension in supportedExtensions) extension: false,
+                },
+              ),
+            ),
+            onClose: () {},
+            onSettingsChanged: (_) {},
+            onFileAssociationsChanged: (extensions) async {
+              appliedExtensions.add(Set<String>.of(extensions));
+              return FileAssociationSettings(
+                supported: true,
+                bindings: {
+                  for (final extension in supportedExtensions)
+                    extension: extensions.contains(extension),
+                },
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final settingsList = find.byType(Scrollable).first;
+      final actions = find.byKey(const ValueKey('file-association-actions'));
+      await tester.scrollUntilVisible(actions, 300, scrollable: settingsList);
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const ValueKey('file-association-enable-all')),
+      );
+      await tester.pumpAndSettle();
+      expect(appliedExtensions.last, unorderedEquals(supportedExtensions));
+
+      await tester.tap(
+        find.byKey(const ValueKey('file-association-enable-raw')),
+      );
+      await tester.pumpAndSettle();
+      expect(appliedExtensions.last, unorderedEquals(rawExtensions));
+
+      await tester.tap(
+        find.byKey(const ValueKey('file-association-disable-all')),
+      );
+      await tester.pumpAndSettle();
+      expect(appliedExtensions.last, isEmpty);
+    });
   });
 
   group('buildJustifiedGridRows', () {

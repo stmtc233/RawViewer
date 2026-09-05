@@ -140,6 +140,15 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get fileAssociationsEnableAll => 'Enable all';
+
+  @override
+  String get fileAssociationsEnableRaw => 'Enable RAW only';
+
+  @override
+  String get fileAssociationsDisableAll => 'Disable all';
+
+  @override
   String fileAssociationsUpdateFailed(String error) {
     return 'Failed to update file associations: $error';
   }

@@ -62,6 +62,9 @@
   },
   "fileAssociationsSectionTitle": "Default file associations",
   "fileAssociationFormatSubtitle": "Open .{extension} files with Raw Viewer",
+  "fileAssociationsEnableAll": "Enable all",
+  "fileAssociationsEnableRaw": "Enable RAW only",
+  "fileAssociationsDisableAll": "Disable all",
   "fileAssociationsUpdateFailed": "Failed to update file associations: {error}",
   "@fileAssociationsUpdateFailed": {
     "placeholders": {
