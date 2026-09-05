@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 
@@ -138,6 +139,30 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
     });
   }
 
+  void _handlePointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent || !_scrollController.hasClients) {
+      return;
+    }
+
+    final scrollDelta = event.scrollDelta;
+    // A conventional mouse wheel reports vertical deltas, while some
+    // pointing devices report horizontal deltas directly. Use whichever
+    // axis carries the greater movement and apply it to this horizontal
+    // filmstrip.
+    final delta = scrollDelta.dx.abs() > scrollDelta.dy.abs()
+        ? scrollDelta.dx
+        : scrollDelta.dy;
+    if (delta == 0) {
+      return;
+    }
+
+    GestureBinding.instance.pointerSignalResolver.register(event, (event) {
+      final scrollEvent = event as PointerScrollEvent;
+      scrollEvent.respond(allowPlatformDefault: false);
+      _scrollController.position.pointerScroll(delta);
+    });
+  }
+
   Widget _buildCenterArrow({required bool leading}) {
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -185,52 +210,55 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              ScrollbarTheme(
-                data: ScrollbarThemeData(
-                  thumbColor: WidgetStatePropertyAll(
-                    RawViewerColors.mutedText.withValues(alpha: 0.65),
-                  ),
-                  mainAxisMargin: previewFilmstripScrollbarMainAxisMargin,
-                ),
-                child: Scrollbar(
-                  controller: _scrollController,
-                  scrollbarOrientation: ScrollbarOrientation.bottom,
-                  thumbVisibility: false,
-                  trackVisibility: false,
-                  thickness: previewFilmstripScrollbarThickness,
-                  radius: const Radius.circular(1),
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    scrollDirection: Axis.horizontal,
-                    physics: const ClampingScrollPhysics(),
-                    padding: EdgeInsets.symmetric(horizontal: sidePadding),
-                    scrollCacheExtent: ScrollCacheExtent.pixels(
-                      kPreviewFilmstripItemExtent * 4,
+              Listener(
+                onPointerSignal: _handlePointerSignal,
+                child: ScrollbarTheme(
+                  data: ScrollbarThemeData(
+                    thumbColor: WidgetStatePropertyAll(
+                      RawViewerColors.mutedText.withValues(alpha: 0.65),
                     ),
-                    itemExtent: kPreviewFilmstripItemExtent,
-                    itemCount: widget.mediaGroups.length,
-                    itemBuilder: (context, index) {
-                      return Align(
-                        alignment: Alignment.centerLeft,
-                        child: Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: SizedBox(
-                            width: kPreviewFilmstripItemWidth,
-                            height: 58,
-                            child: _PreviewFilmstripThumbnail(
-                              key: ValueKey(
-                                widget.mediaGroups[index].primary.path,
+                    mainAxisMargin: previewFilmstripScrollbarMainAxisMargin,
+                  ),
+                  child: Scrollbar(
+                    controller: _scrollController,
+                    scrollbarOrientation: ScrollbarOrientation.bottom,
+                    thumbVisibility: false,
+                    trackVisibility: false,
+                    thickness: previewFilmstripScrollbarThickness,
+                    radius: const Radius.circular(1),
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      scrollDirection: Axis.horizontal,
+                      physics: const ClampingScrollPhysics(),
+                      padding: EdgeInsets.symmetric(horizontal: sidePadding),
+                      scrollCacheExtent: ScrollCacheExtent.pixels(
+                        kPreviewFilmstripItemExtent * 4,
+                      ),
+                      itemExtent: kPreviewFilmstripItemExtent,
+                      itemCount: widget.mediaGroups.length,
+                      itemBuilder: (context, index) {
+                        return Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: SizedBox(
+                              width: kPreviewFilmstripItemWidth,
+                              height: 58,
+                              child: _PreviewFilmstripThumbnail(
+                                key: ValueKey(
+                                  widget.mediaGroups[index].primary.path,
+                                ),
+                                mediaGroup: widget.mediaGroups[index],
+                                imageStore: widget.imageStore,
+                                decodeWidth: widget.decodeWidth,
+                                selected: index == widget.currentIndex,
+                                onTap: () => widget.onIndexSelected(index),
                               ),
-                              mediaGroup: widget.mediaGroups[index],
-                              imageStore: widget.imageStore,
-                              decodeWidth: widget.decodeWidth,
-                              selected: index == widget.currentIndex,
-                              onTap: () => widget.onIndexSelected(index),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -415,4 +443,3 @@ class _PreviewFilmstripThumbnailState
     );
   }
 }
-
