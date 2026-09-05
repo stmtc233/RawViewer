@@ -72,6 +72,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
 
   flutter::DartProject project(L"data");
+  // Temporarily use Skia on Windows while Impeller startup regression
+  // flutter/flutter#191860 remains unresolved. Revisit when the upstream fix
+  // is available; this preserves the faster steady-state renderer choice for
+  // other platforms.
+  project.set_impeller_switch(flutter::ImpellerSwitch::Disabled);
 
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
