@@ -46,32 +46,45 @@ void main(List<String> args) {
     final name = file.path.split(RegExp(r'[/\\]')).last;
     stdout.writeln('--- $name (${file.lengthSync() ~/ 1024} KB)');
 
-    final fastWatch = Stopwatch()..start();
-    final fast = getRawFastPreviewSync(file.path);
-    fastWatch.stop();
+    final thumbWatch = Stopwatch()..start();
+    final thumb = getRawThumbnailSync(file.path);
+    thumbWatch.stop();
 
-    if (fast == null) {
-      stdout.writeln('  fast preview: FAILED');
+    if (thumb == null) {
+      stdout.writeln('  thumbnail: FAILED');
       failures++;
     } else {
-      final layout = fast.isRgba
-          ? 'rgba ${fast.width}x${fast.height} stride=${fast.stride}'
+      final layout = thumb.isRgba
+          ? 'rgba ${thumb.width}x${thumb.height} stride=${thumb.stride}'
           : 'encoded (jpeg)';
-      stdout.writeln('  fast preview: $layout, '
-          '${fast.data.length ~/ 1024} KB in ${fastWatch.elapsedMilliseconds}ms');
+      stdout.writeln('  thumbnail: $layout, '
+          '${thumb.data.length ~/ 1024} KB in '
+          '${thumbWatch.elapsedMilliseconds}ms');
 
-      if (fast.isRgba) {
-        final expected = fast.width * fast.height * 4;
-        if (fast.data.length != expected) {
+      if (thumb.isRgba) {
+        final expected = thumb.width * thumb.height * 4;
+        if (thumb.data.length != expected) {
           stdout.writeln('  MISMATCH: expected $expected bytes');
           failures++;
         }
-        if (fast.stride != fast.width * 4) {
+        if (thumb.stride != thumb.width * 4) {
           stdout.writeln('  MISMATCH: stride != width*4');
           failures++;
         }
       }
     }
+
+    // Reported separately from the thumbnail layer: that one falls back to a
+    // RAW decode, this one is the authoritative "does the container carry a
+    // JPEG?" answer the preview greys its view mode on.
+    final embeddedWatch = Stopwatch()..start();
+    final embedded = getEmbeddedJpegImageSync(file.path);
+    embeddedWatch.stop();
+    stdout.writeln(embedded == null
+        ? '  embedded jpeg: none'
+        : '  embedded jpeg: ${embedded.width}x${embedded.height} '
+            '${embedded.data.length ~/ 1024} KB in '
+            '${embeddedWatch.elapsedMilliseconds}ms');
 
     final halfWatch = Stopwatch()..start();
     final half = getDecodedRawPreviewSync(file.path, halfSize: 1);

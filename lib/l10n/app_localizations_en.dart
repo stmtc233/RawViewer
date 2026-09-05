@@ -56,21 +56,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get languageEnglish => 'English';
 
   @override
-  String get rawPreviewSourceSectionTitle => 'RAW Preview Source';
-
-  @override
-  String get fastPreviewTitle => 'Fast Preview';
-
-  @override
-  String get fastPreviewSubtitle => 'Show the cached fast preview first, then keep using the fast preview layer. This usually uses the embedded preview and falls back to fast RAW processing when unavailable.';
-
-  @override
-  String get decodedRawPreviewTitle => 'Decoded RAW';
-
-  @override
-  String get decodedRawPreviewSubtitle => 'Show the cached fast preview first, then decode RAW for the final image.';
-
-  @override
   String get rawProcessingSectionTitle => 'RAW Processing';
 
   @override
@@ -294,7 +279,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mediaFilterEmptyState => 'No images match the current filter';
 
   @override
-  String get fastPreviewShortLabel => 'FAST';
+  String get rawViewModeTooltip => 'View mode';
+
+  @override
+  String get embeddedJpegModeLabel => 'Embedded JPG';
+
+  @override
+  String get decodedRawModeLabel => 'RAW';
+
+  @override
+  String get pairedJpegModeLabel => 'JPG';
 
   @override
   String get rawShortLabel => 'RAW';

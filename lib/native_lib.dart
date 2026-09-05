@@ -217,12 +217,17 @@ class LibRawImage {
   bool get isRgba => format == RawPixelFormat.rgba8888;
 }
 
-// Returns the RAW fast preview layer.
-//
-// Despite the legacy `thumbnail` naming, this is not limited to an embedded
-// JPEG. Native code first tries to extract embedded preview data and then falls
-// back to a fast RAW-generated preview when the file has no embedded preview.
-LibRawImage? getRawFastPreviewSync(String filePath,
+/// Returns the RAW thumbnail layer: the cheapest image LibRaw can produce for
+/// this file.
+///
+/// Native code first tries to extract embedded preview data and then falls back
+/// to a half-size RAW decode when the file has no embedded preview. The result
+/// is therefore *not* necessarily the embedded JPEG — use
+/// [getEmbeddedJpegImageSync] when that distinction matters.
+///
+/// This layer is only ever rendered at a bounded `ImageStore` target width
+/// (grid tiles, filmstrip, the preview's first frame).
+LibRawImage? getRawThumbnailSync(String filePath,
     {RawCancelToken? cancelToken}) {
   final token = cancelToken?.handle ?? nullptr;
   final resultPtr = calloc<ThumbnailResult>();
@@ -269,12 +274,17 @@ LibRawImage? getRawFastPreviewSync(String filePath,
   }
 }
 
-/// Returns the JPEG bytes embedded in a RAW file, without processing or
-/// re-encoding them. Returns null when the file has no embedded JPEG.
+/// Returns the JPEG embedded in a RAW file, without processing or re-encoding
+/// it. Returns null when the file has no embedded JPEG.
 ///
-/// Call [extractEmbeddedJpeg] from UI code so LibRaw work stays off the main
-/// isolate.
-Uint8List? getEmbeddedJpegSync(String filePath) {
+/// Unlike [getRawThumbnailSync] this deliberately has **no fallback**: a null
+/// result is the authoritative answer to "does this RAW carry an embedded
+/// JPEG?", which is what lets the preview grey out that view mode.
+///
+/// Never call this on the main isolate — go through
+/// `WorkerService.requestEmbeddedJpeg` (display) or [extractEmbeddedJpeg]
+/// (file export).
+LibRawImage? getEmbeddedJpegImageSync(String filePath) {
   final resultPtr = calloc<ThumbnailResult>();
   try {
     if (Platform.isWindows) {
@@ -311,13 +321,21 @@ Uint8List? getEmbeddedJpegSync(String filePath) {
     }
 
     final image = _processThumbnailResult(resultPtr.ref);
-    return image?.format == RawPixelFormat.encoded ? image!.data : null;
+    return image?.format == RawPixelFormat.encoded ? image : null;
   } finally {
     calloc.free(resultPtr);
   }
 }
 
+/// Returns the raw bytes of the embedded JPEG, for writing to a file.
+Uint8List? getEmbeddedJpegSync(String filePath) =>
+    getEmbeddedJpegImageSync(filePath)?.data;
+
 /// Extracts an embedded JPEG on a helper isolate for use by the UI.
+///
+/// Export is a one-off user action that yields encoded bytes rather than a
+/// `ui.Image`, so it runs on its own isolate instead of occupying a
+/// [WorkerService] decode worker.
 Future<Uint8List?> extractEmbeddedJpeg(String filePath) {
   return Isolate.run(() => getEmbeddedJpegSync(filePath));
 }
@@ -371,8 +389,8 @@ class DecodedRawPreviewRequest {
 
 // Returns the decoded RAW layer used as the final high-quality image.
 //
-// `halfSize` only affects this decoded RAW layer. The fast preview layer is
-// loaded through [getRawFastPreviewSync].
+// `halfSize` only affects this decoded RAW layer. The thumbnail layer is loaded
+// through [getRawThumbnailSync].
 LibRawImage? getDecodedRawPreviewSync(String filePath,
     {int halfSize = 1, RawCancelToken? cancelToken}) {
   final token = cancelToken?.handle ?? nullptr;

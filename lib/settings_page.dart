@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'core/raw_view_mode.dart';
 import 'l10n/app_localizations.dart';
 import 'ui/app_theme.dart';
 import 'ui/desktop_controls.dart';
@@ -97,11 +98,10 @@ typedef WindowsContextMenuToggleHandler = Future<WindowsContextMenuSettings>
     Function(bool enabled);
 
 class ViewerSettings {
-  // true: stop at the RAW fast preview layer. This usually uses the embedded
-  // preview and falls back to a fast RAW-generated preview when unavailable.
-  // false: continue decoding RAW for the final image layer.
-  final bool preferFastPreviewForRaw;
-  // Controls the decoded RAW layer only. This does not affect the fast preview
+  // Which image the preview shows for RAW files. Chosen from the preview's own
+  // top-right switch rather than this settings page, and persisted.
+  final RawViewMode rawViewMode;
+  // Controls the decoded RAW layer only. This does not affect the thumbnail
   // layer shown first while browsing RAW files.
   final bool useHalfSizeRawDecode;
   final int maxCacheSize; // in MB
@@ -116,7 +116,7 @@ class ViewerSettings {
   final WindowsContextMenuSettings windowsContextMenu;
 
   const ViewerSettings({
-    this.preferFastPreviewForRaw = false,
+    this.rawViewMode = RawViewMode.decodedRaw,
     this.useHalfSizeRawDecode = true,
     this.maxCacheSize = 512,
     this.timeDisplaySource = TimeDisplaySource.capturedAt,
@@ -128,7 +128,7 @@ class ViewerSettings {
   });
 
   ViewerSettings copyWith({
-    bool? preferFastPreviewForRaw,
+    RawViewMode? rawViewMode,
     bool? useHalfSizeRawDecode,
     int? maxCacheSize,
     TimeDisplaySource? timeDisplaySource,
@@ -139,8 +139,7 @@ class ViewerSettings {
     WindowsContextMenuSettings? windowsContextMenu,
   }) {
     return ViewerSettings(
-      preferFastPreviewForRaw:
-          preferFastPreviewForRaw ?? this.preferFastPreviewForRaw,
+      rawViewMode: rawViewMode ?? this.rawViewMode,
       useHalfSizeRawDecode: useHalfSizeRawDecode ?? this.useHalfSizeRawDecode,
       maxCacheSize: maxCacheSize ?? this.maxCacheSize,
       timeDisplaySource: timeDisplaySource ?? this.timeDisplaySource,
@@ -402,32 +401,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ),
                   ],
-                ),
-                DesktopSettingsSection(
-                  title: l10n.rawPreviewSourceSectionTitle,
-                  children: _withDividers([
-                    DesktopSettingsOption(
-                      title: l10n.fastPreviewTitle,
-                      subtitle: l10n.fastPreviewSubtitle,
-                      selected: _currentSettings.preferFastPreviewForRaw,
-                      onTap: () => _updateSettings(
-                        _currentSettings.copyWith(
-                          preferFastPreviewForRaw: true,
-                        ),
-                      ),
-                    ),
-                    DesktopSettingsOption(
-                      key: const ValueKey('raw-preview-decoded'),
-                      title: l10n.decodedRawPreviewTitle,
-                      subtitle: l10n.decodedRawPreviewSubtitle,
-                      selected: !_currentSettings.preferFastPreviewForRaw,
-                      onTap: () => _updateSettings(
-                        _currentSettings.copyWith(
-                          preferFastPreviewForRaw: false,
-                        ),
-                      ),
-                    ),
-                  ]),
                 ),
                 DesktopSettingsSection(
                   title: l10n.rawProcessingSectionTitle,

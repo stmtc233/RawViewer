@@ -326,7 +326,7 @@ class _PreviewFilmstripThumbnailState
     unawaited(widget.imageStore
         .load(
       _filePath,
-      RawLayer.fastPreview,
+      RawLayer.thumbnail,
       targetWidth: widget.decodeWidth,
       priority: TaskPriority.low,
     )

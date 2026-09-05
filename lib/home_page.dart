@@ -14,6 +14,7 @@ import 'core/decode_target.dart';
 import 'core/media_timestamps.dart';
 import 'core/media_types.dart';
 import 'core/preferences_repository.dart';
+import 'core/raw_view_mode.dart';
 import 'gallery/grid_zoom_accumulator.dart';
 import 'gallery/media_library.dart';
 import 'core/platform_channels.dart';
@@ -96,6 +97,7 @@ class _HomePageState extends State<HomePage> {
       _settings = _settings.copyWith(
         pageSwitchAnimationEnabled: stored.pageSwitchAnimationEnabled,
         previewOverlayOpacity: stored.previewOverlayOpacity,
+        rawViewMode: stored.rawViewMode,
       );
     });
   }
@@ -158,6 +160,9 @@ class _HomePageState extends State<HomePage> {
   Future<void> _persistPreviewOverlayOpacity(double opacity) =>
       const PreferencesRepository().savePreviewOverlayOpacity(opacity);
 
+  Future<void> _persistRawViewMode(RawViewMode mode) =>
+      const PreferencesRepository().saveRawViewMode(mode);
+
   void _updateSettings(ViewerSettings settings) {
     final cacheSizeChanged = _settings.maxCacheSize != settings.maxCacheSize;
     final appLanguageChanged = _settings.appLanguage != settings.appLanguage;
@@ -167,6 +172,7 @@ class _HomePageState extends State<HomePage> {
         settings.pageSwitchAnimationEnabled;
     final previewOverlayOpacityChanged =
         _settings.previewOverlayOpacity != settings.previewOverlayOpacity;
+    final rawViewModeChanged = _settings.rawViewMode != settings.rawViewMode;
 
     setState(() {
       _settings = settings;
@@ -195,6 +201,9 @@ class _HomePageState extends State<HomePage> {
           settings.previewOverlayOpacity,
         ),
       );
+    }
+    if (rawViewModeChanged) {
+      unawaited(_persistRawViewMode(settings.rawViewMode));
     }
   }
 
@@ -587,7 +596,10 @@ class _HomePageState extends State<HomePage> {
                   thumbnailResizeWidth: thumbnailResizeWidth,
                   imageStore: _imageStore,
                   timestampRepository: _timestampRepository,
-                  settings: _settings,
+                  initialSettings: _settings,
+                  onRawViewModeChanged: (mode) => _updateSettings(
+                    _settings.copyWith(rawViewMode: mode),
+                  ),
                   onClose: () {
                     Navigator.pop(context);
                   },

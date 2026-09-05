@@ -185,36 +185,6 @@ abstract class AppLocalizations {
   /// **'English'**
   String get languageEnglish;
 
-  /// No description provided for @rawPreviewSourceSectionTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'RAW Preview Source'**
-  String get rawPreviewSourceSectionTitle;
-
-  /// No description provided for @fastPreviewTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Fast Preview'**
-  String get fastPreviewTitle;
-
-  /// No description provided for @fastPreviewSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Show the cached fast preview first, then keep using the fast preview layer. This usually uses the embedded preview and falls back to fast RAW processing when unavailable.'**
-  String get fastPreviewSubtitle;
-
-  /// No description provided for @decodedRawPreviewTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Decoded RAW'**
-  String get decodedRawPreviewTitle;
-
-  /// No description provided for @decodedRawPreviewSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Show the cached fast preview first, then decode RAW for the final image.'**
-  String get decodedRawPreviewSubtitle;
-
   /// No description provided for @rawProcessingSectionTitle.
   ///
   /// In en, this message translates to:
@@ -581,11 +551,29 @@ abstract class AppLocalizations {
   /// **'No images match the current filter'**
   String get mediaFilterEmptyState;
 
-  /// No description provided for @fastPreviewShortLabel.
+  /// No description provided for @rawViewModeTooltip.
   ///
   /// In en, this message translates to:
-  /// **'FAST'**
-  String get fastPreviewShortLabel;
+  /// **'View mode'**
+  String get rawViewModeTooltip;
+
+  /// No description provided for @embeddedJpegModeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Embedded JPG'**
+  String get embeddedJpegModeLabel;
+
+  /// No description provided for @decodedRawModeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'RAW'**
+  String get decodedRawModeLabel;
+
+  /// No description provided for @pairedJpegModeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'JPG'**
+  String get pairedJpegModeLabel;
 
   /// No description provided for @rawShortLabel.
   ///

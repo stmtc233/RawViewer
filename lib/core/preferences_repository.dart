@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../settings_page.dart';
+import 'raw_view_mode.dart';
 
 /// Default column count for the thumbnail grid.
 const int kDefaultGridCrossAxisCount = 4;
@@ -34,12 +35,14 @@ class StoredViewPreferences {
   final GridAspectRatio? gridAspectRatio;
   final bool pageSwitchAnimationEnabled;
   final double previewOverlayOpacity;
+  final RawViewMode? rawViewMode;
 
   const StoredViewPreferences({
     required this.crossAxisCount,
     required this.gridAspectRatio,
     required this.pageSwitchAnimationEnabled,
     required this.previewOverlayOpacity,
+    required this.rawViewMode,
   });
 }
 
@@ -64,6 +67,7 @@ class PreferencesRepository {
   static const String _pageSwitchAnimationEnabled =
       'page_switch_animation_enabled';
   static const String _previewOverlayOpacity = 'preview_overlay_opacity';
+  static const String _rawViewMode = 'raw_view_mode';
 
   /// Superseded by [_previewOverlayOpacity]. Read only, to migrate installs
   /// that predate the continuous opacity slider.
@@ -122,6 +126,8 @@ class PreferencesRepository {
         legacyAutoTransparencyEnabled:
             prefs.getBool(_legacyPreviewOverlayAutoTransparency),
       ),
+      rawViewMode:
+          RawViewMode.values.asNameMap()[prefs.getString(_rawViewMode)],
     );
   }
 
@@ -161,5 +167,10 @@ class PreferencesRepository {
   Future<void> savePreviewOverlayOpacity(double opacity) async {
     final prefs = await _prefs;
     await prefs.setDouble(_previewOverlayOpacity, opacity);
+  }
+
+  Future<void> saveRawViewMode(RawViewMode mode) async {
+    final prefs = await _prefs;
+    await prefs.setString(_rawViewMode, mode.name);
   }
 }

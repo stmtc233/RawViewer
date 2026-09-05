@@ -56,8 +56,9 @@ bool is_cancelled(void* cancel_token) {
   return flag != nullptr && flag->load(std::memory_order_relaxed);
 }
 
-// Extract only the JPEG bytes stored in the RAW container. Unlike the fast
-// preview path below, this deliberately does not fall back to RAW processing.
+// Extract only the JPEG bytes stored in the RAW container. Unlike the thumbnail
+// layer below, this deliberately does not fall back to RAW processing, so a
+// null result is the authoritative "this file has no embedded JPEG".
 ThumbnailResult extract_embedded_jpeg(LibRaw& raw_processor) {
   ThumbnailResult result = empty_thumbnail();
 
@@ -140,12 +141,14 @@ bool fill_rgba_from_processed(ImageResult& result,
   return true;
 }
 
-// Build the RAW fast preview layer.
+// Build the RAW thumbnail layer: the cheapest image we can produce.
 //
 // Prefer the embedded preview via `unpack_thumb()`. Encoded JPEG previews are
 // passed straight through because the engine decodes JPEG efficiently already.
-// If the file exposes no usable preview, fall back to a half-size RAW decode so
-// the UI still gets a fast first image.
+// If the file exposes no usable preview, fall back to a half-size RAW decode
+// so the UI still gets an image quickly. The payload is therefore not
+// necessarily the embedded JPEG — get_embedded_jpeg() is the no-fallback
+// path for callers that need that distinction.
 ThumbnailResult process_thumbnail(LibRaw& raw_processor, void* cancel_token) {
   ThumbnailResult result = empty_thumbnail();
 
@@ -265,8 +268,8 @@ EXPORT void destroy_cancel_token(void* token) {
   delete static_cast<std::atomic<bool>*>(token);
 }
 
-// Despite the ABI name, `get_thumbnail` semantically returns the RAW fast
-// preview layer.
+// Despite the ABI name, `get_thumbnail` returns the RAW thumbnail layer,
+// which may be a RAW decode rather than an embedded thumbnail.
 EXPORT void get_thumbnail(const char* file_path, void* cancel_token,
                           ThumbnailResult* out) {
   if (out == nullptr) {

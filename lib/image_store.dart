@@ -7,8 +7,16 @@ import 'worker_service.dart';
 
 /// Which RAW layer an image represents.
 enum RawLayer {
-  /// Embedded preview, or a fast half-size decode when none exists.
-  fastPreview,
+  /// The cheapest image LibRaw can produce: embedded preview data when the file
+  /// has it, a half-size RAW decode otherwise.
+  ///
+  /// Only ever requested at a bounded [ImageStore.load] `targetWidth` — grid
+  /// tiles, filmstrip, and the preview's first frame.
+  thumbnail,
+
+  /// The JPEG embedded in the RAW container, with no fallback. A failed load
+  /// means the file carries no embedded JPEG.
+  embeddedJpeg,
 
   /// Full RAW decode used as the final high-quality image.
   decoded,
@@ -46,7 +54,8 @@ class ImageStore {
   }) {
     final width = targetWidth ?? 0;
     return switch (layer) {
-      RawLayer.fastPreview => '$filePath:fast-preview:$width',
+      RawLayer.thumbnail => '$filePath:thumbnail:$width',
+      RawLayer.embeddedJpeg => '$filePath:embedded-jpeg:$width',
       RawLayer.decoded => '$filePath:decoded-raw:$halfSize:$width',
     };
   }
@@ -95,10 +104,15 @@ class ImageStore {
     final completer = Completer<void>();
     _inFlight[key] = completer.future;
     try {
-      final task = layer == RawLayer.fastPreview
-          ? WorkerService().requestRawFastPreview(filePath, priority: priority)
-          : WorkerService().requestDecodedRawPreview(filePath,
-              halfSize: halfSize, priority: priority);
+      final service = WorkerService();
+      final task = switch (layer) {
+        RawLayer.thumbnail =>
+          service.requestRawThumbnail(filePath, priority: priority),
+        RawLayer.embeddedJpeg =>
+          service.requestEmbeddedJpeg(filePath, priority: priority),
+        RawLayer.decoded => service.requestDecodedRawPreview(filePath,
+            halfSize: halfSize, priority: priority),
+      };
       onTaskStarted?.call(task);
 
       final decoded = await task.result;

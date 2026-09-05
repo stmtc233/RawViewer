@@ -265,16 +265,9 @@ void main() {
       await tester.pump();
       expect(updatedSettings!.gridAspectRatio, GridAspectRatio.adaptive);
 
-      final decodedPreview = find.byKey(const ValueKey('raw-preview-decoded'));
-      await tester.scrollUntilVisible(
-        decodedPreview,
-        300,
-        scrollable: settingsList,
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(decodedPreview);
-      await tester.pump();
-      expect(updatedSettings!.preferFastPreviewForRaw, isFalse);
+      // The RAW view mode is chosen from the preview's own switch and
+      // persisted; it is deliberately absent from this page.
+      expect(find.byKey(const ValueKey('raw-preview-decoded')), findsNothing);
 
       final pageSwitchAnimation =
           find.byKey(const ValueKey('page-switch-animation'));
@@ -446,27 +439,39 @@ void main() {
     const path = '/photos/a.arw';
 
     test('separates layers and half-size variants', () {
-      final fast = ImageStore.cacheKey(path, RawLayer.fastPreview);
+      final thumbnail = ImageStore.cacheKey(path, RawLayer.thumbnail);
+      final embedded = ImageStore.cacheKey(path, RawLayer.embeddedJpeg);
       final half = ImageStore.cacheKey(path, RawLayer.decoded, halfSize: 1);
       final full = ImageStore.cacheKey(path, RawLayer.decoded, halfSize: 0);
 
-      expect({fast, half, full}, hasLength(3));
+      expect({thumbnail, embedded, half, full}, hasLength(4));
+    });
+
+    test('separates the thumbnail layer from the embedded JPEG', () {
+      // The thumbnail layer falls back to a RAW decode, so it may hold pixels
+      // that are not the embedded JPEG at all. Sharing one entry would let a
+      // fallback image answer a request for the real embedded JPEG.
+      expect(
+        ImageStore.cacheKey(path, RawLayer.thumbnail, targetWidth: 512),
+        isNot(ImageStore.cacheKey(path, RawLayer.embeddedJpeg,
+            targetWidth: 512)),
+      );
     });
 
     test('separates resolutions of the same layer', () {
       // The grid and the full-screen preview want the same source at different
       // sizes; sharing one entry would show a blurry preview.
       final thumb =
-          ImageStore.cacheKey(path, RawLayer.fastPreview, targetWidth: 512);
-      final fullRes = ImageStore.cacheKey(path, RawLayer.fastPreview);
+          ImageStore.cacheKey(path, RawLayer.thumbnail, targetWidth: 512);
+      final fullRes = ImageStore.cacheKey(path, RawLayer.thumbnail);
 
       expect(thumb, isNot(fullRes));
     });
 
     test('is stable for identical requests', () {
       expect(
-        ImageStore.cacheKey(path, RawLayer.fastPreview, targetWidth: 512),
-        ImageStore.cacheKey(path, RawLayer.fastPreview, targetWidth: 512),
+        ImageStore.cacheKey(path, RawLayer.thumbnail, targetWidth: 512),
+        ImageStore.cacheKey(path, RawLayer.thumbnail, targetWidth: 512),
       );
     });
   });
