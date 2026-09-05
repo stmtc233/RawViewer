@@ -89,7 +89,9 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
   ViewerImage? _decodedRawPreviewImage;
 
   bool _embeddedJpegRequested = false;
+  bool _thumbnailRequested = false;
   bool _isLoadingDecodedRawPreview = false;
+  final Set<ViewerImage> _deferredDisposals = <ViewerImage>{};
 
   /// Captured once, on purpose: this doubles as part of the decode cache key,
   /// so changing it mid-page would strand the image already on screen under a
@@ -145,6 +147,7 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
           );
     }
 
+    unawaited(_loadThumbnailFallback());
     unawaited(_loadRawDisplayLayers());
     _transformationController.addListener(_onTransformationChange);
     widget.isFastScrolling.addListener(_onFastScrollingChanged);
@@ -196,9 +199,25 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
     _thumbnailImage?.dispose();
     _embeddedJpegImage?.dispose();
     _decodedRawPreviewImage?.dispose();
+    for (final image in _deferredDisposals) {
+      image.dispose();
+    }
+    _deferredDisposals.clear();
     _transformationController.removeListener(_onTransformationChange);
     _transformationController.dispose();
     super.dispose();
+  }
+
+  /// RawImage clones its ui.Image while mounting/updating. Keep replaced
+  /// handles alive through the current frame so that clone cannot race a
+  /// dispose triggered by the same setState.
+  void _disposeAfterFrame(ViewerImage? image) {
+    if (image == null) return;
+    _deferredDisposals.add(image);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_deferredDisposals.remove(image)) return;
+      image.dispose();
+    });
   }
 
   void _cancelDecodedRawTask() {
@@ -226,8 +245,7 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
 
   void _onTransformationChange() {
     final scale = _transformationController.value.getMaxScaleOnAxis();
-    final newPanEnabled =
-        (scale - previewFitScale).abs() > previewScaleEpsilon;
+    final newPanEnabled = (scale - previewFitScale).abs() > previewScaleEpsilon;
     if (_panEnabled != newPanEnabled || _isZoomed != newPanEnabled) {
       setState(() {
         _panEnabled = newPanEnabled;
@@ -258,6 +276,10 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
     // Bitmap files and the paired-JPEG mode rely entirely on Flutter's own
     // file/image pipeline.
     if (!widget.isRaw || !widget.isActive || _isShowingPairedJpeg) return;
+
+    // Start the cheap fallback independently. It can populate the first frame
+    // while the embedded JPEG probe is still running.
+    unawaited(_loadThumbnailFallback());
 
     // The embedded JPEG is wanted in both RAW modes: as the image itself in
     // embedded mode, and as the interim sharp image while a decode runs. It is
@@ -297,11 +319,34 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
 
     setState(() {
       if (decodedRawPreviewImage != null) {
-        _decodedRawPreviewImage?.dispose();
+        _disposeAfterFrame(_decodedRawPreviewImage);
         _decodedRawPreviewImage = decodedRawPreviewImage;
       }
       _isLoadingDecodedRawPreview = false;
     });
+  }
+
+  Future<void> _loadThumbnailFallback() async {
+    if (!widget.isRaw || _isShowingPairedJpeg || _thumbnailRequested) return;
+    _thumbnailRequested = true;
+
+    final image = await widget.imageStore.load(
+      widget.filePath,
+      RawLayer.thumbnail,
+      targetWidth: widget.thumbnailResizeWidth,
+      priority: widget.isActive ? TaskPriority.high : TaskPriority.low,
+    );
+
+    if (!mounted) {
+      image?.dispose();
+      return;
+    }
+    if (image != null) {
+      setState(() {
+        _disposeAfterFrame(_thumbnailImage);
+        _thumbnailImage = image;
+      });
+    }
   }
 
   /// Loads the embedded JPEG once per file and reports whether it exists.
@@ -327,7 +372,7 @@ class _SingleImagePreviewState extends State<SingleImagePreview> {
 
     if (image != null) {
       setState(() {
-        _embeddedJpegImage?.dispose();
+        _disposeAfterFrame(_embeddedJpegImage);
         _embeddedJpegImage = image;
       });
     }

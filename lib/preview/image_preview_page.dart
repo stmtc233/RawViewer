@@ -32,6 +32,7 @@ class ImagePreviewPage extends StatefulWidget {
   final int thumbnailResizeWidth;
   final ImageStore imageStore;
   final TimestampRepository timestampRepository;
+
   /// Settings as they were when this route was pushed — a snapshot, not a
   /// live view.
   ///
@@ -224,14 +225,28 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   }
 
   void _preloadThumbnails(int centerIndex, {bool isFastScrolling = false}) {
+    // The page we are about to show gets the same bounded width used by the
+    // first preview frame and is promoted ahead of neighbour work. This makes
+    // the target page paint from ImageStore on its first build whenever the
+    // decode has had even a small head start.
+    _preloadIndex(
+      centerIndex,
+      priority: TaskPriority.high,
+      targetWidth: widget.thumbnailResizeWidth,
+    );
+
     final range = isFastScrolling ? 1 : 3;
     for (int i = 1; i <= range; i++) {
-      _preloadIndex(centerIndex + i);
-      _preloadIndex(centerIndex - i);
+      _preloadIndex(centerIndex + i, targetWidth: _previewFilmstripDecodeWidth);
+      _preloadIndex(centerIndex - i, targetWidth: _previewFilmstripDecodeWidth);
     }
   }
 
-  void _preloadIndex(int index) {
+  void _preloadIndex(
+    int index, {
+    TaskPriority priority = TaskPriority.low,
+    required int targetWidth,
+  }) {
     if (index < 0 || index >= widget.mediaGroups.length) return;
 
     final mediaFile = widget.mediaGroups[index].primary;
@@ -245,8 +260,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
           .load(
             filePath,
             RawLayer.thumbnail,
-            targetWidth: _previewFilmstripDecodeWidth,
-            priority: TaskPriority.low,
+            targetWidth: targetWidth,
+            priority: priority,
           )
           .then((image) => image?.dispose()));
     } else {
@@ -255,7 +270,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
         precacheImage(
           ResizeImage(
             FileImage(File(filePath)),
-            width: widget.thumbnailResizeWidth,
+            width: targetWidth,
           ),
           context,
         );
@@ -779,4 +794,3 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     );
   }
 }
-

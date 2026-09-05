@@ -39,6 +39,7 @@ class ImageStore {
   /// Completion signals for in-flight decodes, so N widgets asking for the same
   /// image trigger one decode rather than N.
   final Map<String, Future<void>> _inFlight = {};
+  final Map<String, WorkerTask<LibRawImage?>> _inFlightTasks = {};
 
   /// Cache identity for one decoded image.
   ///
@@ -88,14 +89,23 @@ class ImageStore {
     TaskPriority priority = TaskPriority.high,
     void Function(WorkerTask<LibRawImage?> task)? onTaskStarted,
   }) async {
-    final key = cacheKey(filePath, layer,
-        halfSize: halfSize, targetWidth: targetWidth);
+    final key =
+        cacheKey(filePath, layer, halfSize: halfSize, targetWidth: targetWidth);
 
     final cached = _cache.get(key);
     if (cached != null) return cached.clone();
 
     final existing = _inFlight[key];
     if (existing != null) {
+      // A neighbour may have started this decode at low priority just before
+      // it became the active page. Promote the shared queued task instead of
+      // waiting behind stale preloads.
+      if (priority == TaskPriority.high) {
+        final task = _inFlightTasks[key];
+        if (task != null) {
+          WorkerService().bumpRequest(task.requestId, TaskPriority.high);
+        }
+      }
       await existing;
       // Whoever ran the decode has populated the cache by now (or it failed).
       return _cache.get(key)?.clone();
@@ -113,6 +123,7 @@ class ImageStore {
         RawLayer.decoded => service.requestDecodedRawPreview(filePath,
             halfSize: halfSize, priority: priority),
       };
+      _inFlightTasks[key] = task;
       onTaskStarted?.call(task);
 
       final decoded = await task.result;
@@ -135,6 +146,7 @@ class ImageStore {
       return null;
     } finally {
       _inFlight.remove(key);
+      _inFlightTasks.remove(key);
       completer.complete();
     }
   }
