@@ -9,6 +9,168 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get exifRating => 'Rating';
+
+  @override
+  String get exifRatingUnrated => 'Unrated';
+
+  @override
+  String get exifRatingMissing => 'No rating data';
+
+  @override
+  String get exifRatingInvalid => 'Unknown rating';
+
+  @override
+  String get exifShutterShort => 'Shutter';
+
+  @override
+  String get exifApertureShort => 'Aperture';
+
+  @override
+  String get exifFocalLengthShort => 'Focal length';
+
+  @override
+  String get exifExposureBiasShort => 'Exposure comp.';
+
+  @override
+  String get exifEquivalentShort => '35 mm equiv.';
+
+  @override
+  String get exifDimensions => 'Dimensions';
+
+  @override
+  String get exifTitle => 'EXIF information';
+
+  @override
+  String get showExifTooltip => 'Show EXIF information';
+
+  @override
+  String get hideExifTooltip => 'Hide EXIF information';
+
+  @override
+  String get exifCopyAll => 'Copy all metadata';
+
+  @override
+  String get exifSearch => 'Search metadata';
+
+  @override
+  String get exifClearSearch => 'Clear search';
+
+  @override
+  String get exifEmpty => 'No readable EXIF metadata was found in this file.';
+
+  @override
+  String get exifReadFailed => 'Could not read metadata from this file.';
+
+  @override
+  String get exifNoResults => 'No matching metadata';
+
+  @override
+  String get exifFileSection => 'File';
+
+  @override
+  String get exifShootingSection => 'Shooting details';
+
+  @override
+  String get exifImageSection => 'Image tags';
+
+  @override
+  String get exifExifSection => 'EXIF tags';
+
+  @override
+  String get exifGpsSection => 'GPS';
+
+  @override
+  String get exifMakerSection => 'Camera manufacturer tags';
+
+  @override
+  String get exifThumbnailSection => 'Thumbnail tags';
+
+  @override
+  String get exifOtherSection => 'Other metadata';
+
+  @override
+  String get exifFileName => 'File name';
+
+  @override
+  String get exifFilePath => 'Path';
+
+  @override
+  String get exifFileType => 'File type';
+
+  @override
+  String get exifFileSize => 'File size';
+
+  @override
+  String get exifCameraMake => 'Camera make';
+
+  @override
+  String get exifCameraModel => 'Camera model';
+
+  @override
+  String get exifLensMake => 'Lens make';
+
+  @override
+  String get exifLensModel => 'Lens model';
+
+  @override
+  String get exifExposureTime => 'Exposure time (s)';
+
+  @override
+  String get exifAperture => 'Aperture (f-number)';
+
+  @override
+  String get exifIso => 'ISO';
+
+  @override
+  String get exifFocalLength => 'Focal length (mm)';
+
+  @override
+  String get exifFocalLength35mm => '35 mm equivalent focal length (mm)';
+
+  @override
+  String get exifExposureBias => 'Exposure compensation (EV)';
+
+  @override
+  String get exifExposureProgram => 'Exposure program';
+
+  @override
+  String get exifMeteringMode => 'Metering mode';
+
+  @override
+  String get exifFlash => 'Flash';
+
+  @override
+  String get exifWhiteBalance => 'White balance';
+
+  @override
+  String get exifWidth => 'Image width (px)';
+
+  @override
+  String get exifHeight => 'Image height (px)';
+
+  @override
+  String get exifOrientation => 'Orientation';
+
+  @override
+  String get exifColorSpace => 'Color space';
+
+  @override
+  String get exifSoftware => 'Software';
+
+  @override
+  String get exifArtist => 'Artist';
+
+  @override
+  String get exifCopyright => 'Copyright';
+
+  @override
+  String get exifBodySerial => 'Camera serial number';
+
+  @override
+  String get exifLensSerial => 'Lens serial number';
+
+  @override
   String get appTitle => 'Raw Viewer';
 
   @override

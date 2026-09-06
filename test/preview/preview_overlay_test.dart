@@ -206,6 +206,21 @@ void main() {
                 12,
             0.001),
       );
+      await tester.tap(find.byTooltip(l10n.showExifTooltip));
+      await tester.pump();
+      final sidebar = find.byKey(const ValueKey('preview-exif-sidebar'));
+      expect(sidebar, findsOneWidget);
+      final sidebarRect = tester.getRect(sidebar);
+      expect(sidebarRect.right, size.width);
+      expect(sidebarRect.top, safePadding.top + kImagePreviewToolbarHeight);
+      expect(sidebarRect.bottom, size.height);
+      expect(tester.getRect(find.byType(PageView)).right,
+          size.width >= 720 ? sidebarRect.left : size.width);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      expect(sidebar, findsNothing);
+      expect(tester.getRect(find.byType(PageView)), initialViewport);
       await tester.pumpWidget(const SizedBox.shrink());
     });
   }

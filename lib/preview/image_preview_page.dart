@@ -21,9 +21,11 @@ import '../ui/app_theme.dart';
 import '../worker_service.dart';
 import '../ui/desktop_controls.dart';
 import '../ui/fast_page_scroll_physics.dart';
+import 'exif_repository.dart';
 import 'preview_geometry.dart';
 import 'preview_models.dart';
 import 'single_image_preview.dart';
+import 'widgets/preview_exif_sidebar.dart';
 import 'widgets/preview_filmstrip.dart';
 import 'widgets/preview_hover_reveal.dart';
 
@@ -81,6 +83,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   late int _currentIndex;
   late int _targetPage;
   bool _isLocked = false;
+  bool _showExif = false;
+  final _exifRepository = ExifRepository();
   late bool _showPreviewFilmstrip;
   late double _previewFilmstripHeight;
   bool _isFilmstripHeightDirty = false;
@@ -709,6 +713,14 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     final currentFilePath = _mediaGroups[_currentIndex].primary.path;
     final currentPreviewKey = _previewKeyFor(currentFilePath);
     final currentViewMode = _effectiveViewModeFor(currentMediaGroup);
+    final exifFilePath =
+        currentMediaGroup.isRaw && currentViewMode == RawViewMode.pairedJpeg
+            ? currentMediaGroup.pairedJpeg!.path
+            : currentFilePath;
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final exifWidth =
+        viewportWidth >= 720 ? 340.0 : (viewportWidth - 24).clamp(0.0, 340.0);
+    final exifInset = _showExif && viewportWidth >= 720 ? exifWidth : 0.0;
     final bottomSafePadding = MediaQuery.paddingOf(context).bottom;
     final previewFilmstripHeight = _clampedPreviewFilmstripHeight(context);
     final previewFilmstripTotalHeight =
@@ -727,6 +739,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
       body: Stack(
         children: [
           Positioned.fill(
+            right: exifInset,
             // Paint beneath the translucent toolbar and filmstrip.
             child: NotificationListener<ScrollNotification>(
               onNotification: (notification) {
@@ -804,7 +817,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
             ),
           ),
           Positioned(
-            right: 12,
+            right: 12 + exifInset,
             bottom: controlsBottomInset,
             child: PreviewHoverReveal(
               restingOpacity: widget.initialSettings.previewOverlayOpacity,
@@ -861,7 +874,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
           if (showNavigationPanel)
             Positioned(
               left: 0,
-              right: 0,
+              right: exifInset,
               bottom: 0,
               height: previewFilmstripTotalHeight +
                   (_isDirectoryLoaded
@@ -900,6 +913,19 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                       ],
                     )
                   : _buildDirectoryLoadPanel(l10n),
+            ),
+          if (_showExif)
+            Positioned(
+              top: MediaQuery.paddingOf(context).top +
+                  kImagePreviewToolbarHeight,
+              right: 0,
+              bottom: 0,
+              width: exifWidth,
+              child: PreviewExifSidebar(
+                filePath: exifFilePath,
+                repository: _exifRepository,
+                onClose: () => setState(() => _showExif = false),
+              ),
             ),
           Positioned(
             top: 0,
@@ -962,6 +988,16 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                                     ),
                                   ],
                                 ),
+                              ),
+                              const SizedBox(width: 4),
+                              DesktopIconButton(
+                                icon: Icons.info_outline,
+                                tooltip: _showExif
+                                    ? l10n.hideExifTooltip
+                                    : l10n.showExifTooltip,
+                                selected: _showExif,
+                                onPressed: () =>
+                                    setState(() => _showExif = !_showExif),
                               ),
                               const SizedBox(width: 4),
                               DesktopPopupMenuButton<PreviewDisplayControl>(

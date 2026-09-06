@@ -9,6 +9,168 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get exifRating => '星级评分';
+
+  @override
+  String get exifRatingUnrated => '未评分';
+
+  @override
+  String get exifRatingMissing => '无评分信息';
+
+  @override
+  String get exifRatingInvalid => '未知评分';
+
+  @override
+  String get exifShutterShort => '快门';
+
+  @override
+  String get exifApertureShort => '光圈';
+
+  @override
+  String get exifFocalLengthShort => '焦距';
+
+  @override
+  String get exifExposureBiasShort => '曝光补偿';
+
+  @override
+  String get exifEquivalentShort => '等效焦距';
+
+  @override
+  String get exifDimensions => '图像尺寸';
+
+  @override
+  String get exifTitle => 'EXIF 信息';
+
+  @override
+  String get showExifTooltip => '显示 EXIF 信息';
+
+  @override
+  String get hideExifTooltip => '关闭 EXIF 信息';
+
+  @override
+  String get exifCopyAll => '复制全部元数据';
+
+  @override
+  String get exifSearch => '搜索元数据';
+
+  @override
+  String get exifClearSearch => '清除搜索';
+
+  @override
+  String get exifEmpty => '此文件未发现可读取的 EXIF 元数据。';
+
+  @override
+  String get exifReadFailed => '无法读取此文件的元数据。';
+
+  @override
+  String get exifNoResults => '没有匹配的元数据';
+
+  @override
+  String get exifFileSection => '文件';
+
+  @override
+  String get exifShootingSection => '拍摄信息';
+
+  @override
+  String get exifImageSection => '图像标签';
+
+  @override
+  String get exifExifSection => 'EXIF 标签';
+
+  @override
+  String get exifGpsSection => 'GPS 定位';
+
+  @override
+  String get exifMakerSection => '相机厂商标签';
+
+  @override
+  String get exifThumbnailSection => '缩略图标签';
+
+  @override
+  String get exifOtherSection => '其他元数据';
+
+  @override
+  String get exifFileName => '文件名';
+
+  @override
+  String get exifFilePath => '路径';
+
+  @override
+  String get exifFileType => '文件类型';
+
+  @override
+  String get exifFileSize => '文件大小';
+
+  @override
+  String get exifCameraMake => '相机厂商';
+
+  @override
+  String get exifCameraModel => '相机型号';
+
+  @override
+  String get exifLensMake => '镜头厂商';
+
+  @override
+  String get exifLensModel => '镜头型号';
+
+  @override
+  String get exifExposureTime => '曝光时间（秒）';
+
+  @override
+  String get exifAperture => '光圈（f 值）';
+
+  @override
+  String get exifIso => 'ISO 感光度';
+
+  @override
+  String get exifFocalLength => '焦距（毫米）';
+
+  @override
+  String get exifFocalLength35mm => '35 毫米等效焦距（毫米）';
+
+  @override
+  String get exifExposureBias => '曝光补偿（EV）';
+
+  @override
+  String get exifExposureProgram => '曝光程序';
+
+  @override
+  String get exifMeteringMode => '测光模式';
+
+  @override
+  String get exifFlash => '闪光灯';
+
+  @override
+  String get exifWhiteBalance => '白平衡';
+
+  @override
+  String get exifWidth => '图像宽度（像素）';
+
+  @override
+  String get exifHeight => '图像高度（像素）';
+
+  @override
+  String get exifOrientation => '方向';
+
+  @override
+  String get exifColorSpace => '色彩空间';
+
+  @override
+  String get exifSoftware => '软件';
+
+  @override
+  String get exifArtist => '作者';
+
+  @override
+  String get exifCopyright => '版权';
+
+  @override
+  String get exifBodySerial => '机身序列号';
+
+  @override
+  String get exifLensSerial => '镜头序列号';
+
+  @override
   String get appTitle => 'Raw Viewer';
 
   @override

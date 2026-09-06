@@ -95,6 +95,330 @@ abstract class AppLocalizations {
     Locale('zh')
   ];
 
+  /// No description provided for @exifRating.
+  ///
+  /// In en, this message translates to:
+  /// **'Rating'**
+  String get exifRating;
+
+  /// No description provided for @exifRatingUnrated.
+  ///
+  /// In en, this message translates to:
+  /// **'Unrated'**
+  String get exifRatingUnrated;
+
+  /// No description provided for @exifRatingMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'No rating data'**
+  String get exifRatingMissing;
+
+  /// No description provided for @exifRatingInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown rating'**
+  String get exifRatingInvalid;
+
+  /// No description provided for @exifShutterShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Shutter'**
+  String get exifShutterShort;
+
+  /// No description provided for @exifApertureShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Aperture'**
+  String get exifApertureShort;
+
+  /// No description provided for @exifFocalLengthShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Focal length'**
+  String get exifFocalLengthShort;
+
+  /// No description provided for @exifExposureBiasShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Exposure comp.'**
+  String get exifExposureBiasShort;
+
+  /// No description provided for @exifEquivalentShort.
+  ///
+  /// In en, this message translates to:
+  /// **'35 mm equiv.'**
+  String get exifEquivalentShort;
+
+  /// No description provided for @exifDimensions.
+  ///
+  /// In en, this message translates to:
+  /// **'Dimensions'**
+  String get exifDimensions;
+
+  /// No description provided for @exifTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'EXIF information'**
+  String get exifTitle;
+
+  /// No description provided for @showExifTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Show EXIF information'**
+  String get showExifTooltip;
+
+  /// No description provided for @hideExifTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide EXIF information'**
+  String get hideExifTooltip;
+
+  /// No description provided for @exifCopyAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy all metadata'**
+  String get exifCopyAll;
+
+  /// No description provided for @exifSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search metadata'**
+  String get exifSearch;
+
+  /// No description provided for @exifClearSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search'**
+  String get exifClearSearch;
+
+  /// No description provided for @exifEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No readable EXIF metadata was found in this file.'**
+  String get exifEmpty;
+
+  /// No description provided for @exifReadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read metadata from this file.'**
+  String get exifReadFailed;
+
+  /// No description provided for @exifNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching metadata'**
+  String get exifNoResults;
+
+  /// No description provided for @exifFileSection.
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get exifFileSection;
+
+  /// No description provided for @exifShootingSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Shooting details'**
+  String get exifShootingSection;
+
+  /// No description provided for @exifImageSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Image tags'**
+  String get exifImageSection;
+
+  /// No description provided for @exifExifSection.
+  ///
+  /// In en, this message translates to:
+  /// **'EXIF tags'**
+  String get exifExifSection;
+
+  /// No description provided for @exifGpsSection.
+  ///
+  /// In en, this message translates to:
+  /// **'GPS'**
+  String get exifGpsSection;
+
+  /// No description provided for @exifMakerSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera manufacturer tags'**
+  String get exifMakerSection;
+
+  /// No description provided for @exifThumbnailSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Thumbnail tags'**
+  String get exifThumbnailSection;
+
+  /// No description provided for @exifOtherSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Other metadata'**
+  String get exifOtherSection;
+
+  /// No description provided for @exifFileName.
+  ///
+  /// In en, this message translates to:
+  /// **'File name'**
+  String get exifFileName;
+
+  /// No description provided for @exifFilePath.
+  ///
+  /// In en, this message translates to:
+  /// **'Path'**
+  String get exifFilePath;
+
+  /// No description provided for @exifFileType.
+  ///
+  /// In en, this message translates to:
+  /// **'File type'**
+  String get exifFileType;
+
+  /// No description provided for @exifFileSize.
+  ///
+  /// In en, this message translates to:
+  /// **'File size'**
+  String get exifFileSize;
+
+  /// No description provided for @exifCameraMake.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera make'**
+  String get exifCameraMake;
+
+  /// No description provided for @exifCameraModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera model'**
+  String get exifCameraModel;
+
+  /// No description provided for @exifLensMake.
+  ///
+  /// In en, this message translates to:
+  /// **'Lens make'**
+  String get exifLensMake;
+
+  /// No description provided for @exifLensModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Lens model'**
+  String get exifLensModel;
+
+  /// No description provided for @exifExposureTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Exposure time (s)'**
+  String get exifExposureTime;
+
+  /// No description provided for @exifAperture.
+  ///
+  /// In en, this message translates to:
+  /// **'Aperture (f-number)'**
+  String get exifAperture;
+
+  /// No description provided for @exifIso.
+  ///
+  /// In en, this message translates to:
+  /// **'ISO'**
+  String get exifIso;
+
+  /// No description provided for @exifFocalLength.
+  ///
+  /// In en, this message translates to:
+  /// **'Focal length (mm)'**
+  String get exifFocalLength;
+
+  /// No description provided for @exifFocalLength35mm.
+  ///
+  /// In en, this message translates to:
+  /// **'35 mm equivalent focal length (mm)'**
+  String get exifFocalLength35mm;
+
+  /// No description provided for @exifExposureBias.
+  ///
+  /// In en, this message translates to:
+  /// **'Exposure compensation (EV)'**
+  String get exifExposureBias;
+
+  /// No description provided for @exifExposureProgram.
+  ///
+  /// In en, this message translates to:
+  /// **'Exposure program'**
+  String get exifExposureProgram;
+
+  /// No description provided for @exifMeteringMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Metering mode'**
+  String get exifMeteringMode;
+
+  /// No description provided for @exifFlash.
+  ///
+  /// In en, this message translates to:
+  /// **'Flash'**
+  String get exifFlash;
+
+  /// No description provided for @exifWhiteBalance.
+  ///
+  /// In en, this message translates to:
+  /// **'White balance'**
+  String get exifWhiteBalance;
+
+  /// No description provided for @exifWidth.
+  ///
+  /// In en, this message translates to:
+  /// **'Image width (px)'**
+  String get exifWidth;
+
+  /// No description provided for @exifHeight.
+  ///
+  /// In en, this message translates to:
+  /// **'Image height (px)'**
+  String get exifHeight;
+
+  /// No description provided for @exifOrientation.
+  ///
+  /// In en, this message translates to:
+  /// **'Orientation'**
+  String get exifOrientation;
+
+  /// No description provided for @exifColorSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'Color space'**
+  String get exifColorSpace;
+
+  /// No description provided for @exifSoftware.
+  ///
+  /// In en, this message translates to:
+  /// **'Software'**
+  String get exifSoftware;
+
+  /// No description provided for @exifArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Artist'**
+  String get exifArtist;
+
+  /// No description provided for @exifCopyright.
+  ///
+  /// In en, this message translates to:
+  /// **'Copyright'**
+  String get exifCopyright;
+
+  /// No description provided for @exifBodySerial.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera serial number'**
+  String get exifBodySerial;
+
+  /// No description provided for @exifLensSerial.
+  ///
+  /// In en, this message translates to:
+  /// **'Lens serial number'**
+  String get exifLensSerial;
+
   /// No description provided for @appTitle.
   ///
   /// In en, this message translates to:
