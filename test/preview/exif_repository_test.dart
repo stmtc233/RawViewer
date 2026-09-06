@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:rawviewer/preview/exif_repository.dart';
+import 'package:rawviewer/core/exif_repository.dart';
 
 void main() {
   late Directory directory;
@@ -22,6 +22,7 @@ void main() {
     expect(metadata.fileSize, await file.length());
     expect(metadata.modifiedAt, isNotNull);
     expect(metadata.tags['Image Make'], 'Fixture Camera');
+    expect(parseExifRating(metadata.tags['Image Rating']), 4);
     expect(metadata.tags['Image Tag 0xC001'], 'Custom metadata');
     expect(metadata.tags['EXIF ExposureTime'], '1/125');
     expect(metadata.numericValues['EXIF ExposureTime'], 1 / 125);
@@ -80,10 +81,11 @@ Uint8List _tiffFixture() {
 
   bytes.setRange(0, 4, [0x49, 0x49, 0x2a, 0]);
   long(4, 8);
-  short(8, 3);
+  short(8, 4);
   entry(10, 0x010f, 2, 15, dataOffset);
   entry(22, 0xc001, 2, 16, dataOffset + 16);
   entry(34, 0x8769, 4, 1, 64);
+  entry(46, 0x4746, 3, 1, 4);
   short(64, 2);
   entry(66, 0x829a, 5, 1, dataOffset + 32);
   entry(78, 0x9003, 2, 20, dataOffset + 40);

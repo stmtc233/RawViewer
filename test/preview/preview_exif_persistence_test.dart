@@ -99,7 +99,8 @@ void main() {
     await pendingSave;
     expect(find.text('/missing-test-image.jpg'), findsNothing);
     expect(saves.last.expandedSections, isEmpty);
-    await tester.tap(find.byIcon(Icons.close));
+    await tester
+        .tap(find.descendant(of: panel, matching: find.byIcon(Icons.close)));
     await tester.pump();
     await pendingSave;
     expect(panel, findsNothing);

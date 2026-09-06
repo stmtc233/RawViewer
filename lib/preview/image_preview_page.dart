@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 
 import '../core/decode_target.dart';
+import '../core/rating_filter.dart';
+import '../rating_filter_button.dart';
 import '../core/exif_sidebar_settings.dart';
 import '../core/preview_filmstrip_size.dart';
 import '../core/media_timestamps.dart';
@@ -22,7 +24,7 @@ import '../ui/app_theme.dart';
 import '../worker_service.dart';
 import '../ui/desktop_controls.dart';
 import '../ui/fast_page_scroll_physics.dart';
-import 'exif_repository.dart';
+import '../core/exif_repository.dart';
 import 'preview_geometry.dart';
 import 'preview_models.dart';
 import 'single_image_preview.dart';
@@ -36,6 +38,10 @@ class ImagePreviewPage extends StatefulWidget {
   final int thumbnailResizeWidth;
   final ImageStore imageStore;
   final TimestampRepository timestampRepository;
+  final RatingRepository? ratingRepository;
+  final RatingFilter initialRatingFilter;
+  final ValueChanged<RatingFilter>? onRatingFilterChanged;
+  final ValueChanged<bool>? onThumbnailRatingsVisibilityChanged;
 
   /// Settings as they were when this route was pushed — a snapshot, not a
   /// live view.
@@ -66,6 +72,10 @@ class ImagePreviewPage extends StatefulWidget {
     required this.thumbnailResizeWidth,
     required this.imageStore,
     required this.timestampRepository,
+    this.ratingRepository,
+    this.initialRatingFilter = RatingFilter.all,
+    this.onRatingFilterChanged,
+    this.onThumbnailRatingsVisibilityChanged,
     required this.initialSettings,
     required this.onClose,
     this.onLoadDirectory,
@@ -88,7 +98,11 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   bool _isLocked = false;
   late ExifSidebarSettings _exifSidebar;
   bool _isExifWidthDirty = false;
-  final _exifRepository = ExifRepository();
+  late final ExifRepository _exifRepository;
+  late final RatingRepository _ratingRepository;
+  late final RatingFilterController _ratingFilter;
+  late bool _showThumbnailRatings;
+  String? _preferredRatingPath;
   late bool _showPreviewFilmstrip;
   late double _previewFilmstripHeight;
   bool _isFilmstripHeightDirty = false;
@@ -132,6 +146,13 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   void initState() {
     super.initState();
     _mediaGroups = List<MediaGroup>.of(widget.mediaGroups);
+    _ratingRepository = widget.ratingRepository ?? RatingRepository();
+    _exifRepository = _ratingRepository.exifRepository;
+    _showThumbnailRatings = widget.initialSettings.showThumbnailRatings;
+    _ratingFilter = RatingFilterController(_ratingRepository)
+      ..update(groups: _mediaGroups, filter: widget.initialRatingFilter)
+      ..addListener(_onRatingResults);
+    _preferredRatingPath = _mediaGroups[widget.initialIndex].primary.path;
     _isDirectoryLoaded = widget.onLoadDirectory == null;
     _currentIndex = widget.initialIndex;
     _targetPage = widget.initialIndex;
@@ -181,11 +202,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
             openedPairedJpeg ? resolvedGroup.primary.path : null;
         _isDirectoryLoaded = true;
       });
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _pageController.hasClients) {
-          _pageController.jumpToPage(resolvedIndex);
-        }
-      });
+      _preferredRatingPath = resolvedGroup.primary.path;
+      _ratingFilter.update(groups: mediaGroups);
     } catch (error) {
       if (mounted) {
         final l10n = AppLocalizations.of(context)!;
@@ -202,6 +220,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
 
   @override
   void dispose() {
+    _ratingFilter.dispose();
     _scrollStopTimer?.cancel();
     _trackpadPageDrag?.cancel();
     _trackpadVelocityTracker = null;
@@ -212,8 +231,10 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   }
 
   void _onPageChanged(int index) {
+    if (index < 0 || index >= _mediaGroups.length) return;
     setState(() {
       _currentIndex = index;
+      _preferredRatingPath = _mediaGroups[index].primary.path;
       _currentTimestampFuture = widget.timestampRepository.load(
         _mediaGroups[_currentIndex].primary.path,
       );
@@ -225,6 +246,75 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     // We also preload here to cover cases where user swiped manually instead of mouse wheel
     _preloadThumbnails(index);
   }
+
+  void _onRatingResults() {
+    if (!mounted) return;
+    if (_ratingFilter.loading) {
+      _scrollStopTimer?.cancel();
+      _cancelTrackpadPageDrag();
+      setState(() {});
+      return;
+    }
+    final groups = _ratingFilter.visibleGroups;
+    final matchedIndex = groups
+        .indexWhere((group) => group.primary.path == _preferredRatingPath);
+    final nextIndex = matchedIndex < 0 ? 0 : matchedIndex;
+    final oldController = _pageController;
+    _scrollStopTimer?.cancel();
+    _cancelTrackpadPageDrag();
+    _isFastScrolling.value = false;
+    setState(() {
+      _mediaGroups = groups;
+      _currentIndex = nextIndex;
+      _targetPage = nextIndex;
+      _isLocked = false;
+      _lastScrollPrefetchIndex = -1;
+      _pageController = PageController(initialPage: nextIndex);
+      if (groups.isNotEmpty) {
+        _preferredRatingPath = groups[nextIndex].primary.path;
+        _currentTimestampFuture =
+            widget.timestampRepository.load(_preferredRatingPath!);
+      }
+    });
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => oldController.dispose());
+  }
+
+  Widget _buildRatingFilter() => RatingFilterButton(
+        selected: _ratingFilter.selected,
+        onSelected: (filter) {
+          _ratingFilter.update(filter: filter);
+          widget.onRatingFilterChanged?.call(filter);
+        },
+        showRatings: _showThumbnailRatings,
+        onShowRatingsChanged: (show) {
+          setState(() => _showThumbnailRatings = show);
+          widget.onThumbnailRatingsVisibilityChanged?.call(show);
+        },
+      );
+
+  void _setFilmstripVisibility(bool show) {
+    setState(() => _showPreviewFilmstrip = show);
+    widget.onPreviewFilmstripVisibilityChanged?.call(show);
+  }
+
+  Widget _buildFilmstripControls() => Material(
+        key: const ValueKey('preview-filmstrip-controls'),
+        color: RawViewerColors.surface.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildRatingFilter(),
+            DesktopIconButton(
+              key: const ValueKey('preview-filmstrip-close'),
+              icon: Icons.close,
+              tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+              onPressed: () => _setFilmstripVisibility(false),
+            ),
+          ],
+        ),
+      );
 
   void _startTrackpadPageDrag(PointerPanZoomStartEvent event) {
     _trackpadPageDrag?.cancel();
@@ -289,6 +379,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   }
 
   void _preloadForScrollPosition(double page) {
+    if (_mediaGroups.isEmpty || _ratingFilter.loading) return;
     final index = page.round().clamp(0, _mediaGroups.length - 1);
     if (index == _lastScrollPrefetchIndex) return;
     _lastScrollPrefetchIndex = index;
@@ -740,6 +831,44 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    if (_ratingFilter.loading || _mediaGroups.isEmpty) {
+      return Scaffold(
+        backgroundColor: RawViewerColors.previewBackground,
+        body: SafeArea(
+          child: Column(children: [
+            Row(children: [
+              DesktopIconButton(
+                icon: Icons.arrow_back,
+                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                onPressed: widget.onClose,
+              ),
+              const Spacer(),
+              if (!_showPreviewFilmstrip)
+                DesktopIconButton(
+                  icon: Icons.view_carousel_outlined,
+                  tooltip: l10n.previewFilmstripTitle,
+                  onPressed: () => _setFilmstripVisibility(true),
+                ),
+            ]),
+            Expanded(
+                child: Center(
+                    child: _ratingFilter.loading
+                        ? const CircularProgressIndicator()
+                        : Text(l10n.mediaFilterEmptyState))),
+            if (_showPreviewFilmstrip)
+              SizedBox(
+                height: _clampedPreviewFilmstripHeight(context),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                  child: Align(
+                      alignment: Alignment.topRight,
+                      child: _buildFilmstripControls()),
+                ),
+              ),
+          ]),
+        ),
+      );
+    }
     final currentMediaGroup = _mediaGroups[_currentIndex];
     final currentFilePath = _mediaGroups[_currentIndex].primary.path;
     final currentPreviewKey = _previewKeyFor(currentFilePath);
@@ -785,6 +914,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                 return false;
               },
               child: PageView.builder(
+                key: ObjectKey(_pageController),
                 controller: _pageController,
                 // Trackpad pages are moved from raw pan deltas so their position
                 // remains directly coupled to the user's fingers.
@@ -924,6 +1054,9 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                             restingOpacity:
                                 widget.initialSettings.previewFilmstripOpacity,
                             child: PreviewFilmstrip(
+                              controls: _buildFilmstripControls(),
+                              ratingRepository: _ratingRepository,
+                              showRatings: _showThumbnailRatings,
                               mediaGroups: _mediaGroups,
                               currentIndex: _currentIndex,
                               imageStore: widget.imageStore,

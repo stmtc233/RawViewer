@@ -6,10 +6,60 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rawviewer/app.dart';
 import 'package:rawviewer/core/platform_channels.dart';
 import 'package:rawviewer/settings_page.dart';
+import 'package:rawviewer/core/preferences_repository.dart';
+import 'package:rawviewer/rating_filter_button.dart';
+import 'package:rawviewer/core/rating_filter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
 void main() {
+  testWidgets('gallery rating switch updates immediately and is restored',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    Future<void> open() async {
+      await tester
+          .pumpWidget(MyApp(desktopWindowReady: Completer<void>().future));
+      await tester.pumpAndSettle();
+    }
+
+    await open();
+    expect(
+        tester
+            .widget<RatingFilterButton>(find.byType(RatingFilterButton))
+            .showRatings,
+        isTrue);
+    await tester.tap(find.byTooltip('Filter by rating'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('3 stars'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('5 stars'));
+    await tester.pumpAndSettle();
+    expect(
+        tester
+            .widget<RatingFilterButton>(find.byType(RatingFilterButton))
+            .selected,
+        RatingFilter.three.toggle(RatingFilter.five));
+    expect(find.byType(CheckboxListTile), findsNWidgets(8));
+    await tester.tap(find.text('Thumbnail ratings'));
+    await tester.pumpAndSettle();
+    expect(
+        tester
+            .widget<RatingFilterButton>(find.byType(RatingFilterButton))
+            .showRatings,
+        isFalse);
+    expect(
+        (await const PreferencesRepository().loadViewPreferences())
+            .showThumbnailRatings,
+        isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await open();
+    expect(
+        tester
+            .widget<RatingFilterButton>(find.byType(RatingFilterButton))
+            .showRatings,
+        isFalse);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('builds the gallery before window setup finishes',
       (tester) async {
     SharedPreferences.setMockInitialValues({});

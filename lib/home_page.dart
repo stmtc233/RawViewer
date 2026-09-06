@@ -11,6 +11,7 @@ import 'package:path/path.dart' as path;
 import 'package:permission_handler/permission_handler.dart';
 
 import 'core/decode_target.dart';
+import 'core/rating_filter.dart';
 import 'core/media_timestamps.dart';
 import 'core/media_types.dart';
 import 'core/preferences_repository.dart';
@@ -74,6 +75,8 @@ class _HomePageState extends State<HomePage> {
   late LruCache<String, ViewerImage> _imageCache;
   late ImageStore _imageStore;
   final TimestampRepository _timestampRepository = TimestampRepository();
+  final _ratingRepository = RatingRepository();
+  late final RatingFilterController _ratingFilter;
   ViewerSettings _settings = const ViewerSettings();
   MediaFilter _mediaFilter = defaultMediaFilter;
   MediaSortOrder _mediaSortOrder = defaultMediaSortOrder;
@@ -90,6 +93,8 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _ratingFilter = RatingFilterController(_ratingRepository)
+      ..addListener(_onRatingsChanged);
     _loadPreferences();
     _initCache();
     unawaited(_listenForDesktopOpenRequests());
@@ -98,6 +103,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    _ratingFilter.dispose();
     _gridZoomResetTimer?.cancel();
     super.dispose();
   }
@@ -126,6 +132,7 @@ class _HomePageState extends State<HomePage> {
         previewFilmstripOpacity: stored.previewFilmstripOpacity,
         previewFilmstripHeight: stored.previewFilmstripHeight,
         showPreviewFilmstrip: stored.showPreviewFilmstrip,
+        showThumbnailRatings: stored.showThumbnailRatings,
         showPreviewOverview: stored.showPreviewOverview,
         exifSidebar: stored.exifSidebar,
         rawViewMode: stored.rawViewMode,
@@ -175,6 +182,7 @@ class _HomePageState extends State<HomePage> {
     }
     setState(() {
       _files = sortedFiles;
+      _refreshRatingGroups();
     });
   }
 
@@ -279,6 +287,8 @@ class _HomePageState extends State<HomePage> {
         _settings.timeDisplaySource != settings.timeDisplaySource;
     final showPreviewFilmstripChanged =
         _settings.showPreviewFilmstrip != settings.showPreviewFilmstrip;
+    final showThumbnailRatingsChanged =
+        _settings.showThumbnailRatings != settings.showThumbnailRatings;
     final showPreviewOverviewChanged =
         _settings.showPreviewOverview != settings.showPreviewOverview;
     final exifSidebarChanged = _settings.exifSidebar != settings.exifSidebar;
@@ -337,6 +347,10 @@ class _HomePageState extends State<HomePage> {
     }
     if (showPreviewFilmstripChanged) {
       unawaited(_persistShowPreviewFilmstrip(settings.showPreviewFilmstrip));
+    }
+    if (showThumbnailRatingsChanged) {
+      unawaited(const PreferencesRepository()
+          .saveShowThumbnailRatings(settings.showThumbnailRatings));
     }
     if (showPreviewOverviewChanged) {
       unawaited(_persistShowPreviewOverview(settings.showPreviewOverview));
@@ -790,6 +804,7 @@ class _HomePageState extends State<HomePage> {
       _openedDirectoryCount = openedDirectoryCount;
       _deferredDirectoryPath = deferredDirectoryPath;
       _files = sortedFiles;
+      _refreshRatingGroups();
     });
   }
 
@@ -937,6 +952,15 @@ class _HomePageState extends State<HomePage> {
               thumbnailResizeWidth: thumbnailResizeWidth,
               imageStore: _imageStore,
               timestampRepository: _timestampRepository,
+              ratingRepository: _ratingRepository,
+              initialRatingFilter: deferDirectoryLoad
+                  ? RatingFilter.all
+                  : _ratingFilter.selected,
+              onRatingFilterChanged: (filter) =>
+                  _ratingFilter.update(filter: filter),
+              onThumbnailRatingsVisibilityChanged: (show) => _updateSettings(
+                _settings.copyWith(showThumbnailRatings: show),
+              ),
               initialSettings: _settings,
               onLoadDirectory:
                   deferDirectoryLoad ? _loadDeferredDirectoryForPreview : null,
@@ -1056,6 +1080,7 @@ class _HomePageState extends State<HomePage> {
       hasPairedJpeg: mediaGroup.hasPairedJpeg,
       settings: _settings,
       timestampRepository: _timestampRepository,
+      ratingRepository: _ratingRepository,
       resizeWidth: thumbnailResizeWidth,
       imageStore: _imageStore,
       onAspectRatioChanged: _settings.gridAspectRatio.isAdaptive
@@ -1063,8 +1088,10 @@ class _HomePageState extends State<HomePage> {
           : null,
       onTap: () {
         _openPreview(
-          mediaGroups: mediaGroups,
-          initialIndex: index,
+          mediaGroups: _ratingFilter.groups,
+          initialIndex: _ratingFilter.groups.indexWhere(
+            (group) => group.primary.path == filePath,
+          ),
           deferDirectoryLoad: false,
         );
       },
@@ -1242,6 +1269,22 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _onRatingsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _refreshRatingGroups() {
+    _ratingFilter.update(
+        groups: switch (_mediaFilter) {
+      MediaFilter.adaptive => buildAdaptiveMediaGroups(_files),
+      _ => [
+          for (final file in _files)
+            if (_mediaFilter.includes(isRaw: file.isRaw))
+              MediaGroup(primary: file),
+        ],
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -1251,19 +1294,7 @@ class _HomePageState extends State<HomePage> {
     final rawCount = _files.where((file) => file.isRaw).length;
     final imageCount = _files.length - rawCount;
     final adaptiveMediaGroups = buildAdaptiveMediaGroups(_files);
-    final visibleMediaGroups = switch (_mediaFilter) {
-      MediaFilter.adaptive => adaptiveMediaGroups,
-      MediaFilter.all =>
-        _files.map((file) => MediaGroup(primary: file)).toList(growable: false),
-      MediaFilter.raw => _files
-          .where((file) => file.isRaw)
-          .map((file) => MediaGroup(primary: file))
-          .toList(growable: false),
-      MediaFilter.images => _files
-          .where((file) => !file.isRaw)
-          .map((file) => MediaGroup(primary: file))
-          .toList(growable: false),
-    };
+    final visibleMediaGroups = _ratingFilter.visibleGroups;
 
     // Calculate dynamic thumbnail resize width based on grid cell size, then
     // snap it to a bucket. Without bucketing, dragging the window by one pixel
@@ -1295,6 +1326,13 @@ class _HomePageState extends State<HomePage> {
               moreActionsTooltip: l10n.moreActionsTooltip,
               settingsTooltip: l10n.settingsTooltip,
               selectedMediaFilter: _mediaFilter,
+              selectedRatingFilter: _ratingFilter.selected,
+              showRatings: _settings.showThumbnailRatings,
+              onRatingFilterSelected: (filter) =>
+                  _ratingFilter.update(filter: filter),
+              onShowRatingsChanged: (show) => _updateSettings(
+                _settings.copyWith(showThumbnailRatings: show),
+              ),
               selectedMediaSortOrder: _mediaSortOrder,
               adaptiveCount: adaptiveMediaGroups.length,
               rawCount: rawCount,
@@ -1302,6 +1340,7 @@ class _HomePageState extends State<HomePage> {
               onMediaFilterSelected: (filter) {
                 setState(() {
                   _mediaFilter = filter;
+                  _refreshRatingGroups();
                 });
               },
               onMediaSortOrderSelected: _updateMediaSortOrder,
@@ -1329,12 +1368,15 @@ class _HomePageState extends State<HomePage> {
                             recentOpenItems: _recentOpenItems,
                             onRecentOpenItemSelected: _openRecentItem,
                           )
-                        : visibleMediaGroups.isEmpty
-                            ? Center(child: Text(l10n.mediaFilterEmptyState))
-                            : _buildGalleryGrid(
-                                visibleMediaGroups,
-                                thumbnailResizeWidth,
-                              ),
+                        : _ratingFilter.loading
+                            ? const Center(child: CircularProgressIndicator())
+                            : visibleMediaGroups.isEmpty
+                                ? Center(
+                                    child: Text(l10n.mediaFilterEmptyState))
+                                : _buildGalleryGrid(
+                                    visibleMediaGroups,
+                                    thumbnailResizeWidth,
+                                  ),
                   ),
                   Positioned(
                     right: 12,

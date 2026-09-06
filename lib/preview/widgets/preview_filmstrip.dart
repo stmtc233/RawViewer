@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 
 import '../../image_store.dart';
+import '../../core/rating_filter.dart';
+import '../../rating_badge.dart';
 import '../../media_group.dart';
 import '../../ui/app_theme.dart';
 import '../../ui/desktop_controls.dart';
@@ -23,6 +25,9 @@ class PreviewFilmstrip extends StatefulWidget {
   final String centerCurrentThumbnailTooltip;
   final ValueChanged<int> onIndexSelected;
   final ValueChanged<int>? onFastIndexSelected;
+  final Widget? controls;
+  final RatingRepository? ratingRepository;
+  final bool showRatings;
 
   const PreviewFilmstrip({
     super.key,
@@ -34,6 +39,9 @@ class PreviewFilmstrip extends StatefulWidget {
     required this.centerCurrentThumbnailTooltip,
     required this.onIndexSelected,
     this.onFastIndexSelected,
+    this.controls,
+    this.ratingRepository,
+    this.showRatings = true,
   });
 
   @override
@@ -63,6 +71,7 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
   void didUpdateWidget(PreviewFilmstrip oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.currentIndex != widget.currentIndex ||
+        oldWidget.mediaGroups != widget.mediaGroups ||
         oldWidget.height != widget.height) {
       _scheduleCenterCurrent(animated: true);
     }
@@ -289,6 +298,8 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
                                     imageStore: widget.imageStore,
                                     decodeWidth: widget.decodeWidth,
                                     selected: index == widget.currentIndex,
+                                    ratingRepository: widget.ratingRepository,
+                                    showRatings: widget.showRatings,
                                     onTap: () => widget.onIndexSelected(index),
                                   ),
                                 ),
@@ -313,13 +324,20 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
                 ),
               if (_showTrailingCenterArrow)
                 Positioned(
-                  right: 0,
+                  right:
+                      widget.controls == null ? 0 : desktopControlSize * 2 + 4,
                   top: 0,
                   bottom: 0,
                   child: Align(
                     alignment: Alignment.centerRight,
                     child: _buildCenterArrow(leading: false),
                   ),
+                ),
+              if (widget.controls != null)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: widget.controls!,
                 ),
             ],
           ),
@@ -334,6 +352,8 @@ class _PreviewFilmstripThumbnail extends StatefulWidget {
   final ImageStore imageStore;
   final int decodeWidth;
   final bool selected;
+  final RatingRepository? ratingRepository;
+  final bool showRatings;
   final VoidCallback onTap;
 
   const _PreviewFilmstripThumbnail({
@@ -342,6 +362,8 @@ class _PreviewFilmstripThumbnail extends StatefulWidget {
     required this.imageStore,
     required this.decodeWidth,
     required this.selected,
+    required this.ratingRepository,
+    required this.showRatings,
     required this.onTap,
   });
 
@@ -463,6 +485,19 @@ class _PreviewFilmstripThumbnailState
               borderRadius: BorderRadius.circular(4),
               child: image,
             ),
+            if (widget.showRatings && widget.ratingRepository != null)
+              Positioned(
+                left: 4,
+                right: 4,
+                bottom: 4,
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: RatingBadge(
+                    filePath: _filePath,
+                    repository: widget.ratingRepository!,
+                  ),
+                ),
+              ),
             IgnorePointer(
               child: DecoratedBox(
                 decoration: BoxDecoration(

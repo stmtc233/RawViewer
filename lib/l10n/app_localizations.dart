@@ -107,6 +107,30 @@ abstract class AppLocalizations {
   /// **'Rating'**
   String get exifRating;
 
+  /// No description provided for @ratingFilterTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter by rating'**
+  String get ratingFilterTooltip;
+
+  /// No description provided for @ratingFilterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All ratings'**
+  String get ratingFilterAll;
+
+  /// No description provided for @ratingFilterStars.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 star} other{{count} stars}}'**
+  String ratingFilterStars(int count);
+
+  /// No description provided for @previewRatingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Thumbnail ratings'**
+  String get previewRatingsTitle;
+
   /// No description provided for @exifRatingUnrated.
   ///
   /// In en, this message translates to:

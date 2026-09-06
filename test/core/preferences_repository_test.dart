@@ -7,6 +7,22 @@ import 'package:rawviewer/settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('thumbnail rating visibility defaults on and persists both states',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    const repository = PreferencesRepository();
+    expect(
+        (await repository.loadViewPreferences()).showThumbnailRatings, isTrue);
+    await repository.saveShowThumbnailRatings(false);
+    final stored = await repository.loadViewPreferences();
+    expect(stored.showThumbnailRatings, isFalse);
+    final settings =
+        ViewerSettings(showThumbnailRatings: stored.showThumbnailRatings);
+    expect(settings.copyWith(maxCacheSize: 256).showThumbnailRatings, isFalse);
+    await repository.saveShowThumbnailRatings(true);
+    expect(
+        (await repository.loadViewPreferences()).showThumbnailRatings, isTrue);
+  });
   group('PreferencesRepository.resolvePreviewOverlayOpacity', () {
     test('uses storedOpacity when present', () {
       expect(

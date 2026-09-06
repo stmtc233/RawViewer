@@ -209,6 +209,7 @@ class ViewerSettings {
   final double previewFilmstripOpacity;
   final double previewFilmstripHeight;
   final bool showPreviewFilmstrip;
+  final bool showThumbnailRatings;
   final bool showPreviewOverview;
   final ExifSidebarSettings exifSidebar;
   final WindowsContextMenuSettings windowsContextMenu;
@@ -227,6 +228,7 @@ class ViewerSettings {
     this.previewFilmstripOpacity = kDefaultPreviewOverlayOpacity,
     this.previewFilmstripHeight = kPreviewFilmstripHeight,
     this.showPreviewFilmstrip = true,
+    this.showThumbnailRatings = true,
     this.showPreviewOverview = true,
     this.exifSidebar = const ExifSidebarSettings(),
     this.windowsContextMenu = const WindowsContextMenuSettings(),
@@ -246,6 +248,7 @@ class ViewerSettings {
     double? previewFilmstripOpacity,
     double? previewFilmstripHeight,
     bool? showPreviewFilmstrip,
+    bool? showThumbnailRatings,
     bool? showPreviewOverview,
     ExifSidebarSettings? exifSidebar,
     WindowsContextMenuSettings? windowsContextMenu,
@@ -269,6 +272,7 @@ class ViewerSettings {
       previewFilmstripHeight:
           previewFilmstripHeight ?? this.previewFilmstripHeight,
       showPreviewFilmstrip: showPreviewFilmstrip ?? this.showPreviewFilmstrip,
+      showThumbnailRatings: showThumbnailRatings ?? this.showThumbnailRatings,
       showPreviewOverview: showPreviewOverview ?? this.showPreviewOverview,
       exifSidebar: exifSidebar ?? this.exifSidebar,
       windowsContextMenu: windowsContextMenu ?? this.windowsContextMenu,
@@ -702,8 +706,8 @@ class _SettingsPageState extends State<SettingsPage>
           DesktopSettingsOption(
             title: l10n.captureTimeTitle,
             subtitle: l10n.captureTimeSubtitle,
-            selected:
-                _currentSettings.timeDisplaySource == TimeDisplaySource.capturedAt,
+            selected: _currentSettings.timeDisplaySource ==
+                TimeDisplaySource.capturedAt,
             onTap: () => _updateSettings(
               _currentSettings.copyWith(
                 timeDisplaySource: TimeDisplaySource.capturedAt,
@@ -713,8 +717,8 @@ class _SettingsPageState extends State<SettingsPage>
           DesktopSettingsOption(
             title: l10n.fileModifiedTimeTitle,
             subtitle: l10n.fileModifiedTimeSubtitle,
-            selected:
-                _currentSettings.timeDisplaySource == TimeDisplaySource.modifiedAt,
+            selected: _currentSettings.timeDisplaySource ==
+                TimeDisplaySource.modifiedAt,
             onTap: () => _updateSettings(
               _currentSettings.copyWith(
                 timeDisplaySource: TimeDisplaySource.modifiedAt,
@@ -901,37 +905,34 @@ class _SettingsPageState extends State<SettingsPage>
                 subtitle: l10n.fileAssociationFormatSubtitle(
                   extension.substring(1).toUpperCase(),
                 ),
-                control:
-                    _currentSettings.fileAssociations.requiresSystemSettings
-                        ? Tooltip(
-                            message: _currentSettings.fileAssociations
-                                    .isBound(extension)
+                control: _currentSettings
+                        .fileAssociations.requiresSystemSettings
+                    ? Tooltip(
+                        message:
+                            _currentSettings.fileAssociations.isBound(extension)
                                 ? l10n.fileAssociationDefault
                                 : l10n.fileAssociationNotDefault,
-                            child: Icon(
-                              _currentSettings.fileAssociations
-                                      .isBound(extension)
-                                  ? Icons.check_circle_outline
-                                  : Icons.radio_button_unchecked,
-                              size: 20,
-                            ),
+                        child: Icon(
+                          _currentSettings.fileAssociations.isBound(extension)
+                              ? Icons.check_circle_outline
+                              : Icons.radio_button_unchecked,
+                          size: 20,
+                        ),
+                      )
+                    : _isUpdatingFileAssociations
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : _isUpdatingFileAssociations
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : Switch(
-                                value: _currentSettings.fileAssociations
-                                    .isBound(extension),
-                                onChanged: (value) =>
-                                    _handleFileAssociationChanged(
-                                  extension,
-                                  value,
-                                ),
-                              ),
+                        : Switch(
+                            value: _currentSettings.fileAssociations
+                                .isBound(extension),
+                            onChanged: (value) => _handleFileAssociationChanged(
+                              extension,
+                              value,
+                            ),
+                          ),
               ),
           ]),
         ),
@@ -1024,8 +1025,9 @@ class _SettingsPageState extends State<SettingsPage>
                     key: const ValueKey('about-check-updates-button'),
                     icon: Icons.system_update_alt,
                     label: l10n.checkForUpdates,
-                    onPressed:
-                        _appInfo == null ? null : () => unawaited(_checkForUpdate()),
+                    onPressed: _appInfo == null
+                        ? null
+                        : () => unawaited(_checkForUpdate()),
                   ),
           ),
         ],

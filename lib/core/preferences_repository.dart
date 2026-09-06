@@ -81,6 +81,7 @@ class StoredViewPreferences {
   final double previewFilmstripOpacity;
   final double previewFilmstripHeight;
   final bool showPreviewFilmstrip;
+  final bool showThumbnailRatings;
   final bool showPreviewOverview;
   final ExifSidebarSettings exifSidebar;
   final RawViewMode? rawViewMode;
@@ -99,6 +100,7 @@ class StoredViewPreferences {
     required this.previewFilmstripOpacity,
     required this.previewFilmstripHeight,
     required this.showPreviewFilmstrip,
+    this.showThumbnailRatings = true,
     required this.showPreviewOverview,
     this.exifSidebar = const ExifSidebarSettings(),
     required this.rawViewMode,
@@ -135,6 +137,7 @@ class PreferencesRepository {
   static const String _previewFilmstripOpacity = 'preview_filmstrip_opacity';
   static const String _previewFilmstripHeight = 'preview_filmstrip_height';
   static const String _showPreviewFilmstrip = 'show_preview_filmstrip';
+  static const String _showThumbnailRatings = 'show_thumbnail_ratings';
   static const String _showPreviewOverview = 'show_preview_overview';
   static const String _showExifSidebar = 'show_exif_sidebar';
   static const String _exifSidebarWidth = 'exif_sidebar_width';
@@ -223,6 +226,7 @@ class PreferencesRepository {
         prefs.getDouble(_previewFilmstripHeight) ?? kPreviewFilmstripHeight,
       ),
       showPreviewFilmstrip: prefs.getBool(_showPreviewFilmstrip) ?? true,
+      showThumbnailRatings: prefs.getBool(_showThumbnailRatings) ?? true,
       showPreviewOverview: prefs.getBool(_showPreviewOverview) ?? true,
       exifSidebar: ExifSidebarSettings(
         visible: prefs.getBool(_showExifSidebar) ?? false,
@@ -349,6 +353,11 @@ class PreferencesRepository {
   Future<void> saveShowPreviewFilmstrip(bool show) async {
     final prefs = await _prefs;
     await prefs.setBool(_showPreviewFilmstrip, show);
+  }
+
+  Future<void> saveShowThumbnailRatings(bool show) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_showThumbnailRatings, show);
   }
 
   Future<void> saveShowPreviewOverview(bool show) async {

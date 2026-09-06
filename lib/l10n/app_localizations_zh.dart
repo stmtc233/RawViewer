@@ -15,6 +15,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get exifRating => '星级评分';
 
   @override
+  String get ratingFilterTooltip => '星级筛选';
+
+  @override
+  String get ratingFilterAll => '全部星级';
+
+  @override
+  String ratingFilterStars(int count) {
+    return '$count 星';
+  }
+
+  @override
+  String get previewRatingsTitle => '缩略图星级';
+
+  @override
   String get exifRatingUnrated => '未评分';
 
   @override

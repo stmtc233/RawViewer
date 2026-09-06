@@ -3,6 +3,11 @@ import 'dart:isolate';
 
 import 'package:exif/exif.dart';
 
+int? parseExifRating(String? value) {
+  final rating = int.tryParse(value?.trim() ?? '');
+  return rating != null && rating >= 0 && rating <= 5 ? rating : null;
+}
+
 class ExifMetadata {
   final int? fileSize;
   final DateTime? modifiedAt;

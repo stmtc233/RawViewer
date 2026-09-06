@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rawviewer/l10n/app_localizations.dart';
 import 'package:rawviewer/core/exif_sidebar_settings.dart';
-import 'package:rawviewer/preview/exif_repository.dart';
+import 'package:rawviewer/core/exif_repository.dart';
 import 'package:rawviewer/preview/widgets/preview_exif_sidebar.dart';
 import 'package:rawviewer/ui/app_theme.dart';
 

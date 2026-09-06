@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 
 import '../../core/media_timestamps.dart';
+import '../../core/rating_filter.dart';
+import '../../rating_badge.dart';
 import '../../image_store.dart';
 import '../../l10n/app_localizations.dart';
 import '../../media_group.dart';
@@ -17,6 +19,7 @@ class MediaThumbnailTile extends StatefulWidget {
   final bool hasPairedJpeg;
   final ViewerSettings settings;
   final TimestampRepository timestampRepository;
+  final RatingRepository? ratingRepository;
   final int resizeWidth;
   final ImageStore imageStore;
   final ValueChanged<double>? onAspectRatioChanged;
@@ -28,6 +31,7 @@ class MediaThumbnailTile extends StatefulWidget {
     required this.hasPairedJpeg,
     required this.settings,
     required this.timestampRepository,
+    this.ratingRepository,
     required this.resizeWidth,
     required this.imageStore,
     this.onAspectRatioChanged,
@@ -209,6 +213,20 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
                     ),
                   ),
                 ),
+                if (widget.settings.showThumbnailRatings &&
+                    widget.ratingRepository != null)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    right: widget.mediaFile.isRaw ? 44 : 8,
+                    child: Align(
+                      alignment: Alignment.topLeft,
+                      child: RatingBadge(
+                        filePath: widget.filePath,
+                        repository: widget.ratingRepository!,
+                      ),
+                    ),
+                  ),
                 Positioned(
                   left: 8,
                   right: 8,

@@ -15,6 +15,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exifRating => 'Rating';
 
   @override
+  String get ratingFilterTooltip => 'Filter by rating';
+
+  @override
+  String get ratingFilterAll => 'All ratings';
+
+  @override
+  String ratingFilterStars(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count stars',
+      one: '1 star',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get previewRatingsTitle => 'Thumbnail ratings';
+
+  @override
   String get exifRatingUnrated => 'Unrated';
 
   @override

@@ -9,7 +9,7 @@ import '../../l10n/app_localizations.dart';
 import '../../core/exif_sidebar_settings.dart';
 import '../../ui/app_theme.dart';
 import '../../ui/desktop_controls.dart';
-import '../exif_repository.dart';
+import '../../core/exif_repository.dart';
 
 class PreviewExifSidebar extends StatefulWidget {
   final String filePath;
@@ -324,8 +324,7 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
 
   Widget _ratingRow(AppLocalizations l10n) {
     final rawRating = _metadata!.tags['Image Rating'];
-    final parsed = int.tryParse(rawRating?.trim() ?? '');
-    final rating = parsed != null && parsed >= 0 && parsed <= 5 ? parsed : null;
+    final rating = parseExifRating(rawRating);
     final status = rawRating == null
         ? l10n.exifRatingMissing
         : rating == null

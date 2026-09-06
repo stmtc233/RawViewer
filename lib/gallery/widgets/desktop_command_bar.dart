@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/preferences_repository.dart';
 import '../../media_filter.dart';
+import '../../core/rating_filter.dart';
+import '../../rating_filter_button.dart';
 import '../../media_sort.dart';
 import '../../ui/app_theme.dart';
 import '../../ui/desktop_controls.dart';
@@ -16,6 +18,10 @@ class DesktopCommandBar extends StatelessWidget {
   final String moreActionsTooltip;
   final String settingsTooltip;
   final MediaFilter selectedMediaFilter;
+  final RatingFilter selectedRatingFilter;
+  final bool showRatings;
+  final ValueChanged<RatingFilter> onRatingFilterSelected;
+  final ValueChanged<bool> onShowRatingsChanged;
   final MediaSortOrder selectedMediaSortOrder;
   final int adaptiveCount;
   final int rawCount;
@@ -40,6 +46,10 @@ class DesktopCommandBar extends StatelessWidget {
     required this.moreActionsTooltip,
     required this.settingsTooltip,
     required this.selectedMediaFilter,
+    this.selectedRatingFilter = RatingFilter.all,
+    this.showRatings = true,
+    required this.onRatingFilterSelected,
+    required this.onShowRatingsChanged,
     required this.selectedMediaSortOrder,
     required this.adaptiveCount,
     required this.rawCount,
@@ -122,6 +132,12 @@ class DesktopCommandBar extends StatelessWidget {
                 rawCount: rawCount,
                 imageCount: imageCount,
                 onSelected: onMediaFilterSelected,
+              ),
+              RatingFilterButton(
+                selected: selectedRatingFilter,
+                onSelected: onRatingFilterSelected,
+                showRatings: showRatings,
+                onShowRatingsChanged: onShowRatingsChanged,
               ),
               const SizedBox(width: 4),
               MediaSortButton(
