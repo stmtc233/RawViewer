@@ -6,6 +6,7 @@
   "settingsCategoryAppearance": "Appearance",
   "settingsCategoryPerformance": "Performance",
   "settingsCategoryIntegration": "System Integration",
+  "settingsCategoryAbout": "About",
   "gridAspectRatioSectionTitle": "Grid Cell Ratio",
   "gridAspectRatioAdaptive": "Adaptive",
   "navigationSectionTitle": "Navigation",
@@ -75,6 +76,49 @@
   "fileAssociationsDisableAll": "Disable all",
   "fileAssociationsUpdateFailed": "Failed to update file associations: {error}",
   "@fileAssociationsUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "aboutAppDescription": "A fast RAW and standard image viewer powered by LibRaw.",
+  "aboutVersionTitle": "Version",
+  "aboutVersionValue": "{version} (build {build})",
+  "@aboutVersionValue": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "build": {
+        "type": "String"
+      }
+    }
+  },
+  "aboutVersionLoading": "Reading version…",
+  "aboutProjectHomeTitle": "Project home",
+  "aboutCopyTooltip": "Copy",
+  "aboutCopiedMessage": "Copied to clipboard",
+  "aboutLicenseTitle": "License",
+  "aboutLicenseValue": "MIT License · © 2026 stmtc233",
+  "aboutCreditsTitle": "Credits",
+  "aboutCreditsLibRaw": "RAW decoding by LibRaw (LGPL-2.1 / CDDL-1.0)",
+  "aboutUpdateSectionTitle": "Updates",
+  "checkForUpdates": "Check for updates",
+  "checkingForUpdates": "Checking…",
+  "updateAvailable": "New version {version} available",
+  "@updateAvailable": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateUpToDate": "You are on the latest version",
+  "updateCheckFailedNetwork": "Could not reach the update server. Check your connection.",
+  "updateCheckFailedRateLimited": "GitHub rate limit reached. Try again later.",
+  "updateCheckFailedUnknown": "Could not check for updates: {error}",
+  "@updateCheckFailedUnknown": {
     "placeholders": {
       "error": {
         "type": "String"

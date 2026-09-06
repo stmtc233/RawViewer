@@ -27,6 +27,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsCategoryIntegration => 'System Integration';
 
   @override
+  String get settingsCategoryAbout => 'About';
+
+  @override
   String get gridAspectRatioSectionTitle => 'Grid Cell Ratio';
 
   @override
@@ -175,6 +178,69 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String fileAssociationsUpdateFailed(String error) {
     return 'Failed to update file associations: $error';
+  }
+
+  @override
+  String get aboutAppDescription => 'A fast RAW and standard image viewer powered by LibRaw.';
+
+  @override
+  String get aboutVersionTitle => 'Version';
+
+  @override
+  String aboutVersionValue(String version, String build) {
+    return '$version (build $build)';
+  }
+
+  @override
+  String get aboutVersionLoading => 'Reading version…';
+
+  @override
+  String get aboutProjectHomeTitle => 'Project home';
+
+  @override
+  String get aboutCopyTooltip => 'Copy';
+
+  @override
+  String get aboutCopiedMessage => 'Copied to clipboard';
+
+  @override
+  String get aboutLicenseTitle => 'License';
+
+  @override
+  String get aboutLicenseValue => 'MIT License · © 2026 stmtc233';
+
+  @override
+  String get aboutCreditsTitle => 'Credits';
+
+  @override
+  String get aboutCreditsLibRaw => 'RAW decoding by LibRaw (LGPL-2.1 / CDDL-1.0)';
+
+  @override
+  String get aboutUpdateSectionTitle => 'Updates';
+
+  @override
+  String get checkForUpdates => 'Check for updates';
+
+  @override
+  String get checkingForUpdates => 'Checking…';
+
+  @override
+  String updateAvailable(String version) {
+    return 'New version $version available';
+  }
+
+  @override
+  String get updateUpToDate => 'You are on the latest version';
+
+  @override
+  String get updateCheckFailedNetwork => 'Could not reach the update server. Check your connection.';
+
+  @override
+  String get updateCheckFailedRateLimited => 'GitHub rate limit reached. Try again later.';
+
+  @override
+  String updateCheckFailedUnknown(String error) {
+    return 'Could not check for updates: $error';
   }
 
   @override

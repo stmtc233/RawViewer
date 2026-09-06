@@ -6,6 +6,7 @@
   "settingsCategoryAppearance": "外观",
   "settingsCategoryPerformance": "性能",
   "settingsCategoryIntegration": "系统集成",
+  "settingsCategoryAbout": "关于",
   "gridAspectRatioSectionTitle": "预览网格比例",
   "gridAspectRatioAdaptive": "自适应",
   "navigationSectionTitle": "切换",
@@ -75,6 +76,49 @@
   "fileAssociationsDisableAll": "全部关闭",
   "fileAssociationsUpdateFailed": "更新文件关联失败：{error}",
   "@fileAssociationsUpdateFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "aboutAppDescription": "基于 LibRaw 的快速 RAW 与图片浏览器。",
+  "aboutVersionTitle": "版本",
+  "aboutVersionValue": "{version}（build {build}）",
+  "@aboutVersionValue": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "build": {
+        "type": "String"
+      }
+    }
+  },
+  "aboutVersionLoading": "正在读取版本…",
+  "aboutProjectHomeTitle": "项目主页",
+  "aboutCopyTooltip": "复制",
+  "aboutCopiedMessage": "已复制到剪贴板",
+  "aboutLicenseTitle": "开源许可",
+  "aboutLicenseValue": "MIT License · © 2026 stmtc233",
+  "aboutCreditsTitle": "致谢",
+  "aboutCreditsLibRaw": "RAW 解码由 LibRaw 提供（LGPL-2.1 / CDDL-1.0）",
+  "aboutUpdateSectionTitle": "更新",
+  "checkForUpdates": "检查更新",
+  "checkingForUpdates": "检查中…",
+  "updateAvailable": "发现新版本 {version}",
+  "@updateAvailable": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateUpToDate": "已是最新版本",
+  "updateCheckFailedNetwork": "无法连接更新服务器，请检查网络连接。",
+  "updateCheckFailedRateLimited": "GitHub 请求频率超限，请稍后再试。",
+  "updateCheckFailedUnknown": "检查更新失败：{error}",
+  "@updateCheckFailedUnknown": {
     "placeholders": {
       "error": {
         "type": "String"

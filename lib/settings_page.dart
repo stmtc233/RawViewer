@@ -2,9 +2,12 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'core/app_info.dart';
 import 'core/media_types.dart';
 import 'core/preview_filmstrip_size.dart';
 import 'core/raw_view_mode.dart';
+import 'core/update_checker.dart';
 import 'l10n/app_localizations.dart';
 import 'ui/app_theme.dart';
 import 'ui/desktop_controls.dart';
@@ -13,7 +16,7 @@ import 'ui/desktop_controls.dart';
 const double kSettingsRailBreakpoint = 560;
 
 /// The settings page's top-level categories, in display order.
-enum SettingsCategory { general, appearance, performance, integration }
+enum SettingsCategory { general, appearance, performance, integration, about }
 
 extension SettingsCategoryPresentation on SettingsCategory {
   IconData get icon {
@@ -26,6 +29,8 @@ extension SettingsCategoryPresentation on SettingsCategory {
         return Icons.speed_outlined;
       case SettingsCategory.integration:
         return Icons.desktop_windows_outlined;
+      case SettingsCategory.about:
+        return Icons.info_outline;
     }
   }
 
@@ -39,6 +44,8 @@ extension SettingsCategoryPresentation on SettingsCategory {
         return l10n.settingsCategoryPerformance;
       case SettingsCategory.integration:
         return l10n.settingsCategoryIntegration;
+      case SettingsCategory.about:
+        return l10n.settingsCategoryAbout;
     }
   }
 }
@@ -266,6 +273,14 @@ class SettingsPage extends StatefulWidget {
   final Future<void> Function()? onOpenDefaultAppsSettings;
   final Future<FileAssociationSettings> Function()? onRefreshFileAssociations;
 
+  /// Reads the running build's version. Injected so tests need no platform
+  /// channel; production uses the packaged metadata.
+  final AppInfoLoader appInfoLoader;
+
+  /// Fetches the latest published release tag. Injected so tests exercise every
+  /// branch without reaching the network.
+  final LatestTagFetcher latestTagFetcher;
+
   const SettingsPage({
     super.key,
     required this.settings,
@@ -275,6 +290,8 @@ class SettingsPage extends StatefulWidget {
     this.onFileAssociationsChanged,
     this.onOpenDefaultAppsSettings,
     this.onRefreshFileAssociations,
+    this.appInfoLoader = loadAppInfoFromPlatform,
+    this.latestTagFetcher = fetchLatestTagFromGitHub,
   });
 
   @override
@@ -287,6 +304,9 @@ class _SettingsPageState extends State<SettingsPage>
   bool _isUpdatingWindowsContextMenu = false;
   bool _isUpdatingFileAssociations = false;
   SettingsCategory _selectedCategory = SettingsCategory.general;
+  AppInfo? _appInfo;
+  bool _isCheckingForUpdate = false;
+  UpdateCheckResult? _updateResult;
 
   String _languageLabel(AppLanguage language, AppLocalizations l10n) {
     switch (language) {
@@ -304,6 +324,48 @@ class _SettingsPageState extends State<SettingsPage>
     super.initState();
     _currentSettings = widget.settings;
     WidgetsBinding.instance.addObserver(this);
+    unawaited(_loadAppInfo());
+  }
+
+  Future<void> _loadAppInfo() async {
+    try {
+      final info = await widget.appInfoLoader();
+      if (!mounted) return;
+      setState(() => _appInfo = info);
+    } catch (_) {
+      // The About page falls back to its loading label; a missing version is
+      // not worth interrupting the rest of the settings for.
+    }
+  }
+
+  Future<void> _checkForUpdate() async {
+    final info = _appInfo;
+    if (info == null || _isCheckingForUpdate) return;
+
+    setState(() {
+      _isCheckingForUpdate = true;
+      _updateResult = null;
+    });
+
+    final result = await checkForUpdate(
+      currentVersion: info.version,
+      fetchLatestTag: widget.latestTagFetcher,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _isCheckingForUpdate = false;
+      _updateResult = result;
+    });
+  }
+
+  Future<void> _copyProjectHome() async {
+    final l10n = AppLocalizations.of(context)!;
+    await Clipboard.setData(const ClipboardData(text: kProjectHomeUrl));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.aboutCopiedMessage)),
+    );
   }
 
   @override
@@ -598,6 +660,8 @@ class _SettingsPageState extends State<SettingsPage>
         return _buildPerformanceSections(l10n);
       case SettingsCategory.integration:
         return _buildIntegrationSections(l10n);
+      case SettingsCategory.about:
+        return _buildAboutSections(l10n);
     }
   }
 
@@ -858,6 +922,101 @@ class _SettingsPageState extends State<SettingsPage>
               ),
           ]),
         ),
+    ];
+  }
+
+  String _updateStatusText(UpdateCheckResult result, AppLocalizations l10n) {
+    if (result.succeeded) {
+      return result.isUpdateAvailable
+          ? l10n.updateAvailable(result.latestVersion!)
+          : l10n.updateUpToDate;
+    }
+    switch (result.failure!) {
+      case UpdateCheckFailure.network:
+        return l10n.updateCheckFailedNetwork;
+      case UpdateCheckFailure.rateLimited:
+        return l10n.updateCheckFailedRateLimited;
+      case UpdateCheckFailure.unknown:
+        return l10n.updateCheckFailedUnknown(result.errorDetail ?? '');
+    }
+  }
+
+  List<Widget> _buildAboutSections(AppLocalizations l10n) {
+    final info = _appInfo;
+    final result = _updateResult;
+
+    return [
+      DesktopSettingsSection(
+        title: l10n.settingsCategoryAbout,
+        children: _withDividers([
+          DesktopSettingsRow(
+            key: const ValueKey('about-version'),
+            title: l10n.appTitle,
+            subtitle: l10n.aboutAppDescription,
+            control: Text(
+              info == null
+                  ? l10n.aboutVersionLoading
+                  : l10n.aboutVersionValue(info.version, info.buildNumber),
+              style: const TextStyle(
+                color: RawViewerColors.mutedText,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          DesktopSettingsRow(
+            key: const ValueKey('about-project-home'),
+            title: l10n.aboutProjectHomeTitle,
+            subtitle: kProjectHomeUrl,
+            control: DesktopIconButton(
+              icon: Icons.copy_outlined,
+              tooltip: l10n.aboutCopyTooltip,
+              onPressed: () => unawaited(_copyProjectHome()),
+            ),
+          ),
+          DesktopSettingsRow(
+            title: l10n.aboutLicenseTitle,
+            control: Text(
+              l10n.aboutLicenseValue,
+              style: const TextStyle(
+                color: RawViewerColors.mutedText,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          DesktopSettingsRow(
+            title: l10n.aboutCreditsTitle,
+            subtitle: l10n.aboutCreditsLibRaw,
+            control: const SizedBox.shrink(),
+          ),
+        ]),
+      ),
+      DesktopSettingsSection(
+        title: l10n.aboutUpdateSectionTitle,
+        children: [
+          DesktopSettingsRow(
+            key: const ValueKey('about-update-check'),
+            title: l10n.checkForUpdates,
+            subtitle: _isCheckingForUpdate
+                ? l10n.checkingForUpdates
+                : result == null
+                    ? null
+                    : _updateStatusText(result, l10n),
+            control: _isCheckingForUpdate
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : DesktopCommandButton(
+                    key: const ValueKey('about-check-updates-button'),
+                    icon: Icons.system_update_alt,
+                    label: l10n.checkForUpdates,
+                    onPressed:
+                        _appInfo == null ? null : () => unawaited(_checkForUpdate()),
+                  ),
+          ),
+        ],
+      ),
     ];
   }
 

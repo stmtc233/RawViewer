@@ -27,6 +27,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsCategoryIntegration => '系统集成';
 
   @override
+  String get settingsCategoryAbout => '关于';
+
+  @override
   String get gridAspectRatioSectionTitle => '预览网格比例';
 
   @override
@@ -175,6 +178,69 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String fileAssociationsUpdateFailed(String error) {
     return '更新文件关联失败：$error';
+  }
+
+  @override
+  String get aboutAppDescription => '基于 LibRaw 的快速 RAW 与图片浏览器。';
+
+  @override
+  String get aboutVersionTitle => '版本';
+
+  @override
+  String aboutVersionValue(String version, String build) {
+    return '$version（build $build）';
+  }
+
+  @override
+  String get aboutVersionLoading => '正在读取版本…';
+
+  @override
+  String get aboutProjectHomeTitle => '项目主页';
+
+  @override
+  String get aboutCopyTooltip => '复制';
+
+  @override
+  String get aboutCopiedMessage => '已复制到剪贴板';
+
+  @override
+  String get aboutLicenseTitle => '开源许可';
+
+  @override
+  String get aboutLicenseValue => 'MIT License · © 2026 stmtc233';
+
+  @override
+  String get aboutCreditsTitle => '致谢';
+
+  @override
+  String get aboutCreditsLibRaw => 'RAW 解码由 LibRaw 提供（LGPL-2.1 / CDDL-1.0）';
+
+  @override
+  String get aboutUpdateSectionTitle => '更新';
+
+  @override
+  String get checkForUpdates => '检查更新';
+
+  @override
+  String get checkingForUpdates => '检查中…';
+
+  @override
+  String updateAvailable(String version) {
+    return '发现新版本 $version';
+  }
+
+  @override
+  String get updateUpToDate => '已是最新版本';
+
+  @override
+  String get updateCheckFailedNetwork => '无法连接更新服务器，请检查网络连接。';
+
+  @override
+  String get updateCheckFailedRateLimited => 'GitHub 请求频率超限，请稍后再试。';
+
+  @override
+  String updateCheckFailedUnknown(String error) {
+    return '检查更新失败：$error';
   }
 
   @override

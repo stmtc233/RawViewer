@@ -131,6 +131,12 @@ abstract class AppLocalizations {
   /// **'System Integration'**
   String get settingsCategoryIntegration;
 
+  /// No description provided for @settingsCategoryAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get settingsCategoryAbout;
+
   /// No description provided for @gridAspectRatioSectionTitle.
   ///
   /// In en, this message translates to:
@@ -412,6 +418,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to update file associations: {error}'**
   String fileAssociationsUpdateFailed(String error);
+
+  /// No description provided for @aboutAppDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'A fast RAW and standard image viewer powered by LibRaw.'**
+  String get aboutAppDescription;
+
+  /// No description provided for @aboutVersionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Version'**
+  String get aboutVersionTitle;
+
+  /// No description provided for @aboutVersionValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{version} (build {build})'**
+  String aboutVersionValue(String version, String build);
+
+  /// No description provided for @aboutVersionLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading version…'**
+  String get aboutVersionLoading;
+
+  /// No description provided for @aboutProjectHomeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Project home'**
+  String get aboutProjectHomeTitle;
+
+  /// No description provided for @aboutCopyTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get aboutCopyTooltip;
+
+  /// No description provided for @aboutCopiedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get aboutCopiedMessage;
+
+  /// No description provided for @aboutLicenseTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'License'**
+  String get aboutLicenseTitle;
+
+  /// No description provided for @aboutLicenseValue.
+  ///
+  /// In en, this message translates to:
+  /// **'MIT License · © 2026 stmtc233'**
+  String get aboutLicenseValue;
+
+  /// No description provided for @aboutCreditsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Credits'**
+  String get aboutCreditsTitle;
+
+  /// No description provided for @aboutCreditsLibRaw.
+  ///
+  /// In en, this message translates to:
+  /// **'RAW decoding by LibRaw (LGPL-2.1 / CDDL-1.0)'**
+  String get aboutCreditsLibRaw;
+
+  /// No description provided for @aboutUpdateSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get aboutUpdateSectionTitle;
+
+  /// No description provided for @checkForUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for updates'**
+  String get checkForUpdates;
+
+  /// No description provided for @checkingForUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking…'**
+  String get checkingForUpdates;
+
+  /// No description provided for @updateAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'New version {version} available'**
+  String updateAvailable(String version);
+
+  /// No description provided for @updateUpToDate.
+  ///
+  /// In en, this message translates to:
+  /// **'You are on the latest version'**
+  String get updateUpToDate;
+
+  /// No description provided for @updateCheckFailedNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reach the update server. Check your connection.'**
+  String get updateCheckFailedNetwork;
+
+  /// No description provided for @updateCheckFailedRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'GitHub rate limit reached. Try again later.'**
+  String get updateCheckFailedRateLimited;
+
+  /// No description provided for @updateCheckFailedUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not check for updates: {error}'**
+  String updateCheckFailedUnknown(String error);
 
   /// No description provided for @homeEmptyState.
   ///
