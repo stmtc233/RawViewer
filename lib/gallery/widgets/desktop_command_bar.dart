@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/preferences_repository.dart';
 import '../../media_filter.dart';
+import '../../media_sort.dart';
 import '../../ui/app_theme.dart';
 import '../../ui/desktop_controls.dart';
 
@@ -15,10 +16,12 @@ class DesktopCommandBar extends StatelessWidget {
   final String moreActionsTooltip;
   final String settingsTooltip;
   final MediaFilter selectedMediaFilter;
+  final MediaSortOrder selectedMediaSortOrder;
   final int adaptiveCount;
   final int rawCount;
   final int imageCount;
   final ValueChanged<MediaFilter> onMediaFilterSelected;
+  final ValueChanged<MediaSortOrder> onMediaSortOrderSelected;
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenFiles;
   final VoidCallback onOpenFolder;
@@ -37,10 +40,12 @@ class DesktopCommandBar extends StatelessWidget {
     required this.moreActionsTooltip,
     required this.settingsTooltip,
     required this.selectedMediaFilter,
+    required this.selectedMediaSortOrder,
     required this.adaptiveCount,
     required this.rawCount,
     required this.imageCount,
     required this.onMediaFilterSelected,
+    required this.onMediaSortOrderSelected,
     required this.onOpenSettings,
     required this.onOpenFiles,
     required this.onOpenFolder,
@@ -117,6 +122,12 @@ class DesktopCommandBar extends StatelessWidget {
                 rawCount: rawCount,
                 imageCount: imageCount,
                 onSelected: onMediaFilterSelected,
+              ),
+              const SizedBox(width: 4),
+              MediaSortButton(
+                selectedSortOrder: selectedMediaSortOrder,
+                enabled: rawCount + imageCount > 0,
+                onSelected: onMediaSortOrderSelected,
               ),
               const SizedBox(width: 8),
               if (!compact)

@@ -21,6 +21,7 @@ import 'package:rawviewer/preview/widgets/preview_filmstrip.dart';
 import 'package:rawviewer/ui/fast_page_scroll_physics.dart';
 import 'package:rawviewer/media_filter.dart';
 import 'package:rawviewer/media_group.dart';
+import 'package:rawviewer/media_sort.dart';
 import 'package:rawviewer/native_lib.dart';
 import 'package:rawviewer/settings_page.dart';
 import 'package:rawviewer/ui/app_theme.dart';
@@ -1119,6 +1120,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.byType(MediaFilterButton), findsOneWidget);
+    expect(find.byType(MediaSortButton), findsOneWidget);
   });
 
   testWidgets('home puts thumbnail controls in the lower-right corner',

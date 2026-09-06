@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rawviewer/core/preferences_repository.dart';
 import 'package:rawviewer/core/preview_filmstrip_size.dart';
 import 'package:rawviewer/core/raw_view_mode.dart';
+import 'package:rawviewer/media_sort.dart';
 import 'package:rawviewer/settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -94,6 +95,7 @@ void main() {
       expect(stored.previewFilmstripHeight, kPreviewFilmstripHeight);
       expect(stored.showPreviewFilmstrip, isTrue);
       expect(stored.showPreviewOverview, isTrue);
+      expect(stored.mediaSortOrder, defaultMediaSortOrder);
     });
 
     test('round-trips additional settings and preview display controls',
@@ -107,6 +109,7 @@ void main() {
       await repo.saveAppLanguage(AppLanguage.english);
       await repo.saveShowPreviewFilmstrip(false);
       await repo.saveShowPreviewOverview(false);
+      await repo.saveMediaSortOrder(MediaSortOrder.capturedNewest);
 
       final stored = await repo.loadViewPreferences();
       expect(stored.useHalfSizeRawDecode, isFalse);
@@ -115,6 +118,7 @@ void main() {
       expect(stored.appLanguage, AppLanguage.english);
       expect(stored.showPreviewFilmstrip, isFalse);
       expect(stored.showPreviewOverview, isFalse);
+      expect(stored.mediaSortOrder, MediaSortOrder.capturedNewest);
     });
 
     test('round-trips grid cross-axis count', () async {

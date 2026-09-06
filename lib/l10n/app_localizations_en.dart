@@ -582,6 +582,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mediaFilterEmptyState => 'No images match the current filter';
 
   @override
+  String get mediaSortTooltip => 'Sort images';
+
+  @override
+  String get mediaSortNameAscending => 'Name (A-Z)';
+
+  @override
+  String get mediaSortNameDescending => 'Name (Z-A)';
+
+  @override
+  String get mediaSortCapturedNewest => 'Capture time (newest first)';
+
+  @override
+  String get mediaSortCapturedOldest => 'Capture time (oldest first)';
+
+  @override
+  String get mediaSortModifiedNewest => 'Date modified (newest first)';
+
+  @override
+  String get mediaSortModifiedOldest => 'Date modified (oldest first)';
+
+  @override
   String get rawViewModeTooltip => 'View mode';
 
   @override

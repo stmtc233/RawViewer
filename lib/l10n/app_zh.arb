@@ -295,6 +295,13 @@
     }
   },
   "mediaFilterEmptyState": "没有符合当前筛选条件的图片",
+  "mediaSortTooltip": "排序方式",
+  "mediaSortNameAscending": "文件名（A-Z）",
+  "mediaSortNameDescending": "文件名（Z-A）",
+  "mediaSortCapturedNewest": "拍摄时间（最新优先）",
+  "mediaSortCapturedOldest": "拍摄时间（最早优先）",
+  "mediaSortModifiedNewest": "修改时间（最新优先）",
+  "mediaSortModifiedOldest": "修改时间（最早优先）",
   "rawViewModeTooltip": "查看模式",
   "embeddedJpegModeLabel": "内嵌 JPG",
   "decodedRawModeLabel": "RAW",

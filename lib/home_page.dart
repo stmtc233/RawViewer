@@ -28,6 +28,7 @@ import 'l10n/app_localizations.dart';
 import 'lru_cache.dart';
 import 'media_filter.dart';
 import 'media_group.dart';
+import 'media_sort.dart';
 import 'preview/image_preview_page.dart';
 import 'preview/preview_geometry.dart';
 import 'settings_page.dart';
@@ -75,6 +76,8 @@ class _HomePageState extends State<HomePage> {
   final TimestampRepository _timestampRepository = TimestampRepository();
   ViewerSettings _settings = const ViewerSettings();
   MediaFilter _mediaFilter = defaultMediaFilter;
+  MediaSortOrder _mediaSortOrder = defaultMediaSortOrder;
+  int _mediaSortGeneration = 0;
   int _crossAxisCount = 4;
   bool _hasUserConfiguredGridAspectRatio = false;
   final GridZoomAccumulator _gridZoom = GridZoomAccumulator();
@@ -106,6 +109,7 @@ class _HomePageState extends State<HomePage> {
     if (!mounted) return;
     setState(() {
       _crossAxisCount = stored.crossAxisCount;
+      _mediaSortOrder = stored.mediaSortOrder;
       if (!_hasUserConfiguredGridAspectRatio) {
         _settings = _settings.copyWith(
           gridAspectRatio: stored.gridAspectRatio ?? GridAspectRatio.ratio3x2,
@@ -133,6 +137,9 @@ class _HomePageState extends State<HomePage> {
     if (_settings.maxCacheSize != const ViewerSettings().maxCacheSize) {
       _replaceCache();
     }
+    if (_files.isNotEmpty) {
+      unawaited(_resortCurrentFiles());
+    }
     widget.onAppLanguageChanged(stored.appLanguage);
   }
 
@@ -144,6 +151,31 @@ class _HomePageState extends State<HomePage> {
       _crossAxisCount = newCount;
     });
     await const PreferencesRepository().saveCrossAxisCount(newCount);
+  }
+
+  void _updateMediaSortOrder(MediaSortOrder sortOrder) {
+    if (_mediaSortOrder == sortOrder) return;
+
+    setState(() {
+      _mediaSortOrder = sortOrder;
+    });
+    unawaited(_resortCurrentFiles());
+    unawaited(const PreferencesRepository().saveMediaSortOrder(sortOrder));
+  }
+
+  Future<void> _resortCurrentFiles() async {
+    final files = List<MediaFile>.of(_files);
+    final sortOrder = _mediaSortOrder;
+    final generation = ++_mediaSortGeneration;
+    final sortedFiles = await _sortMediaFiles(files, sortOrder);
+    if (!mounted ||
+        generation != _mediaSortGeneration ||
+        sortOrder != _mediaSortOrder) {
+      return;
+    }
+    setState(() {
+      _files = sortedFiles;
+    });
   }
 
   void _handleGridPointerSignal(PointerSignalEvent event) {
@@ -681,7 +713,7 @@ class _HomePageState extends State<HomePage> {
         return;
       }
       final nextFiles = _deduplicateMediaFiles([...directoryFiles, ...files]);
-      _applyOpenedFiles(
+      await _applyOpenedFiles(
         files: nextFiles,
         sourceKind: _OpenedSourceKind.folder,
         clearCache: true,
@@ -707,7 +739,7 @@ class _HomePageState extends State<HomePage> {
         ? files
         : _deduplicateMediaFiles([..._files, ...files]);
 
-    _applyOpenedFiles(
+    await _applyOpenedFiles(
       files: nextFiles,
       sourceKind: _OpenedSourceKind.files,
       clearCache: shouldReplaceCurrent,
@@ -725,21 +757,29 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _applyOpenedFiles({
+  Future<void> _applyOpenedFiles({
     required List<MediaFile> files,
     required _OpenedSourceKind sourceKind,
     required bool clearCache,
     String? openedDirectoryPath,
     int? openedDirectoryCount,
     String? deferredDirectoryPath,
-  }) {
+  }) async {
     if (!mounted) {
       return;
     }
 
     if (clearCache) {
-      _imageCache.clear();
       _timestampRepository.clear();
+    }
+    final generation = ++_mediaSortGeneration;
+    final sortedFiles = await _sortMediaFiles(files, _mediaSortOrder);
+    if (!mounted || generation != _mediaSortGeneration) {
+      return;
+    }
+
+    if (clearCache) {
+      _imageCache.clear();
       _mediaAspectRatios.clear();
       _pendingMediaAspectRatios.clear();
     }
@@ -749,8 +789,24 @@ class _HomePageState extends State<HomePage> {
       _currentDirectoryPath = openedDirectoryPath;
       _openedDirectoryCount = openedDirectoryCount;
       _deferredDirectoryPath = deferredDirectoryPath;
-      _files = files;
+      _files = sortedFiles;
     });
+  }
+
+  Future<List<MediaFile>> _sortMediaFiles(
+    Iterable<MediaFile> files,
+    MediaSortOrder sortOrder,
+  ) {
+    return sortMediaFiles(
+      files,
+      sortOrder,
+      loadCapturedAt: _loadCapturedAt,
+    );
+  }
+
+  Future<DateTime> _loadCapturedAt(String filePath) async {
+    final timestamp = await _timestampRepository.load(filePath);
+    return timestamp.capturedAt ?? timestamp.modifiedAt;
   }
 
   void _scheduleSingleFilePreview(String filePath) {
@@ -779,18 +835,17 @@ class _HomePageState extends State<HomePage> {
     if (loadedDirectory == null) {
       return null;
     }
-    final mediaGroups = buildAdaptiveMediaGroups(loadedDirectory.files);
-    if (mediaGroups.isEmpty) {
+    if (loadedDirectory.files.isEmpty) {
       return null;
     }
-    _applyOpenedFiles(
+    await _applyOpenedFiles(
       files: loadedDirectory.files,
       sourceKind: _OpenedSourceKind.folder,
       clearCache: false,
       openedDirectoryPath: loadedDirectory.path,
       openedDirectoryCount: 1,
     );
-    return mediaGroups;
+    return buildAdaptiveMediaGroups(_files);
   }
 
   Future<void> _loadDeferredDirectoryAfterClose() async {
@@ -801,7 +856,7 @@ class _HomePageState extends State<HomePage> {
       if (loadedDirectory == null) {
         return;
       }
-      _applyOpenedFiles(
+      await _applyOpenedFiles(
         files: loadedDirectory.files,
         sourceKind: _OpenedSourceKind.folder,
         clearCache: false,
@@ -1240,6 +1295,7 @@ class _HomePageState extends State<HomePage> {
               moreActionsTooltip: l10n.moreActionsTooltip,
               settingsTooltip: l10n.settingsTooltip,
               selectedMediaFilter: _mediaFilter,
+              selectedMediaSortOrder: _mediaSortOrder,
               adaptiveCount: adaptiveMediaGroups.length,
               rawCount: rawCount,
               imageCount: imageCount,
@@ -1248,6 +1304,7 @@ class _HomePageState extends State<HomePage> {
                   _mediaFilter = filter;
                 });
               },
+              onMediaSortOrderSelected: _updateMediaSortOrder,
               onOpenSettings: _showSettings,
               onOpenFiles: _openFiles,
               onOpenFolder: _openFolder,

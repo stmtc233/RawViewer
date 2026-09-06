@@ -1133,6 +1133,48 @@ abstract class AppLocalizations {
   /// **'No images match the current filter'**
   String get mediaFilterEmptyState;
 
+  /// No description provided for @mediaSortTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Sort images'**
+  String get mediaSortTooltip;
+
+  /// No description provided for @mediaSortNameAscending.
+  ///
+  /// In en, this message translates to:
+  /// **'Name (A-Z)'**
+  String get mediaSortNameAscending;
+
+  /// No description provided for @mediaSortNameDescending.
+  ///
+  /// In en, this message translates to:
+  /// **'Name (Z-A)'**
+  String get mediaSortNameDescending;
+
+  /// No description provided for @mediaSortCapturedNewest.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture time (newest first)'**
+  String get mediaSortCapturedNewest;
+
+  /// No description provided for @mediaSortCapturedOldest.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture time (oldest first)'**
+  String get mediaSortCapturedOldest;
+
+  /// No description provided for @mediaSortModifiedNewest.
+  ///
+  /// In en, this message translates to:
+  /// **'Date modified (newest first)'**
+  String get mediaSortModifiedNewest;
+
+  /// No description provided for @mediaSortModifiedOldest.
+  ///
+  /// In en, this message translates to:
+  /// **'Date modified (oldest first)'**
+  String get mediaSortModifiedOldest;
+
   /// No description provided for @rawViewModeTooltip.
   ///
   /// In en, this message translates to:

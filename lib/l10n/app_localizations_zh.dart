@@ -576,6 +576,27 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mediaFilterEmptyState => '没有符合当前筛选条件的图片';
 
   @override
+  String get mediaSortTooltip => '排序方式';
+
+  @override
+  String get mediaSortNameAscending => '文件名（A-Z）';
+
+  @override
+  String get mediaSortNameDescending => '文件名（Z-A）';
+
+  @override
+  String get mediaSortCapturedNewest => '拍摄时间（最新优先）';
+
+  @override
+  String get mediaSortCapturedOldest => '拍摄时间（最早优先）';
+
+  @override
+  String get mediaSortModifiedNewest => '修改时间（最新优先）';
+
+  @override
+  String get mediaSortModifiedOldest => '修改时间（最早优先）';
+
+  @override
   String get rawViewModeTooltip => '查看模式';
 
   @override

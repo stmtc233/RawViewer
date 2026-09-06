@@ -295,6 +295,13 @@
     }
   },
   "mediaFilterEmptyState": "No images match the current filter",
+  "mediaSortTooltip": "Sort images",
+  "mediaSortNameAscending": "Name (A-Z)",
+  "mediaSortNameDescending": "Name (Z-A)",
+  "mediaSortCapturedNewest": "Capture time (newest first)",
+  "mediaSortCapturedOldest": "Capture time (oldest first)",
+  "mediaSortModifiedNewest": "Date modified (newest first)",
+  "mediaSortModifiedOldest": "Date modified (oldest first)",
   "rawViewModeTooltip": "View mode",
   "embeddedJpegModeLabel": "Embedded JPG",
   "decodedRawModeLabel": "RAW",

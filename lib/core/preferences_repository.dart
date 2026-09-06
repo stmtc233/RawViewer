@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../media_sort.dart';
 import '../settings_page.dart';
 import 'exif_sidebar_settings.dart';
 import 'preview_filmstrip_size.dart';
@@ -83,6 +84,7 @@ class StoredViewPreferences {
   final bool showPreviewOverview;
   final ExifSidebarSettings exifSidebar;
   final RawViewMode? rawViewMode;
+  final MediaSortOrder mediaSortOrder;
 
   const StoredViewPreferences({
     required this.crossAxisCount,
@@ -100,6 +102,7 @@ class StoredViewPreferences {
     required this.showPreviewOverview,
     this.exifSidebar = const ExifSidebarSettings(),
     required this.rawViewMode,
+    required this.mediaSortOrder,
   });
 }
 
@@ -137,6 +140,7 @@ class PreferencesRepository {
   static const String _exifSidebarWidth = 'exif_sidebar_width';
   static const String _exifExpandedSections = 'exif_expanded_sections';
   static const String _rawViewMode = 'raw_view_mode';
+  static const String _mediaSortOrder = 'media_sort_order';
   static const String _recentOpenItems = 'recent_open_items';
 
   /// Superseded by [_previewOverlayOpacity]. Read only, to migrate installs
@@ -235,6 +239,9 @@ class PreferencesRepository {
       ),
       rawViewMode:
           RawViewMode.values.asNameMap()[prefs.getString(_rawViewMode)],
+      mediaSortOrder:
+          MediaSortOrder.values.asNameMap()[prefs.getString(_mediaSortOrder)] ??
+              defaultMediaSortOrder,
     );
   }
 
@@ -324,6 +331,11 @@ class PreferencesRepository {
   Future<void> saveRawViewMode(RawViewMode mode) async {
     final prefs = await _prefs;
     await prefs.setString(_rawViewMode, mode.name);
+  }
+
+  Future<void> saveMediaSortOrder(MediaSortOrder sortOrder) async {
+    final prefs = await _prefs;
+    await prefs.setString(_mediaSortOrder, sortOrder.name);
   }
 
   Future<void> savePreviewFilmstripHeight(double height) async {
