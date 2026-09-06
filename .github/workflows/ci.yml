@@ -106,6 +106,16 @@ jobs:
           swiftc macos/Runner/FileAssociations.swift tool/macos_file_association_check.swift -o "$RUNNER_TEMP/rawviewer-association-check"
           "$RUNNER_TEMP/rawviewer-association-check"
 
+      - name: Check Windows Shell integration
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          cmake -S tool/windows_shell_integration_check -B build/windows-shell-check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build build/windows-shell-check --config Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & build/windows-shell-check/Release/windows_shell_integration_check.exe
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v6
         with:

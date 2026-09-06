@@ -201,6 +201,27 @@ bool IsVerbInstalled(const VerbDefinition& definition,
   return _wcsicmp(command.c_str(), expected_command.c_str()) == 0;
 }
 
+bool IsVerbUpToDate(const VerbDefinition& definition,
+                   const std::wstring& executable_path,
+                   const std::wstring& menu_text) {
+  if (!IsVerbInstalled(definition, executable_path)) {
+    return false;
+  }
+
+  std::wstring label;
+  std::wstring mui_verb;
+  std::wstring icon;
+  return ReadStringValue(HKEY_CURRENT_USER, definition.key_path, nullptr,
+                         &label) &&
+         label == menu_text &&
+         ReadStringValue(HKEY_CURRENT_USER, definition.key_path, L"MUIVerb",
+                         &mui_verb) &&
+         mui_verb == menu_text &&
+         ReadStringValue(HKEY_CURRENT_USER, definition.key_path, L"Icon",
+                         &icon) &&
+         icon == Quote(executable_path);
+}
+
 void NotifyShellChanged() {
   ::SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
 }
@@ -300,16 +321,25 @@ bool SetWindowsContextMenuEnabled(bool enabled, const std::wstring& menu_text,
     return false;
   }
 
+  bool changed = false;
   for (const auto& definition : kVerbDefinitions) {
+    // Startup synchronizes the menu language. An unchanged registration must
+    // not rewrite the registry or broadcast an Explorer-wide refresh.
+    if (IsVerbUpToDate(definition, executable_path, menu_text)) {
+      continue;
+    }
     if (!WriteVerb(definition, executable_path, menu_text)) {
       if (error_message != nullptr) {
         *error_message = "Failed to write Windows Explorer context menu registry entries.";
       }
       return false;
     }
+    changed = true;
   }
 
-  NotifyShellChanged();
+  if (changed) {
+    NotifyShellChanged();
+  }
   return true;
 }
 
