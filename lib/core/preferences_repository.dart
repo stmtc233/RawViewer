@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../settings_page.dart';
+import 'exif_sidebar_settings.dart';
 import 'preview_filmstrip_size.dart';
 import 'raw_view_mode.dart';
 
@@ -80,6 +81,7 @@ class StoredViewPreferences {
   final double previewFilmstripHeight;
   final bool showPreviewFilmstrip;
   final bool showPreviewOverview;
+  final ExifSidebarSettings exifSidebar;
   final RawViewMode? rawViewMode;
 
   const StoredViewPreferences({
@@ -96,6 +98,7 @@ class StoredViewPreferences {
     required this.previewFilmstripHeight,
     required this.showPreviewFilmstrip,
     required this.showPreviewOverview,
+    this.exifSidebar = const ExifSidebarSettings(),
     required this.rawViewMode,
   });
 }
@@ -130,6 +133,9 @@ class PreferencesRepository {
   static const String _previewFilmstripHeight = 'preview_filmstrip_height';
   static const String _showPreviewFilmstrip = 'show_preview_filmstrip';
   static const String _showPreviewOverview = 'show_preview_overview';
+  static const String _showExifSidebar = 'show_exif_sidebar';
+  static const String _exifSidebarWidth = 'exif_sidebar_width';
+  static const String _exifExpandedSections = 'exif_expanded_sections';
   static const String _rawViewMode = 'raw_view_mode';
   static const String _recentOpenItems = 'recent_open_items';
 
@@ -214,6 +220,19 @@ class PreferencesRepository {
       ),
       showPreviewFilmstrip: prefs.getBool(_showPreviewFilmstrip) ?? true,
       showPreviewOverview: prefs.getBool(_showPreviewOverview) ?? true,
+      exifSidebar: ExifSidebarSettings(
+        visible: prefs.getBool(_showExifSidebar) ?? false,
+        width: normalizeExifSidebarWidth(
+          prefs.getDouble(_exifSidebarWidth) ?? kDefaultExifSidebarWidth,
+        ),
+        expandedSections: Set.unmodifiable({
+          for (final name
+              in prefs.getStringList(_exifExpandedSections) ?? <String>[])
+            if (ExifSection.values.asNameMap()[name]
+                case final ExifSection section)
+              section,
+        }),
+      ),
       rawViewMode:
           RawViewMode.values.asNameMap()[prefs.getString(_rawViewMode)],
     );
@@ -325,8 +344,20 @@ class PreferencesRepository {
     await prefs.setBool(_showPreviewOverview, show);
   }
 
-  // --- Recent opens ---
+  Future<void> saveExifSidebarSettings(ExifSidebarSettings settings) async {
+    final prefs = await _prefs;
+    await Future.wait([
+      prefs.setBool(_showExifSidebar, settings.visible),
+      prefs.setDouble(
+          _exifSidebarWidth, normalizeExifSidebarWidth(settings.width)),
+      prefs.setStringList(
+          _exifExpandedSections,
+          settings.expandedSections.map((section) => section.name).toList()
+            ..sort()),
+    ]);
+  }
 
+  // --- Recent opens ---
   Future<List<RecentOpenItem>> loadRecentOpenItems() async {
     final prefs = await _prefs;
     final storedItems = prefs.getStringList(_recentOpenItems) ?? const [];

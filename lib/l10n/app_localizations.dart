@@ -95,6 +95,12 @@ abstract class AppLocalizations {
     Locale('zh')
   ];
 
+  /// No description provided for @exifResizeTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Resize EXIF sidebar'**
+  String get exifResizeTooltip;
+
   /// No description provided for @exifRating.
   ///
   /// In en, this message translates to:

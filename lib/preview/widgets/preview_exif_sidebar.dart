@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
 
 import '../../l10n/app_localizations.dart';
+import '../../core/exif_sidebar_settings.dart';
 import '../../ui/app_theme.dart';
 import '../../ui/desktop_controls.dart';
 import '../exif_repository.dart';
@@ -14,12 +15,16 @@ class PreviewExifSidebar extends StatefulWidget {
   final String filePath;
   final ExifRepository repository;
   final VoidCallback onClose;
+  final Set<ExifSection> expandedSections;
+  final ValueChanged<Set<ExifSection>>? onExpandedSectionsChanged;
 
   const PreviewExifSidebar({
     super.key,
     required this.filePath,
     required this.repository,
     required this.onClose,
+    this.expandedSections = const {},
+    this.onExpandedSectionsChanged,
   });
 
   @override
@@ -32,17 +37,21 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
   Timer? _loadTimer;
   ExifMetadata? _metadata;
   int _generation = 0;
-  final _expandedSections = <String>{};
+  late Set<ExifSection> _expandedSections;
 
   @override
   void initState() {
     super.initState();
+    _expandedSections = Set.of(widget.expandedSections);
     _scheduleLoad();
   }
 
   @override
   void didUpdateWidget(PreviewExifSidebar oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.expandedSections != widget.expandedSections) {
+      _expandedSections = Set.of(widget.expandedSections);
+    }
     if (oldWidget.filePath != widget.filePath ||
         oldWidget.repository != widget.repository) {
       _scheduleLoad();
@@ -76,7 +85,19 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
     super.dispose();
   }
 
-  Map<String, Map<String, String>> _sections(AppLocalizations l10n) {
+  String _sectionTitle(ExifSection section, AppLocalizations l10n) =>
+      switch (section) {
+        ExifSection.file => l10n.exifFileSection,
+        ExifSection.shooting => l10n.exifShootingSection,
+        ExifSection.image => l10n.exifImageSection,
+        ExifSection.exif => l10n.exifExifSection,
+        ExifSection.gps => l10n.exifGpsSection,
+        ExifSection.maker => l10n.exifMakerSection,
+        ExifSection.thumbnail => l10n.exifThumbnailSection,
+        ExifSection.other => l10n.exifOtherSection,
+      };
+
+  Map<ExifSection, Map<String, String>> _sections(AppLocalizations l10n) {
     final metadata = _metadata;
     final tags = metadata?.tags ?? const <String, String>{};
     final commonLabels = <String, String>{
@@ -106,8 +127,8 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
       'EXIF BodySerialNumber': l10n.exifBodySerial,
       'EXIF LensSerialNumber': l10n.exifLensSerial,
     };
-    final sections = <String, Map<String, String>>{
-      l10n.exifFileSection: {
+    final sections = <ExifSection, Map<String, String>>{
+      ExifSection.file: {
         l10n.exifFileName: path.basename(widget.filePath),
         l10n.exifFilePath: widget.filePath,
         l10n.exifFileType:
@@ -118,7 +139,7 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
           l10n.fileModifiedTimeTitle:
               DateFormat('yyyy-MM-dd HH:mm:ss').format(metadata!.modifiedAt!),
       },
-      l10n.exifShootingSection: {
+      ExifSection.shooting: {
         for (final entry in commonLabels.entries)
           if (tags.containsKey(entry.key)) entry.value: tags[entry.key]!,
       },
@@ -127,12 +148,12 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
     for (final key in keys) {
       final group = key.split(' ').first;
       final title = switch (group) {
-        'Image' => l10n.exifImageSection,
-        'EXIF' => l10n.exifExifSection,
-        'GPS' => l10n.exifGpsSection,
-        'MakerNote' => l10n.exifMakerSection,
-        'Thumbnail' => l10n.exifThumbnailSection,
-        _ => l10n.exifOtherSection,
+        'Image' => ExifSection.image,
+        'EXIF' => ExifSection.exif,
+        'GPS' => ExifSection.gps,
+        'MakerNote' => ExifSection.maker,
+        'Thumbnail' => ExifSection.thumbnail,
+        _ => ExifSection.other,
       };
       sections.putIfAbsent(title, () => {})[key] = tags[key]!;
     }
@@ -256,11 +277,17 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(highlights[row * 3 + column].$1,
-                                  maxLines: 1,
-                                  style: const TextStyle(
-                                      color: RawViewerColors.mutedText,
-                                      fontSize: 10)),
+                              SizedBox(
+                                height: 14,
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(highlights[row * 3 + column].$1,
+                                      style: const TextStyle(
+                                          color: RawViewerColors.mutedText,
+                                          fontSize: 10)),
+                                ),
+                              ),
                               const SizedBox(height: 3),
                               Expanded(
                                 child: FittedBox(
@@ -358,18 +385,23 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
     );
   }
 
-  Widget _sectionHeader(String title, int count, {required bool searching}) {
-    final expanded = searching || _expandedSections.contains(title);
+  Widget _sectionHeader(ExifSection section, String title, int count,
+      {required bool searching}) {
+    final expanded = searching || _expandedSections.contains(section);
     return Semantics(
       expanded: expanded,
       child: InkWell(
         onTap: searching
             ? null
-            : () => setState(() {
-                  if (!_expandedSections.add(title)) {
-                    _expandedSections.remove(title);
+            : () {
+                setState(() {
+                  if (!_expandedSections.add(section)) {
+                    _expandedSections.remove(section);
                   }
-                }),
+                });
+                widget.onExpandedSectionsChanged
+                    ?.call(Set.unmodifiable(_expandedSections));
+              },
         child: Container(
           constraints: const BoxConstraints(minHeight: 34),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -395,11 +427,13 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
     );
   }
 
-  Future<void> _copyMetadata(Map<String, Map<String, String>> sections) async {
+  Future<void> _copyMetadata(
+      Map<ExifSection, Map<String, String>> sections) async {
+    final l10n = AppLocalizations.of(context)!;
     final text = sections.entries
         .where((section) => section.value.isNotEmpty)
         .map((section) =>
-            '[${section.key}]\n${section.value.entries.map((entry) => '${entry.key}: ${entry.value}').join('\n')}')
+            '[${_sectionTitle(section.key, l10n)}]\n${section.value.entries.map((entry) => '${entry.key}: ${entry.value}').join('\n')}')
         .join('\n\n');
     await Clipboard.setData(ClipboardData(text: text));
     if (!mounted) return;
@@ -425,14 +459,15 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
       rows.add(_shootingSummary(l10n));
     }
     for (final section in sections.entries) {
-      if (query.isEmpty && section.key == l10n.exifShootingSection) continue;
+      if (query.isEmpty && section.key == ExifSection.shooting) continue;
+      final title = _sectionTitle(section.key, l10n);
       final entries = section.value.entries.where((entry) =>
           query.isEmpty ||
-          section.key.toLowerCase().contains(query) ||
+          title.toLowerCase().contains(query) ||
           entry.key.toLowerCase().contains(query) ||
           entry.value.toLowerCase().contains(query));
       if (entries.isEmpty) continue;
-      rows.add(_sectionHeader(section.key, entries.length,
+      rows.add(_sectionHeader(section.key, title, entries.length,
           searching: query.isNotEmpty));
       if (query.isNotEmpty || _expandedSections.contains(section.key)) {
         for (final entry in entries) {

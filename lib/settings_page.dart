@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'core/app_info.dart';
+import 'core/exif_sidebar_settings.dart';
 import 'core/media_types.dart';
 import 'core/preview_filmstrip_size.dart';
 import 'core/raw_view_mode.dart';
@@ -209,6 +210,7 @@ class ViewerSettings {
   final double previewFilmstripHeight;
   final bool showPreviewFilmstrip;
   final bool showPreviewOverview;
+  final ExifSidebarSettings exifSidebar;
   final WindowsContextMenuSettings windowsContextMenu;
   final FileAssociationSettings fileAssociations;
 
@@ -226,6 +228,7 @@ class ViewerSettings {
     this.previewFilmstripHeight = kPreviewFilmstripHeight,
     this.showPreviewFilmstrip = true,
     this.showPreviewOverview = true,
+    this.exifSidebar = const ExifSidebarSettings(),
     this.windowsContextMenu = const WindowsContextMenuSettings(),
     this.fileAssociations = const FileAssociationSettings(),
   });
@@ -244,6 +247,7 @@ class ViewerSettings {
     double? previewFilmstripHeight,
     bool? showPreviewFilmstrip,
     bool? showPreviewOverview,
+    ExifSidebarSettings? exifSidebar,
     WindowsContextMenuSettings? windowsContextMenu,
     FileAssociationSettings? fileAssociations,
   }) {
@@ -266,6 +270,7 @@ class ViewerSettings {
           previewFilmstripHeight ?? this.previewFilmstripHeight,
       showPreviewFilmstrip: showPreviewFilmstrip ?? this.showPreviewFilmstrip,
       showPreviewOverview: showPreviewOverview ?? this.showPreviewOverview,
+      exifSidebar: exifSidebar ?? this.exifSidebar,
       windowsContextMenu: windowsContextMenu ?? this.windowsContextMenu,
       fileAssociations: fileAssociations ?? this.fileAssociations,
     );

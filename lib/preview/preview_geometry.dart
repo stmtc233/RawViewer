@@ -3,6 +3,17 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../core/preview_filmstrip_size.dart';
+import '../core/exif_sidebar_settings.dart';
+
+const double exifSidebarDockBreakpoint = 720;
+const double exifSidebarResizeHandleWidth = 10;
+
+double clampExifSidebarWidth(double width, double viewportWidth) {
+  final available = viewportWidth >= exifSidebarDockBreakpoint
+      ? viewportWidth - 360
+      : viewportWidth - 24;
+  return math.min(normalizeExifSidebarWidth(width), math.max(0, available));
+}
 
 const Duration kImagePreviewOpenTransitionDuration =
     Duration(milliseconds: 100);

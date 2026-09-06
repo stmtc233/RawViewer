@@ -123,6 +123,7 @@ class _HomePageState extends State<HomePage> {
         previewFilmstripHeight: stored.previewFilmstripHeight,
         showPreviewFilmstrip: stored.showPreviewFilmstrip,
         showPreviewOverview: stored.showPreviewOverview,
+        exifSidebar: stored.exifSidebar,
         rawViewMode: stored.rawViewMode,
       );
       if (!_recentOpenItemsChangedBeforeLoad) {
@@ -248,6 +249,7 @@ class _HomePageState extends State<HomePage> {
         _settings.showPreviewFilmstrip != settings.showPreviewFilmstrip;
     final showPreviewOverviewChanged =
         _settings.showPreviewOverview != settings.showPreviewOverview;
+    final exifSidebarChanged = _settings.exifSidebar != settings.exifSidebar;
 
     setState(() {
       _settings = settings;
@@ -306,6 +308,10 @@ class _HomePageState extends State<HomePage> {
     }
     if (showPreviewOverviewChanged) {
       unawaited(_persistShowPreviewOverview(settings.showPreviewOverview));
+    }
+    if (exifSidebarChanged) {
+      unawaited(const PreferencesRepository()
+          .saveExifSidebarSettings(settings.exifSidebar));
     }
   }
 
@@ -890,6 +896,9 @@ class _HomePageState extends State<HomePage> {
               ),
               onPreviewFilmstripHeightChanged: (height) => _updateSettings(
                 _settings.copyWith(previewFilmstripHeight: height),
+              ),
+              onExifSidebarSettingsChanged: (sidebar) => _updateSettings(
+                _settings.copyWith(exifSidebar: sidebar),
               ),
               onClose: () {
                 Navigator.pop(context);

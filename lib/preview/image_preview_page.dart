@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 
 import '../core/decode_target.dart';
+import '../core/exif_sidebar_settings.dart';
 import '../core/preview_filmstrip_size.dart';
 import '../core/media_timestamps.dart';
 import '../core/media_types.dart';
@@ -56,6 +57,7 @@ class ImagePreviewPage extends StatefulWidget {
   final ValueChanged<double> onPreviewFilmstripHeightChanged;
   final ValueChanged<bool>? onPreviewFilmstripVisibilityChanged;
   final ValueChanged<bool>? onPreviewOverviewVisibilityChanged;
+  final ValueChanged<ExifSidebarSettings>? onExifSidebarSettingsChanged;
 
   const ImagePreviewPage({
     super.key,
@@ -71,6 +73,7 @@ class ImagePreviewPage extends StatefulWidget {
     required this.onPreviewFilmstripHeightChanged,
     this.onPreviewFilmstripVisibilityChanged,
     this.onPreviewOverviewVisibilityChanged,
+    this.onExifSidebarSettingsChanged,
   });
 
   @override
@@ -83,7 +86,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   late int _currentIndex;
   late int _targetPage;
   bool _isLocked = false;
-  bool _showExif = false;
+  late ExifSidebarSettings _exifSidebar;
+  bool _isExifWidthDirty = false;
   final _exifRepository = ExifRepository();
   late bool _showPreviewFilmstrip;
   late double _previewFilmstripHeight;
@@ -132,6 +136,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     _currentIndex = widget.initialIndex;
     _targetPage = widget.initialIndex;
     _rawViewMode = widget.initialSettings.rawViewMode;
+    _exifSidebar = widget.initialSettings.exifSidebar.copyWith();
     _showPreviewFilmstrip = widget.initialSettings.showPreviewFilmstrip;
     _showPreviewOverview = widget.initialSettings.showPreviewOverview;
     _previewFilmstripHeight = normalizePreviewFilmstripHeight(
@@ -409,6 +414,32 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     if (!_isFilmstripHeightDirty) return;
     _isFilmstripHeightDirty = false;
     widget.onPreviewFilmstripHeightChanged(_previewFilmstripHeight);
+  }
+
+  void _updateExifSidebar(ExifSidebarSettings settings) {
+    setState(() => _exifSidebar = settings);
+    _isExifWidthDirty = false;
+    widget.onExifSidebarSettingsChanged?.call(settings);
+  }
+
+  void _resizeExifSidebar(double delta) {
+    if (delta == 0) return;
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final currentWidth =
+        clampExifSidebarWidth(_exifSidebar.width, viewportWidth);
+    final nextWidth =
+        clampExifSidebarWidth(currentWidth - delta, viewportWidth);
+    if ((nextWidth - currentWidth).abs() < 0.1) return;
+    setState(() {
+      _exifSidebar = _exifSidebar.copyWith(width: nextWidth);
+      _isExifWidthDirty = true;
+    });
+  }
+
+  void _commitExifSidebarWidth() {
+    if (!_isExifWidthDirty) return;
+    _isExifWidthDirty = false;
+    widget.onExifSidebarSettingsChanged?.call(_exifSidebar);
   }
 
   Widget _buildPreviewFilmstripResizeHandle() {
@@ -718,9 +749,11 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
             ? currentMediaGroup.pairedJpeg!.path
             : currentFilePath;
     final viewportWidth = MediaQuery.sizeOf(context).width;
-    final exifWidth =
-        viewportWidth >= 720 ? 340.0 : (viewportWidth - 24).clamp(0.0, 340.0);
-    final exifInset = _showExif && viewportWidth >= 720 ? exifWidth : 0.0;
+    final exifWidth = clampExifSidebarWidth(_exifSidebar.width, viewportWidth);
+    final exifInset =
+        _exifSidebar.visible && viewportWidth >= exifSidebarDockBreakpoint
+            ? exifWidth
+            : 0.0;
     final bottomSafePadding = MediaQuery.paddingOf(context).bottom;
     final previewFilmstripHeight = _clampedPreviewFilmstripHeight(context);
     final previewFilmstripTotalHeight =
@@ -914,7 +947,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                     )
                   : _buildDirectoryLoadPanel(l10n),
             ),
-          if (_showExif)
+          if (_exifSidebar.visible)
             Positioned(
               top: MediaQuery.paddingOf(context).top +
                   kImagePreviewToolbarHeight,
@@ -924,7 +957,35 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
               child: PreviewExifSidebar(
                 filePath: exifFilePath,
                 repository: _exifRepository,
-                onClose: () => setState(() => _showExif = false),
+                expandedSections: _exifSidebar.expandedSections,
+                onExpandedSectionsChanged: (sections) => _updateExifSidebar(
+                  _exifSidebar.copyWith(expandedSections: sections),
+                ),
+                onClose: () =>
+                    _updateExifSidebar(_exifSidebar.copyWith(visible: false)),
+              ),
+            ),
+          if (_exifSidebar.visible)
+            Positioned(
+              top: MediaQuery.paddingOf(context).top +
+                  kImagePreviewToolbarHeight,
+              bottom: 0,
+              right: exifWidth - exifSidebarResizeHandleWidth,
+              width: exifSidebarResizeHandleWidth,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.resizeLeftRight,
+                child: Tooltip(
+                  message: l10n.exifResizeTooltip,
+                  child: GestureDetector(
+                    key: const ValueKey('preview-exif-resize-handle'),
+                    behavior: HitTestBehavior.opaque,
+                    onHorizontalDragUpdate: (details) =>
+                        _resizeExifSidebar(details.delta.dx),
+                    onHorizontalDragEnd: (_) => _commitExifSidebarWidth(),
+                    onHorizontalDragCancel: _commitExifSidebarWidth,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
               ),
             ),
           Positioned(
@@ -992,12 +1053,14 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                               const SizedBox(width: 4),
                               DesktopIconButton(
                                 icon: Icons.info_outline,
-                                tooltip: _showExif
+                                tooltip: _exifSidebar.visible
                                     ? l10n.hideExifTooltip
                                     : l10n.showExifTooltip,
-                                selected: _showExif,
-                                onPressed: () =>
-                                    setState(() => _showExif = !_showExif),
+                                selected: _exifSidebar.visible,
+                                onPressed: () => _updateExifSidebar(
+                                  _exifSidebar.copyWith(
+                                      visible: !_exifSidebar.visible),
+                                ),
                               ),
                               const SizedBox(width: 4),
                               DesktopPopupMenuButton<PreviewDisplayControl>(

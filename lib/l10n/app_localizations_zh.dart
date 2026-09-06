@@ -9,6 +9,9 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get exifResizeTooltip => '调整 EXIF 侧栏宽度';
+
+  @override
   String get exifRating => '星级评分';
 
   @override

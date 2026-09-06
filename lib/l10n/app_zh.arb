@@ -1,5 +1,6 @@
 {
   "@@locale": "zh",
+  "exifResizeTooltip": "调整 EXIF 侧栏宽度",
   "exifRating": "星级评分",
   "exifRatingUnrated": "未评分",
   "exifRatingMissing": "无评分信息",

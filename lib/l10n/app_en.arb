@@ -1,5 +1,6 @@
 {
   "@@locale": "en",
+  "exifResizeTooltip": "Resize EXIF sidebar",
   "exifRating": "Rating",
   "exifRatingUnrated": "Unrated",
   "exifRatingMissing": "No rating data",

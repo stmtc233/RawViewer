@@ -9,6 +9,9 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get exifResizeTooltip => 'Resize EXIF sidebar';
+
+  @override
   String get exifRating => 'Rating';
 
   @override

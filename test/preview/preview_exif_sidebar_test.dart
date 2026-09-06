@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rawviewer/l10n/app_localizations.dart';
+import 'package:rawviewer/core/exif_sidebar_settings.dart';
 import 'package:rawviewer/preview/exif_repository.dart';
 import 'package:rawviewer/preview/widgets/preview_exif_sidebar.dart';
 import 'package:rawviewer/ui/app_theme.dart';
@@ -16,7 +17,13 @@ class _Repository extends ExifRepository {
       requests.putIfAbsent(filePath, Completer<ExifMetadata>.new).future;
 }
 
-Widget _app(_Repository repository, String filePath, {Locale? locale}) {
+Widget _app(
+  _Repository repository,
+  String filePath, {
+  Locale? locale,
+  Set<ExifSection> expandedSections = const {},
+  ValueChanged<Set<ExifSection>>? onExpandedSectionsChanged,
+}) {
   return MaterialApp(
     theme: rawViewerTheme,
     locale: locale,
@@ -31,6 +38,8 @@ Widget _app(_Repository repository, String filePath, {Locale? locale}) {
             filePath: filePath,
             repository: repository,
             onClose: () {},
+            expandedSections: expandedSections,
+            onExpandedSectionsChanged: onExpandedSectionsChanged,
           ),
         ),
       ),
@@ -39,6 +48,53 @@ Widget _app(_Repository repository, String filePath, {Locale? locale}) {
 }
 
 void main() {
+  testWidgets(
+      'restores sections across languages without persisting search expansion',
+      (tester) async {
+    final repository = _Repository();
+    final changes = <Set<ExifSection>>[];
+    await tester.pumpWidget(_app(
+      repository,
+      '/metadata.jpg',
+      expandedSections: {ExifSection.file},
+      onExpandedSectionsChanged: changes.add,
+    ));
+    await tester.pump(const Duration(milliseconds: 160));
+    repository.requests['/metadata.jpg']!.complete(const ExifMetadata(tags: {
+      'Image Artist': 'Photographer',
+    }));
+    await tester.pumpAndSettle();
+    expect(find.text('/metadata.jpg'), findsOneWidget);
+    await tester.tap(find.text('File'));
+    await tester.pumpAndSettle();
+    expect(changes.single, isEmpty);
+    await tester.enterText(find.byType(TextField), 'Image Artist');
+    await tester.pumpAndSettle();
+    expect(
+        find.descendant(
+            of: find.byType(ListView), matching: find.text('Image Artist')),
+        findsOneWidget);
+    expect(changes.length, 1);
+    await tester.tap(find.byIcon(Icons.clear));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Image tags'));
+    await tester.pumpAndSettle();
+    expect(changes.last, {ExifSection.image});
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(_app(
+      repository,
+      '/metadata.jpg',
+      locale: const Locale('zh'),
+      expandedSections: changes.last,
+      onExpandedSectionsChanged: changes.add,
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Image Artist'), findsOneWidget);
+    expect(find.text('/metadata.jpg'), findsNothing);
+    expect(changes.length, 2);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('debounces navigation and ignores stale metadata',
       (tester) async {
     final repository = _Repository();
