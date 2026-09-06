@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../settings_page.dart';
@@ -10,6 +12,39 @@ const int kDefaultGridCrossAxisCount = 4;
 /// Bounds on the thumbnail grid column count.
 const int kMinGridCrossAxisCount = 1;
 const int kMaxGridCrossAxisCount = 10;
+
+/// Maximum number of files and folders retained in the recent-open list.
+const int kMaxRecentOpenItems = 10;
+
+/// A file or folder that can be reopened from the gallery home screen.
+class RecentOpenItem {
+  final String path;
+  final bool isDirectory;
+
+  const RecentOpenItem({
+    required this.path,
+    required this.isDirectory,
+  });
+
+  Map<String, Object> toJson() => {
+        'path': path,
+        'isDirectory': isDirectory,
+      };
+
+  static RecentOpenItem? fromJson(Object? value) {
+    if (value is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final path = value['path'];
+    final isDirectory = value['isDirectory'];
+    if (path is! String || path.isEmpty || isDirectory is! bool) {
+      return null;
+    }
+
+    return RecentOpenItem(path: path, isDirectory: isDirectory);
+  }
+}
 
 /// Persisted window geometry for desktop platforms.
 class WindowGeometry {
@@ -96,6 +131,7 @@ class PreferencesRepository {
   static const String _showPreviewFilmstrip = 'show_preview_filmstrip';
   static const String _showPreviewOverview = 'show_preview_overview';
   static const String _rawViewMode = 'raw_view_mode';
+  static const String _recentOpenItems = 'recent_open_items';
 
   /// Superseded by [_previewOverlayOpacity]. Read only, to migrate installs
   /// that predate the continuous opacity slider.
@@ -287,5 +323,37 @@ class PreferencesRepository {
   Future<void> saveShowPreviewOverview(bool show) async {
     final prefs = await _prefs;
     await prefs.setBool(_showPreviewOverview, show);
+  }
+
+  // --- Recent opens ---
+
+  Future<List<RecentOpenItem>> loadRecentOpenItems() async {
+    final prefs = await _prefs;
+    final storedItems = prefs.getStringList(_recentOpenItems) ?? const [];
+    final recentItems = <RecentOpenItem>[];
+
+    for (final storedItem in storedItems) {
+      try {
+        final item = RecentOpenItem.fromJson(jsonDecode(storedItem));
+        if (item != null) {
+          recentItems.add(item);
+        }
+      } on FormatException {
+        // Ignore a corrupt entry while keeping the remaining history usable.
+      }
+    }
+
+    return recentItems.take(kMaxRecentOpenItems).toList(growable: false);
+  }
+
+  Future<void> saveRecentOpenItems(List<RecentOpenItem> items) async {
+    final prefs = await _prefs;
+    await prefs.setStringList(
+      _recentOpenItems,
+      items
+          .take(kMaxRecentOpenItems)
+          .map((item) => jsonEncode(item.toJson()))
+          .toList(growable: false),
+    );
   }
 }

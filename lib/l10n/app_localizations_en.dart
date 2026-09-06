@@ -253,6 +253,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get openFiles => 'Open files';
 
   @override
+  String get recentOpenItemsTitle => 'Recent';
+
+  @override
+  String get noRecentOpenItems => 'No recent files or folders';
+
+  @override
   String get openInFinder => 'Open in Finder';
 
   @override

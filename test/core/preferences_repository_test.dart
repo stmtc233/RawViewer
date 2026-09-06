@@ -303,4 +303,33 @@ void main() {
       expect(geometry.isMaximized, isTrue);
     });
   });
+
+  group('PreferencesRepository recent open items', () {
+    test('round-trips recent files and folders', () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = const PreferencesRepository();
+      const items = [
+        RecentOpenItem(path: '/photos', isDirectory: true),
+        RecentOpenItem(path: '/photos/IMG_0001.ARW', isDirectory: false),
+      ];
+
+      await repo.saveRecentOpenItems(items);
+
+      expect(await repo.loadRecentOpenItems(), hasLength(2));
+      final restored = await repo.loadRecentOpenItems();
+      expect(restored[0].path, '/photos');
+      expect(restored[0].isDirectory, isTrue);
+      expect(restored[1].path, '/photos/IMG_0001.ARW');
+      expect(restored[1].isDirectory, isFalse);
+    });
+
+    test('ignores corrupt recent-open entries', () async {
+      SharedPreferences.setMockInitialValues({
+        'recent_open_items': ['not json', '{"path":"/photos"}'],
+      });
+
+      expect(
+          await const PreferencesRepository().loadRecentOpenItems(), isEmpty);
+    });
+  });
 }

@@ -128,6 +128,8 @@
   "homeEmptyState": "打开或拖放 RAW 与图片文件/文件夹",
   "openFolder": "打开文件夹",
   "openFiles": "打开文件",
+  "recentOpenItemsTitle": "最近打开",
+  "noRecentOpenItems": "没有最近打开的文件或文件夹",
   "openInFinder": "在访达中打开",
   "openInExplorer": "在资源管理器中打开",
   "openInFileManager": "在文件管理器中打开",

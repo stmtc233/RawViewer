@@ -551,6 +551,18 @@ abstract class AppLocalizations {
   /// **'Open files'**
   String get openFiles;
 
+  /// No description provided for @recentOpenItemsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent'**
+  String get recentOpenItemsTitle;
+
+  /// No description provided for @noRecentOpenItems.
+  ///
+  /// In en, this message translates to:
+  /// **'No recent files or folders'**
+  String get noRecentOpenItems;
+
   /// No description provided for @openInFinder.
   ///
   /// In en, this message translates to:

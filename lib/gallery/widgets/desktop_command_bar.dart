@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/preferences_repository.dart';
 import '../../media_filter.dart';
 import '../../ui/app_theme.dart';
 import '../../ui/desktop_controls.dart';
@@ -9,6 +10,8 @@ class DesktopCommandBar extends StatelessWidget {
   final String openFolderLabel;
   final String openFilesLabel;
   final String openCurrentFolderLabel;
+  final String recentItemsTitle;
+  final String noRecentItemsLabel;
   final String moreActionsTooltip;
   final String settingsTooltip;
   final MediaFilter selectedMediaFilter;
@@ -20,6 +23,8 @@ class DesktopCommandBar extends StatelessWidget {
   final VoidCallback onOpenFiles;
   final VoidCallback onOpenFolder;
   final VoidCallback? onOpenCurrentFolder;
+  final List<RecentOpenItem> recentOpenItems;
+  final ValueChanged<RecentOpenItem> onRecentOpenItemSelected;
 
   const DesktopCommandBar({
     super.key,
@@ -27,6 +32,8 @@ class DesktopCommandBar extends StatelessWidget {
     required this.openFolderLabel,
     required this.openFilesLabel,
     required this.openCurrentFolderLabel,
+    required this.recentItemsTitle,
+    required this.noRecentItemsLabel,
     required this.moreActionsTooltip,
     required this.settingsTooltip,
     required this.selectedMediaFilter,
@@ -38,6 +45,8 @@ class DesktopCommandBar extends StatelessWidget {
     required this.onOpenFiles,
     required this.onOpenFolder,
     required this.onOpenCurrentFolder,
+    required this.recentOpenItems,
+    required this.onRecentOpenItemSelected,
   });
 
   @override
@@ -59,9 +68,13 @@ class DesktopCommandBar extends StatelessWidget {
                 openFolderLabel: openFolderLabel,
                 openFilesLabel: openFilesLabel,
                 openCurrentFolderLabel: openCurrentFolderLabel,
+                recentItemsTitle: recentItemsTitle,
+                noRecentItemsLabel: noRecentItemsLabel,
                 onOpenFiles: onOpenFiles,
                 onOpenFolder: onOpenFolder,
                 onOpenCurrentFolder: onOpenCurrentFolder,
+                recentOpenItems: recentOpenItems,
+                onRecentOpenItemSelected: onRecentOpenItemSelected,
               ),
               const SizedBox(width: 4),
               const Icon(Icons.photo_library_outlined,
@@ -132,9 +145,13 @@ class GalleryActionsMenu extends StatelessWidget {
   final String openFolderLabel;
   final String openFilesLabel;
   final String openCurrentFolderLabel;
+  final String recentItemsTitle;
+  final String noRecentItemsLabel;
   final VoidCallback onOpenFiles;
   final VoidCallback onOpenFolder;
   final VoidCallback? onOpenCurrentFolder;
+  final List<RecentOpenItem> recentOpenItems;
+  final ValueChanged<RecentOpenItem> onRecentOpenItemSelected;
 
   const GalleryActionsMenu({
     super.key,
@@ -142,9 +159,13 @@ class GalleryActionsMenu extends StatelessWidget {
     required this.openFolderLabel,
     required this.openFilesLabel,
     required this.openCurrentFolderLabel,
+    required this.recentItemsTitle,
+    required this.noRecentItemsLabel,
     required this.onOpenFiles,
     required this.onOpenFolder,
     required this.onOpenCurrentFolder,
+    required this.recentOpenItems,
+    required this.onRecentOpenItemSelected,
   });
 
   @override
@@ -166,25 +187,143 @@ class GalleryActionsMenu extends StatelessWidget {
         }
       },
       itemBuilder: (context) => [
-        desktopPopupMenuItem(
+        desktopPopupMenuItem<GalleryAction>(
           value: GalleryAction.openFiles,
           icon: Icons.file_open_outlined,
           label: openFilesLabel,
         ),
-        desktopPopupMenuItem(
+        desktopPopupMenuItem<GalleryAction>(
           value: GalleryAction.openFolder,
           icon: Icons.folder_open_outlined,
           label: openFolderLabel,
         ),
-        desktopPopupMenuItem(
+        desktopPopupMenuItem<GalleryAction>(
           value: GalleryAction.openCurrentFolder,
           enabled: onOpenCurrentFolder != null,
           icon: Icons.open_in_new,
           label: openCurrentFolderLabel,
         ),
+        const PopupMenuDivider(height: 12),
+        PopupMenuItem<GalleryAction>(
+          enabled: false,
+          height: 36,
+          padding: EdgeInsets.zero,
+          child: _RecentOpenItemsSubmenu(
+            title: recentItemsTitle,
+            emptyLabel: noRecentItemsLabel,
+            items: recentOpenItems,
+            onSelected: (item) {
+              Navigator.pop(context);
+              onRecentOpenItemSelected(item);
+            },
+          ),
+        ),
       ],
       child: const DesktopPopupMenuTrigger(
         icon: Icons.more_vert,
+      ),
+    );
+  }
+}
+
+class _RecentOpenItemsSubmenu extends StatelessWidget {
+  final String title;
+  final String emptyLabel;
+  final List<RecentOpenItem> items;
+  final ValueChanged<RecentOpenItem> onSelected;
+
+  const _RecentOpenItemsSubmenu({
+    required this.title,
+    required this.emptyLabel,
+    required this.items,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DesktopPopupMenuButton<RecentOpenItem>(
+      key: const ValueKey('recent-open-submenu'),
+      tooltip: title,
+      offset: const Offset(196, 0),
+      onSelected: onSelected,
+      itemBuilder: (context) => [
+        if (items.isEmpty)
+          PopupMenuItem<RecentOpenItem>(
+            enabled: false,
+            height: 36,
+            padding: EdgeInsets.zero,
+            child: _RecentOpenItemsMenuContent(
+              icon: Icons.history,
+              label: emptyLabel,
+              enabled: false,
+            ),
+          )
+        else
+          ...items.map(
+            (item) => desktopPopupMenuItem<RecentOpenItem>(
+              value: item,
+              icon: item.isDirectory
+                  ? Icons.folder_outlined
+                  : Icons.insert_drive_file_outlined,
+              label: item.path,
+            ),
+          ),
+      ],
+      child: _RecentOpenItemsMenuContent(
+        icon: Icons.history,
+        label: title,
+        trailingIcon: Icons.chevron_right,
+      ),
+    );
+  }
+}
+
+class _RecentOpenItemsMenuContent extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final IconData? trailingIcon;
+  final bool enabled;
+
+  const _RecentOpenItemsMenuContent({
+    required this.icon,
+    required this.label,
+    this.trailingIcon,
+    this.enabled = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground =
+        enabled ? RawViewerColors.text : RawViewerColors.mutedBorder;
+    final iconColor =
+        enabled ? RawViewerColors.mutedText : RawViewerColors.mutedBorder;
+
+    return Container(
+      height: 36,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(3)),
+      child: Row(
+        children: [
+          SizedBox(width: 22, child: Icon(icon, size: 17, color: iconColor)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: foreground,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          if (trailingIcon != null) ...[
+            const SizedBox(width: 8),
+            Icon(trailingIcon, size: 17, color: iconColor),
+          ],
+        ],
       ),
     );
   }

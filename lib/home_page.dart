@@ -66,6 +66,8 @@ class _HomePageState extends State<HomePage> {
   int? _openedDirectoryCount;
   String? _lastSyncedWindowsContextMenuText;
   List<MediaFile> _files = [];
+  List<RecentOpenItem> _recentOpenItems = [];
+  bool _recentOpenItemsChangedBeforeLoad = false;
   _OpenedSourceKind _openedSourceKind = _OpenedSourceKind.none;
   // Use LRU Cache to limit memory usage.
   late LruCache<String, ViewerImage> _imageCache;
@@ -100,6 +102,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadPreferences() async {
     final prefs = const PreferencesRepository();
     final stored = await prefs.loadViewPreferences();
+    final recentOpenItems = await prefs.loadRecentOpenItems();
     if (!mounted) return;
     setState(() {
       _crossAxisCount = stored.crossAxisCount;
@@ -122,6 +125,9 @@ class _HomePageState extends State<HomePage> {
         showPreviewOverview: stored.showPreviewOverview,
         rawViewMode: stored.rawViewMode,
       );
+      if (!_recentOpenItemsChangedBeforeLoad) {
+        _recentOpenItems = recentOpenItems;
+      }
     });
     if (_settings.maxCacheSize != const ViewerSettings().maxCacheSize) {
       _replaceCache();
@@ -504,6 +510,60 @@ class _HomePageState extends State<HomePage> {
     await _handleIncomingPaths(selectedFiles);
   }
 
+  Future<void> _openRecentItem(RecentOpenItem item) async {
+    final entityType = FileSystemEntity.typeSync(item.path, followLinks: true);
+    final matchesStoredType = item.isDirectory
+        ? entityType == FileSystemEntityType.directory
+        : entityType == FileSystemEntityType.file;
+    if (!matchesStoredType) {
+      await _removeRecentOpenItem(item);
+      return;
+    }
+
+    await _handleIncomingPaths([item.path]);
+  }
+
+  Future<void> _recordRecentOpenItems(
+    Iterable<RecentOpenItem> openedItems,
+  ) async {
+    final nextItems = <RecentOpenItem>[];
+
+    for (final item in openedItems) {
+      if (nextItems.any((existing) => existing.path == item.path)) {
+        continue;
+      }
+      nextItems.add(item);
+    }
+    for (final item in _recentOpenItems) {
+      if (nextItems.any((existing) => existing.path == item.path)) {
+        continue;
+      }
+      nextItems.add(item);
+    }
+
+    final savedItems = nextItems.take(kMaxRecentOpenItems).toList();
+    _recentOpenItemsChangedBeforeLoad = true;
+    if (mounted) {
+      setState(() {
+        _recentOpenItems = savedItems;
+      });
+    }
+    await const PreferencesRepository().saveRecentOpenItems(savedItems);
+  }
+
+  Future<void> _removeRecentOpenItem(RecentOpenItem item) async {
+    final savedItems = _recentOpenItems
+        .where((existing) => existing.path != item.path)
+        .toList(growable: false);
+    _recentOpenItemsChangedBeforeLoad = true;
+    if (mounted) {
+      setState(() {
+        _recentOpenItems = savedItems;
+      });
+    }
+    await const PreferencesRepository().saveRecentOpenItems(savedItems);
+  }
+
   String? _currentFolderPath() {
     if (_openedSourceKind == _OpenedSourceKind.folder) {
       return _currentDirectoryPath;
@@ -622,6 +682,11 @@ class _HomePageState extends State<HomePage> {
         openedDirectoryPath: directories.length == 1 ? directories.first : null,
         openedDirectoryCount: directories.length,
       );
+      await _recordRecentOpenItems(
+        directories.map(
+          (directory) => RecentOpenItem(path: directory, isDirectory: true),
+        ),
+      );
       return;
     }
 
@@ -642,6 +707,11 @@ class _HomePageState extends State<HomePage> {
       clearCache: shouldReplaceCurrent,
       deferredDirectoryPath:
           shouldOpenSingleFile ? path.dirname(files.single.path) : null,
+    );
+    await _recordRecentOpenItems(
+      files.map(
+        (file) => RecentOpenItem(path: file.path, isDirectory: false),
+      ),
     );
 
     if (shouldOpenSingleFile) {
@@ -1156,6 +1226,8 @@ class _HomePageState extends State<HomePage> {
               openFolderLabel: l10n.openFolder,
               openFilesLabel: l10n.openFiles,
               openCurrentFolderLabel: _currentFolderActionLabel(l10n),
+              recentItemsTitle: l10n.recentOpenItemsTitle,
+              noRecentItemsLabel: l10n.noRecentOpenItems,
               moreActionsTooltip: l10n.moreActionsTooltip,
               settingsTooltip: l10n.settingsTooltip,
               selectedMediaFilter: _mediaFilter,
@@ -1170,6 +1242,8 @@ class _HomePageState extends State<HomePage> {
               onOpenSettings: _showSettings,
               onOpenFiles: _openFiles,
               onOpenFolder: _openFolder,
+              recentOpenItems: _recentOpenItems,
+              onRecentOpenItemSelected: _openRecentItem,
               onOpenCurrentFolder: !canOpenCurrentFolder
                   ? null
                   : () => _openCurrentFolder(currentFolderPath),
@@ -1183,8 +1257,11 @@ class _HomePageState extends State<HomePage> {
                             message: l10n.homeEmptyState,
                             openFolderLabel: l10n.openFolder,
                             openFilesLabel: l10n.openFiles,
+                            recentItemsTitle: l10n.recentOpenItemsTitle,
                             onOpenFiles: _openFiles,
                             onOpenFolder: _openFolder,
+                            recentOpenItems: _recentOpenItems,
+                            onRecentOpenItemSelected: _openRecentItem,
                           )
                         : visibleMediaGroups.isEmpty
                             ? Center(child: Text(l10n.mediaFilterEmptyState))

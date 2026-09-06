@@ -128,6 +128,8 @@
   "homeEmptyState": "Open or drop RAW and image files/folders",
   "openFolder": "Open folder",
   "openFiles": "Open files",
+  "recentOpenItemsTitle": "Recent",
+  "noRecentOpenItems": "No recent files or folders",
   "openInFinder": "Open in Finder",
   "openInExplorer": "Open in Explorer",
   "openInFileManager": "Open in file manager",

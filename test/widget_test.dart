@@ -31,7 +31,8 @@ import 'package:rawviewer/viewer_image.dart';
 /// Needed because the narrow layout also mounts a horizontally scrolling tab
 /// bar, so `find.byType(Scrollable).first` would scroll the wrong thing.
 Finder settingsCategoryList(SettingsCategory category) {
-  return find.byKey(PageStorageKey<String>('settings-category-${category.name}'));
+  return find
+      .byKey(PageStorageKey<String>('settings-category-${category.name}'));
 }
 
 /// Opens one settings category.
@@ -1170,7 +1171,9 @@ void main() {
     final popupMenuItems = find.byWidgetPredicate(
       (widget) => widget is PopupMenuItem,
     );
-    expect(popupMenuItems, findsNWidgets(3));
+    expect(popupMenuItems, findsNWidgets(4));
+    expect(find.text('Recent'), findsOneWidget);
+    expect(find.text('No recent files or folders'), findsNothing);
     expect(
       find.ancestor(
         of: find.byIcon(Icons.file_open_outlined).last,
@@ -1196,7 +1199,39 @@ void main() {
       find.byWidgetPredicate(
         (widget) => widget is PopupMenuItem && !widget.enabled,
       ),
-      findsOneWidget,
+      findsNWidgets(2),
     );
+
+    await tester.tap(find.byKey(const ValueKey('recent-open-submenu')));
+    await tester.pumpAndSettle();
+    expect(find.text('No recent files or folders'), findsOneWidget);
+  });
+
+  testWidgets('home shows saved recent files and folders', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'recent_open_items': [
+        '{"path":"/photos","isDirectory":true}',
+        '{"path":"/photos/IMG_0001.ARW","isDirectory":false}',
+      ],
+    });
+    tester.view.physicalSize = const Size(800, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recent'), findsOneWidget);
+    expect(find.text('photos'), findsOneWidget);
+    expect(find.text('/photos/IMG_0001.ARW'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    expect(find.text('/photos/IMG_0001.ARW'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('recent-open-submenu')));
+    await tester.pumpAndSettle();
+    expect(find.text('/photos/IMG_0001.ARW'), findsNWidgets(2));
   });
 }
