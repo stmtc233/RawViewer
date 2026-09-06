@@ -34,21 +34,33 @@ class WindowGeometry {
 class StoredViewPreferences {
   final int crossAxisCount;
   final GridAspectRatio? gridAspectRatio;
+  final bool useHalfSizeRawDecode;
+  final int maxCacheSize;
+  final TimeDisplaySource timeDisplaySource;
+  final AppLanguage appLanguage;
   final bool pageSwitchAnimationEnabled;
   final double previewOverlayOpacity;
   final double previewToolbarOpacity;
   final double previewFilmstripOpacity;
   final double previewFilmstripHeight;
+  final bool showPreviewFilmstrip;
+  final bool showPreviewOverview;
   final RawViewMode? rawViewMode;
 
   const StoredViewPreferences({
     required this.crossAxisCount,
     required this.gridAspectRatio,
+    required this.useHalfSizeRawDecode,
+    required this.maxCacheSize,
+    required this.timeDisplaySource,
+    required this.appLanguage,
     required this.pageSwitchAnimationEnabled,
     required this.previewOverlayOpacity,
     required this.previewToolbarOpacity,
     required this.previewFilmstripOpacity,
     required this.previewFilmstripHeight,
+    required this.showPreviewFilmstrip,
+    required this.showPreviewOverview,
     required this.rawViewMode,
   });
 }
@@ -71,12 +83,18 @@ class PreferencesRepository {
   // View preferences.
   static const String _gridCrossAxisCount = 'grid_cross_axis_count';
   static const String _gridAspectRatio = 'grid_aspect_ratio';
+  static const String _useHalfSizeRawDecode = 'use_half_size_raw_decode';
+  static const String _maxCacheSize = 'max_cache_size';
+  static const String _timeDisplaySource = 'time_display_source';
+  static const String _appLanguage = 'app_language';
   static const String _pageSwitchAnimationEnabled =
       'page_switch_animation_enabled';
   static const String _previewOverlayOpacity = 'preview_overlay_opacity';
   static const String _previewToolbarOpacity = 'preview_toolbar_opacity';
   static const String _previewFilmstripOpacity = 'preview_filmstrip_opacity';
   static const String _previewFilmstripHeight = 'preview_filmstrip_height';
+  static const String _showPreviewFilmstrip = 'show_preview_filmstrip';
+  static const String _showPreviewOverview = 'show_preview_overview';
   static const String _rawViewMode = 'raw_view_mode';
 
   /// Superseded by [_previewOverlayOpacity]. Read only, to migrate installs
@@ -134,6 +152,14 @@ class PreferencesRepository {
           prefs.getInt(_gridCrossAxisCount) ?? kDefaultGridCrossAxisCount,
       gridAspectRatio:
           GridAspectRatio.values.asNameMap()[prefs.getString(_gridAspectRatio)],
+      useHalfSizeRawDecode: prefs.getBool(_useHalfSizeRawDecode) ?? true,
+      maxCacheSize: prefs.getInt(_maxCacheSize) ?? 512,
+      timeDisplaySource: TimeDisplaySource.values
+              .asNameMap()[prefs.getString(_timeDisplaySource)] ??
+          TimeDisplaySource.capturedAt,
+      appLanguage:
+          AppLanguage.values.asNameMap()[prefs.getString(_appLanguage)] ??
+              AppLanguage.system,
       pageSwitchAnimationEnabled:
           prefs.getBool(_pageSwitchAnimationEnabled) ?? true,
       previewOverlayOpacity: overlayOpacity,
@@ -150,6 +176,8 @@ class PreferencesRepository {
       previewFilmstripHeight: normalizePreviewFilmstripHeight(
         prefs.getDouble(_previewFilmstripHeight) ?? kPreviewFilmstripHeight,
       ),
+      showPreviewFilmstrip: prefs.getBool(_showPreviewFilmstrip) ?? true,
+      showPreviewOverview: prefs.getBool(_showPreviewOverview) ?? true,
       rawViewMode:
           RawViewMode.values.asNameMap()[prefs.getString(_rawViewMode)],
     );
@@ -198,6 +226,26 @@ class PreferencesRepository {
     await prefs.setString(_gridAspectRatio, ratio.name);
   }
 
+  Future<void> saveUseHalfSizeRawDecode(bool enabled) async {
+    final prefs = await _prefs;
+    await prefs.setBool(_useHalfSizeRawDecode, enabled);
+  }
+
+  Future<void> saveMaxCacheSize(int sizeInMb) async {
+    final prefs = await _prefs;
+    await prefs.setInt(_maxCacheSize, sizeInMb);
+  }
+
+  Future<void> saveTimeDisplaySource(TimeDisplaySource source) async {
+    final prefs = await _prefs;
+    await prefs.setString(_timeDisplaySource, source.name);
+  }
+
+  Future<void> saveAppLanguage(AppLanguage language) async {
+    final prefs = await _prefs;
+    await prefs.setString(_appLanguage, language.name);
+  }
+
   Future<void> savePageSwitchAnimationEnabled(bool enabled) async {
     final prefs = await _prefs;
     await prefs.setBool(_pageSwitchAnimationEnabled, enabled);
@@ -229,5 +277,15 @@ class PreferencesRepository {
       _previewFilmstripHeight,
       normalizePreviewFilmstripHeight(height),
     );
+  }
+
+  Future<void> saveShowPreviewFilmstrip(bool show) async {
+    final prefs = await _prefs;
+    await prefs.setBool(_showPreviewFilmstrip, show);
+  }
+
+  Future<void> saveShowPreviewOverview(bool show) async {
+    final prefs = await _prefs;
+    await prefs.setBool(_showPreviewOverview, show);
   }
 }

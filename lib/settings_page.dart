@@ -207,6 +207,8 @@ class ViewerSettings {
   final double previewToolbarOpacity;
   final double previewFilmstripOpacity;
   final double previewFilmstripHeight;
+  final bool showPreviewFilmstrip;
+  final bool showPreviewOverview;
   final WindowsContextMenuSettings windowsContextMenu;
   final FileAssociationSettings fileAssociations;
 
@@ -222,6 +224,8 @@ class ViewerSettings {
     this.previewToolbarOpacity = kDefaultPreviewOverlayOpacity,
     this.previewFilmstripOpacity = kDefaultPreviewOverlayOpacity,
     this.previewFilmstripHeight = kPreviewFilmstripHeight,
+    this.showPreviewFilmstrip = true,
+    this.showPreviewOverview = true,
     this.windowsContextMenu = const WindowsContextMenuSettings(),
     this.fileAssociations = const FileAssociationSettings(),
   });
@@ -238,6 +242,8 @@ class ViewerSettings {
     double? previewToolbarOpacity,
     double? previewFilmstripOpacity,
     double? previewFilmstripHeight,
+    bool? showPreviewFilmstrip,
+    bool? showPreviewOverview,
     WindowsContextMenuSettings? windowsContextMenu,
     FileAssociationSettings? fileAssociations,
   }) {
@@ -258,6 +264,8 @@ class ViewerSettings {
           previewFilmstripOpacity ?? this.previewFilmstripOpacity,
       previewFilmstripHeight:
           previewFilmstripHeight ?? this.previewFilmstripHeight,
+      showPreviewFilmstrip: showPreviewFilmstrip ?? this.showPreviewFilmstrip,
+      showPreviewOverview: showPreviewOverview ?? this.showPreviewOverview,
       windowsContextMenu: windowsContextMenu ?? this.windowsContextMenu,
       fileAssociations: fileAssociations ?? this.fileAssociations,
     );

@@ -80,15 +80,41 @@ void main() {
   group('PreferencesRepository loadViewPreferences', () {
     test('returns defaults when no prefs are stored', () async {
       SharedPreferences.setMockInitialValues({});
-      final stored =
-          await const PreferencesRepository().loadViewPreferences();
+      final stored = await const PreferencesRepository().loadViewPreferences();
       expect(stored.crossAxisCount, kDefaultGridCrossAxisCount);
       expect(stored.gridAspectRatio, isNull);
+      expect(stored.useHalfSizeRawDecode, isTrue);
+      expect(stored.maxCacheSize, 512);
+      expect(stored.timeDisplaySource, TimeDisplaySource.capturedAt);
+      expect(stored.appLanguage, AppLanguage.system);
       expect(stored.pageSwitchAnimationEnabled, isTrue);
       expect(stored.previewOverlayOpacity, kDefaultPreviewOverlayOpacity);
       expect(stored.previewToolbarOpacity, kDefaultPreviewOverlayOpacity);
       expect(stored.previewFilmstripOpacity, kDefaultPreviewOverlayOpacity);
       expect(stored.previewFilmstripHeight, kPreviewFilmstripHeight);
+      expect(stored.showPreviewFilmstrip, isTrue);
+      expect(stored.showPreviewOverview, isTrue);
+    });
+
+    test('round-trips additional settings and preview display controls',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = const PreferencesRepository();
+
+      await repo.saveUseHalfSizeRawDecode(false);
+      await repo.saveMaxCacheSize(1024);
+      await repo.saveTimeDisplaySource(TimeDisplaySource.modifiedAt);
+      await repo.saveAppLanguage(AppLanguage.english);
+      await repo.saveShowPreviewFilmstrip(false);
+      await repo.saveShowPreviewOverview(false);
+
+      final stored = await repo.loadViewPreferences();
+      expect(stored.useHalfSizeRawDecode, isFalse);
+      expect(stored.maxCacheSize, 1024);
+      expect(stored.timeDisplaySource, TimeDisplaySource.modifiedAt);
+      expect(stored.appLanguage, AppLanguage.english);
+      expect(stored.showPreviewFilmstrip, isFalse);
+      expect(stored.showPreviewOverview, isFalse);
     });
 
     test('round-trips grid cross-axis count', () async {
@@ -165,7 +191,8 @@ void main() {
         SharedPreferences.setMockInitialValues({
           'preview_filmstrip_height': height,
         });
-        final stored = await const PreferencesRepository().loadViewPreferences();
+        final stored =
+            await const PreferencesRepository().loadViewPreferences();
         expect(stored.previewFilmstripHeight, expected);
       }
     });
@@ -216,25 +243,23 @@ void main() {
       // Null means "never chosen", so the caller keeps the ViewerSettings
       // default rather than being forced onto a mode.
       SharedPreferences.setMockInitialValues({});
-      final stored =
-          await const PreferencesRepository().loadViewPreferences();
+      final stored = await const PreferencesRepository().loadViewPreferences();
       expect(stored.rawViewMode, isNull);
     });
 
     test('ignores an unrecognised stored RAW view mode', () async {
       // A key written by a newer build must not crash an older one.
       SharedPreferences.setMockInitialValues({'raw_view_mode': 'fastPreview'});
-      final stored =
-          await const PreferencesRepository().loadViewPreferences();
+      final stored = await const PreferencesRepository().loadViewPreferences();
       expect(stored.rawViewMode, isNull);
     });
 
-    test('migrates legacy auto-transparency-disabled key on first load', () async {
+    test('migrates legacy auto-transparency-disabled key on first load',
+        () async {
       SharedPreferences.setMockInitialValues({
         'preview_overlay_auto_transparency_enabled': false,
       });
-      final stored =
-          await const PreferencesRepository().loadViewPreferences();
+      final stored = await const PreferencesRepository().loadViewPreferences();
       expect(stored.previewOverlayOpacity, kMaxPreviewOverlayOpacity);
       expect(stored.previewToolbarOpacity, kMaxPreviewOverlayOpacity);
       expect(stored.previewFilmstripOpacity, kMaxPreviewOverlayOpacity);
@@ -244,8 +269,7 @@ void main() {
   group('PreferencesRepository loadWindowGeometry', () {
     test('returns defaults when nothing is stored', () async {
       SharedPreferences.setMockInitialValues({});
-      final geometry =
-          await const PreferencesRepository().loadWindowGeometry();
+      final geometry = await const PreferencesRepository().loadWindowGeometry();
       expect(geometry.width, 1024.0);
       expect(geometry.height, 768.0);
       expect(geometry.x, isNull);

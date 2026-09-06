@@ -127,4 +127,58 @@ void main() {
     expect(displayedHeight(), smallerHeight);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets('initializes and reports preview display control visibility',
+      (tester) async {
+    final cache = LruCache<String, ViewerImage>(1024,
+        onEvict: (_, image) => image.dispose());
+    addTearDown(cache.clear);
+    final filmstripVisibility = <bool>[];
+    final overviewVisibility = <bool>[];
+
+    await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: ImagePreviewPage(
+        mediaGroups: const [
+          MediaGroup(
+            primary: MediaFile(
+              path: '/missing-test-image.jpg',
+              kind: MediaKind.bitmap,
+            ),
+          ),
+        ],
+        initialIndex: 0,
+        thumbnailResizeWidth: 256,
+        imageStore: ImageStore(cache),
+        timestampRepository: TimestampRepository(),
+        initialSettings: const ViewerSettings(
+          showPreviewFilmstrip: false,
+          showPreviewOverview: false,
+        ),
+        onClose: () {},
+        onRawViewModeChanged: (_) {},
+        onPreviewFilmstripHeightChanged: (_) {},
+        onPreviewFilmstripVisibilityChanged: filmstripVisibility.add,
+        onPreviewOverviewVisibilityChanged: overviewVisibility.add,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PreviewFilmstrip), findsNothing);
+    final l10n =
+        AppLocalizations.of(tester.element(find.byType(ImagePreviewPage)))!;
+    await tester.tap(find.byTooltip(l10n.previewDisplayControlsTooltip));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(l10n.previewFilmstripTitle));
+    await tester.pumpAndSettle();
+    expect(filmstripVisibility, [true]);
+    expect(find.byType(PreviewFilmstrip), findsOneWidget);
+
+    await tester.tap(find.byTooltip(l10n.previewDisplayControlsTooltip));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(l10n.previewOverviewTitle));
+    await tester.pumpAndSettle();
+    expect(overviewVisibility, [true]);
+  });
 }

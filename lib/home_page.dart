@@ -109,14 +109,24 @@ class _HomePageState extends State<HomePage> {
         );
       }
       _settings = _settings.copyWith(
+        useHalfSizeRawDecode: stored.useHalfSizeRawDecode,
+        maxCacheSize: stored.maxCacheSize,
+        timeDisplaySource: stored.timeDisplaySource,
+        appLanguage: stored.appLanguage,
         pageSwitchAnimationEnabled: stored.pageSwitchAnimationEnabled,
         previewOverlayOpacity: stored.previewOverlayOpacity,
         previewToolbarOpacity: stored.previewToolbarOpacity,
         previewFilmstripOpacity: stored.previewFilmstripOpacity,
         previewFilmstripHeight: stored.previewFilmstripHeight,
+        showPreviewFilmstrip: stored.showPreviewFilmstrip,
+        showPreviewOverview: stored.showPreviewOverview,
         rawViewMode: stored.rawViewMode,
       );
     });
+    if (_settings.maxCacheSize != const ViewerSettings().maxCacheSize) {
+      _replaceCache();
+    }
+    widget.onAppLanguageChanged(stored.appLanguage);
   }
 
   Future<void> _updateCrossAxisCount(int delta) async {
@@ -190,8 +200,25 @@ class _HomePageState extends State<HomePage> {
   Future<void> _persistRawViewMode(RawViewMode mode) =>
       const PreferencesRepository().saveRawViewMode(mode);
 
+  Future<void> _persistUseHalfSizeRawDecode(bool enabled) =>
+      const PreferencesRepository().saveUseHalfSizeRawDecode(enabled);
+
+  Future<void> _persistMaxCacheSize(int sizeInMb) =>
+      const PreferencesRepository().saveMaxCacheSize(sizeInMb);
+
+  Future<void> _persistTimeDisplaySource(TimeDisplaySource source) =>
+      const PreferencesRepository().saveTimeDisplaySource(source);
+
+  Future<void> _persistAppLanguage(AppLanguage language) =>
+      const PreferencesRepository().saveAppLanguage(language);
+
+  Future<void> _persistShowPreviewFilmstrip(bool show) =>
+      const PreferencesRepository().saveShowPreviewFilmstrip(show);
+
+  Future<void> _persistShowPreviewOverview(bool show) =>
+      const PreferencesRepository().saveShowPreviewOverview(show);
+
   void _updateSettings(ViewerSettings settings) {
-    final cacheSizeChanged = _settings.maxCacheSize != settings.maxCacheSize;
     final appLanguageChanged = _settings.appLanguage != settings.appLanguage;
     final gridAspectRatioChanged =
         _settings.gridAspectRatio != settings.gridAspectRatio;
@@ -206,16 +233,35 @@ class _HomePageState extends State<HomePage> {
     final previewFilmstripHeightChanged =
         _settings.previewFilmstripHeight != settings.previewFilmstripHeight;
     final rawViewModeChanged = _settings.rawViewMode != settings.rawViewMode;
+    final useHalfSizeRawDecodeChanged =
+        _settings.useHalfSizeRawDecode != settings.useHalfSizeRawDecode;
+    final maxCacheSizeChanged = _settings.maxCacheSize != settings.maxCacheSize;
+    final timeDisplaySourceChanged =
+        _settings.timeDisplaySource != settings.timeDisplaySource;
+    final showPreviewFilmstripChanged =
+        _settings.showPreviewFilmstrip != settings.showPreviewFilmstrip;
+    final showPreviewOverviewChanged =
+        _settings.showPreviewOverview != settings.showPreviewOverview;
 
     setState(() {
       _settings = settings;
     });
 
-    if (cacheSizeChanged) {
+    if (maxCacheSizeChanged) {
       _replaceCache();
     }
     if (appLanguageChanged) {
       widget.onAppLanguageChanged(settings.appLanguage);
+      unawaited(_persistAppLanguage(settings.appLanguage));
+    }
+    if (useHalfSizeRawDecodeChanged) {
+      unawaited(_persistUseHalfSizeRawDecode(settings.useHalfSizeRawDecode));
+    }
+    if (maxCacheSizeChanged) {
+      unawaited(_persistMaxCacheSize(settings.maxCacheSize));
+    }
+    if (timeDisplaySourceChanged) {
+      unawaited(_persistTimeDisplaySource(settings.timeDisplaySource));
     }
     if (gridAspectRatioChanged) {
       _hasUserConfiguredGridAspectRatio = true;
@@ -248,6 +294,12 @@ class _HomePageState extends State<HomePage> {
     }
     if (rawViewModeChanged) {
       unawaited(_persistRawViewMode(settings.rawViewMode));
+    }
+    if (showPreviewFilmstripChanged) {
+      unawaited(_persistShowPreviewFilmstrip(settings.showPreviewFilmstrip));
+    }
+    if (showPreviewOverviewChanged) {
+      unawaited(_persistShowPreviewOverview(settings.showPreviewOverview));
     }
   }
 
@@ -759,6 +811,12 @@ class _HomePageState extends State<HomePage> {
                   deferDirectoryLoad ? _loadDeferredDirectoryForPreview : null,
               onRawViewModeChanged: (mode) => _updateSettings(
                 _settings.copyWith(rawViewMode: mode),
+              ),
+              onPreviewFilmstripVisibilityChanged: (show) => _updateSettings(
+                _settings.copyWith(showPreviewFilmstrip: show),
+              ),
+              onPreviewOverviewVisibilityChanged: (show) => _updateSettings(
+                _settings.copyWith(showPreviewOverview: show),
               ),
               onPreviewFilmstripHeightChanged: (height) => _updateSettings(
                 _settings.copyWith(previewFilmstripHeight: height),

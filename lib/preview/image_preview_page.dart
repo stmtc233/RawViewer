@@ -52,6 +52,8 @@ class ImagePreviewPage extends StatefulWidget {
   /// not per-file: this switch is the only place it is set.
   final ValueChanged<RawViewMode> onRawViewModeChanged;
   final ValueChanged<double> onPreviewFilmstripHeightChanged;
+  final ValueChanged<bool>? onPreviewFilmstripVisibilityChanged;
+  final ValueChanged<bool>? onPreviewOverviewVisibilityChanged;
 
   const ImagePreviewPage({
     super.key,
@@ -65,6 +67,8 @@ class ImagePreviewPage extends StatefulWidget {
     this.onLoadDirectory,
     required this.onRawViewModeChanged,
     required this.onPreviewFilmstripHeightChanged,
+    this.onPreviewFilmstripVisibilityChanged,
+    this.onPreviewOverviewVisibilityChanged,
   });
 
   @override
@@ -77,10 +81,10 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   late int _currentIndex;
   late int _targetPage;
   bool _isLocked = false;
-  bool _showPreviewFilmstrip = true;
+  late bool _showPreviewFilmstrip;
   late double _previewFilmstripHeight;
   bool _isFilmstripHeightDirty = false;
-  bool _showPreviewOverview = true;
+  late bool _showPreviewOverview;
   bool _isDirectoryLoaded = true;
   bool _isLoadingDirectory = false;
   String? _forcedPairedJpegPrimaryPath;
@@ -124,6 +128,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     _currentIndex = widget.initialIndex;
     _targetPage = widget.initialIndex;
     _rawViewMode = widget.initialSettings.rawViewMode;
+    _showPreviewFilmstrip = widget.initialSettings.showPreviewFilmstrip;
+    _showPreviewOverview = widget.initialSettings.showPreviewOverview;
     _previewFilmstripHeight = normalizePreviewFilmstripHeight(
       widget.initialSettings.previewFilmstripHeight,
     );
@@ -966,10 +972,16 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                                       case PreviewDisplayControl.filmstrip:
                                         _showPreviewFilmstrip =
                                             !_showPreviewFilmstrip;
+                                        widget
+                                            .onPreviewFilmstripVisibilityChanged
+                                            ?.call(_showPreviewFilmstrip);
                                         break;
                                       case PreviewDisplayControl.overview:
                                         _showPreviewOverview =
                                             !_showPreviewOverview;
+                                        widget
+                                            .onPreviewOverviewVisibilityChanged
+                                            ?.call(_showPreviewOverview);
                                         break;
                                     }
                                   });
