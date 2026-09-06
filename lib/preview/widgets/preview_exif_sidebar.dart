@@ -10,6 +10,7 @@ import '../../core/exif_sidebar_settings.dart';
 import '../../ui/app_theme.dart';
 import '../../ui/desktop_controls.dart';
 import '../../core/exif_repository.dart';
+import '../../core/xmp_sidecar.dart';
 
 class PreviewExifSidebar extends StatefulWidget {
   final String filePath;
@@ -37,18 +38,26 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
   Timer? _loadTimer;
   ExifMetadata? _metadata;
   int _generation = 0;
+  int? _draftRating;
+  bool _savingRating = false;
+  bool _ratingSaveFailed = false;
   late Set<ExifSection> _expandedSections;
 
   @override
   void initState() {
     super.initState();
     _expandedSections = Set.of(widget.expandedSections);
+    widget.repository.addListener(_onMetadataChanged);
     _scheduleLoad();
   }
 
   @override
   void didUpdateWidget(PreviewExifSidebar oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.repository != widget.repository) {
+      oldWidget.repository.removeListener(_onMetadataChanged);
+      widget.repository.addListener(_onMetadataChanged);
+    }
     if (oldWidget.expandedSections != widget.expandedSections) {
       _expandedSections = Set.of(widget.expandedSections);
     }
@@ -59,10 +68,13 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
     }
   }
 
-  void _scheduleLoad() {
+  void _scheduleLoad({bool preserveDraft = false}) {
     _loadTimer?.cancel();
     final generation = ++_generation;
     _metadata = null;
+    if (!preserveDraft) _draftRating = null;
+    _savingRating = false;
+    _ratingSaveFailed = false;
     // Only inspect the file the user settles on during rapid navigation.
     _loadTimer = Timer(const Duration(milliseconds: 150), () async {
       ExifMetadata metadata;
@@ -77,8 +89,46 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
     });
   }
 
+  void _onMetadataChanged() {
+    final savedPath = widget.repository.lastRatingSavedPath;
+    if (mounted &&
+        !_savingRating &&
+        (savedPath == null || sharesXmpSidecar(widget.filePath, savedPath))) {
+      setState(() => _scheduleLoad(preserveDraft: true));
+    }
+  }
+
+  Future<void> _saveRating() async {
+    final rating = _draftRating;
+    if (rating == null || _savingRating) return;
+    final generation = _generation;
+    final repository = widget.repository;
+    final filePath = widget.filePath;
+    setState(() {
+      _savingRating = true;
+      _ratingSaveFailed = false;
+    });
+    try {
+      await repository.saveRating(filePath, rating);
+      final metadata = await repository.load(filePath);
+      if (!mounted || generation != _generation) return;
+      setState(() {
+        _metadata = metadata;
+        _draftRating = null;
+        _savingRating = false;
+      });
+    } catch (_) {
+      if (!mounted || generation != _generation) return;
+      setState(() {
+        _savingRating = false;
+        _ratingSaveFailed = true;
+      });
+    }
+  }
+
   @override
   void dispose() {
+    widget.repository.removeListener(_onMetadataChanged);
     _loadTimer?.cancel();
     _searchController.dispose();
     _scrollController.dispose();
@@ -324,8 +374,10 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
 
   Widget _ratingRow(AppLocalizations l10n) {
     final rawRating = _metadata!.tags['Image Rating'];
-    final rating = parseExifRating(rawRating);
-    final status = rawRating == null
+    final savedRating = parseExifRating(rawRating);
+    final rating = _draftRating ?? savedRating;
+    final dirty = _draftRating != null && _draftRating != savedRating;
+    final status = _draftRating == null && rawRating == null
         ? l10n.exifRatingMissing
         : rating == null
             ? l10n.exifRatingInvalid
@@ -335,7 +387,8 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
     return Semantics(
       key: const ValueKey('exif-rating'),
       label: '${l10n.exifRating}: $status',
-      excludeSemantics: true,
+      container: true,
+      explicitChildNodes: true,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         child: Row(
@@ -343,38 +396,98 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
           children: [
             Expanded(
               flex: 2,
-              child: Text(l10n.exifRating,
-                  style: const TextStyle(
-                      color: RawViewerColors.mutedText,
-                      fontSize: 11,
-                      height: 1.6)),
+              child: SizedBox(
+                height: 28,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.exifRating,
+                        style: const TextStyle(
+                            color: RawViewerColors.mutedText,
+                            fontSize: 11,
+                            height: 1.2)),
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(status,
+                            maxLines: 1,
+                            style: const TextStyle(
+                                color: RawViewerColors.mutedText,
+                                fontSize: 11)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
               flex: 4,
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 2,
-                crossAxisAlignment: WrapCrossAlignment.center,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       for (var star = 1; star <= 5; star++)
-                        Icon(
-                          star <= (rating ?? 0)
-                              ? Icons.star
-                              : Icons.star_border,
-                          size: 18,
-                          color: star <= (rating ?? 0)
-                              ? const Color(0xFFE5BD62)
-                              : RawViewerColors.mutedText,
+                        IconButton(
+                          key: ValueKey('exif-rating-$star'),
+                          tooltip: star == rating
+                              ? l10n.exifRatingUnrated
+                              : l10n.ratingFilterStars(star),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints.tightFor(
+                              width: 26, height: 28),
+                          splashRadius: 13,
+                          hoverColor: RawViewerColors.raisedSurface,
+                          onPressed: _savingRating
+                              ? null
+                              : () => setState(() {
+                                    final next = star == rating ? 0 : star;
+                                    _draftRating =
+                                        next == savedRating ? null : next;
+                                    _ratingSaveFailed = false;
+                                  }),
+                          icon: Icon(
+                            star <= (rating ?? 0)
+                                ? Icons.star
+                                : Icons.star_border,
+                            size: 18,
+                            color: star <= (rating ?? 0)
+                                ? const Color(0xFFE5BD62)
+                                : RawViewerColors.mutedText,
+                          ),
                         ),
+                      SizedBox(
+                        width: 30,
+                        height: 28,
+                        child: !dirty
+                            ? null
+                            : _savingRating
+                                ? const Padding(
+                                    padding: EdgeInsets.all(6),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : IconButton(
+                                    key: const ValueKey('exif-rating-save'),
+                                    tooltip: l10n.exifRatingSave,
+                                    padding: EdgeInsets.zero,
+                                    splashRadius: 14,
+                                    hoverColor: RawViewerColors.raisedSurface,
+                                    icon: const Icon(Icons.save_outlined,
+                                        size: 18),
+                                    onPressed: _saveRating,
+                                  ),
+                      ),
                     ],
                   ),
-                  Text(status,
-                      style: const TextStyle(
-                          color: RawViewerColors.mutedText, fontSize: 11)),
+                  if (_ratingSaveFailed)
+                    Text(l10n.exifRatingSaveFailed,
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                            fontSize: 11)),
                 ],
               ),
             ),
@@ -448,7 +561,7 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
     final query = _searchController.text.trim().toLowerCase();
     final rows = <Widget>[];
     if (_metadata != null &&
-        !_metadata!.readFailed &&
+        (!_metadata!.readFailed || _metadata!.fileSize != null) &&
         (query.isEmpty ||
             l10n.exifRating.toLowerCase().contains(query) ||
             'image rating'.contains(query))) {
@@ -557,6 +670,14 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
                       padding: const EdgeInsets.only(bottom: 16),
                       children: [
                         ...rows,
+                        if (_metadata?.xmpReadFailed ?? false)
+                          Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Text(l10n.exifXmpReadFailed,
+                                style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
+                                    fontSize: 12)),
+                          ),
                         if (_metadata != null &&
                             (_metadata!.readFailed || _metadata!.tags.isEmpty))
                           Padding(

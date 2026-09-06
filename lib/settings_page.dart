@@ -210,6 +210,7 @@ class ViewerSettings {
   final double previewFilmstripHeight;
   final bool showPreviewFilmstrip;
   final bool showThumbnailRatings;
+  final bool hideUnratedRatings;
   final bool showPreviewOverview;
   final ExifSidebarSettings exifSidebar;
   final WindowsContextMenuSettings windowsContextMenu;
@@ -229,6 +230,7 @@ class ViewerSettings {
     this.previewFilmstripHeight = kPreviewFilmstripHeight,
     this.showPreviewFilmstrip = true,
     this.showThumbnailRatings = true,
+    this.hideUnratedRatings = true,
     this.showPreviewOverview = true,
     this.exifSidebar = const ExifSidebarSettings(),
     this.windowsContextMenu = const WindowsContextMenuSettings(),
@@ -249,6 +251,7 @@ class ViewerSettings {
     double? previewFilmstripHeight,
     bool? showPreviewFilmstrip,
     bool? showThumbnailRatings,
+    bool? hideUnratedRatings,
     bool? showPreviewOverview,
     ExifSidebarSettings? exifSidebar,
     WindowsContextMenuSettings? windowsContextMenu,
@@ -273,6 +276,7 @@ class ViewerSettings {
           previewFilmstripHeight ?? this.previewFilmstripHeight,
       showPreviewFilmstrip: showPreviewFilmstrip ?? this.showPreviewFilmstrip,
       showThumbnailRatings: showThumbnailRatings ?? this.showThumbnailRatings,
+      hideUnratedRatings: hideUnratedRatings ?? this.hideUnratedRatings,
       showPreviewOverview: showPreviewOverview ?? this.showPreviewOverview,
       exifSidebar: exifSidebar ?? this.exifSidebar,
       windowsContextMenu: windowsContextMenu ?? this.windowsContextMenu,

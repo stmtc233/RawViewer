@@ -10,6 +10,8 @@ class RatingFilterButton extends StatelessWidget {
   final ValueChanged<RatingFilter> onSelected;
   final bool showRatings;
   final ValueChanged<bool> onShowRatingsChanged;
+  final bool hideUnratedRatings;
+  final ValueChanged<bool> onHideUnratedRatingsChanged;
 
   const RatingFilterButton({
     super.key,
@@ -17,6 +19,8 @@ class RatingFilterButton extends StatelessWidget {
     required this.onSelected,
     required this.showRatings,
     required this.onShowRatingsChanged,
+    this.hideUnratedRatings = true,
+    required this.onHideUnratedRatingsChanged,
   });
 
   @override
@@ -29,6 +33,8 @@ class RatingFilterButton extends StatelessWidget {
           onSelected: onSelected,
           showRatings: showRatings,
           onShowRatingsChanged: onShowRatingsChanged,
+          hideUnratedRatings: hideUnratedRatings,
+          onHideUnratedRatingsChanged: onHideUnratedRatingsChanged,
         ),
       ],
       child: DesktopPopupMenuTrigger(
@@ -46,16 +52,20 @@ class _RatingFilterMenu extends PopupMenuEntry<void> {
   final ValueChanged<RatingFilter> onSelected;
   final bool showRatings;
   final ValueChanged<bool> onShowRatingsChanged;
+  final bool hideUnratedRatings;
+  final ValueChanged<bool> onHideUnratedRatingsChanged;
 
   const _RatingFilterMenu({
     required this.selected,
     required this.onSelected,
     required this.showRatings,
     required this.onShowRatingsChanged,
+    required this.hideUnratedRatings,
+    required this.onHideUnratedRatingsChanged,
   });
 
   @override
-  double get height => 328;
+  double get height => 368;
 
   @override
   bool represents(void value) => false;
@@ -67,6 +77,7 @@ class _RatingFilterMenu extends PopupMenuEntry<void> {
 class _RatingFilterMenuState extends State<_RatingFilterMenu> {
   late RatingFilter _selected = widget.selected;
   late bool _showRatings = widget.showRatings;
+  late bool _hideUnratedRatings = widget.hideUnratedRatings;
 
   Widget _checkbox(String label, bool checked, VoidCallback onToggle) =>
       SizedBox(
@@ -109,6 +120,10 @@ class _RatingFilterMenuState extends State<_RatingFilterMenu> {
         _checkbox(l10n.previewRatingsTitle, _showRatings, () {
           setState(() => _showRatings = !_showRatings);
           widget.onShowRatingsChanged(_showRatings);
+        }),
+        _checkbox(l10n.hideUnratedRatingsTitle, _hideUnratedRatings, () {
+          setState(() => _hideUnratedRatings = !_hideUnratedRatings);
+          widget.onHideUnratedRatingsChanged(_hideUnratedRatings);
         }),
       ]),
     );

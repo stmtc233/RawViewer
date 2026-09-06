@@ -28,6 +28,7 @@ class PreviewFilmstrip extends StatefulWidget {
   final Widget? controls;
   final RatingRepository? ratingRepository;
   final bool showRatings;
+  final bool hideUnratedRatings;
 
   const PreviewFilmstrip({
     super.key,
@@ -42,6 +43,7 @@ class PreviewFilmstrip extends StatefulWidget {
     this.controls,
     this.ratingRepository,
     this.showRatings = true,
+    this.hideUnratedRatings = true,
   });
 
   @override
@@ -300,6 +302,8 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
                                     selected: index == widget.currentIndex,
                                     ratingRepository: widget.ratingRepository,
                                     showRatings: widget.showRatings,
+                                    hideUnratedRatings:
+                                        widget.hideUnratedRatings,
                                     onTap: () => widget.onIndexSelected(index),
                                   ),
                                 ),
@@ -354,6 +358,7 @@ class _PreviewFilmstripThumbnail extends StatefulWidget {
   final bool selected;
   final RatingRepository? ratingRepository;
   final bool showRatings;
+  final bool hideUnratedRatings;
   final VoidCallback onTap;
 
   const _PreviewFilmstripThumbnail({
@@ -364,6 +369,7 @@ class _PreviewFilmstripThumbnail extends StatefulWidget {
     required this.selected,
     required this.ratingRepository,
     required this.showRatings,
+    required this.hideUnratedRatings,
     required this.onTap,
   });
 
@@ -495,6 +501,7 @@ class _PreviewFilmstripThumbnailState
                   child: RatingBadge(
                     filePath: _filePath,
                     repository: widget.ratingRepository!,
+                    hideUnratedRatings: widget.hideUnratedRatings,
                   ),
                 ),
               ),

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,10 +12,24 @@ import 'package:rawviewer/ui/app_theme.dart';
 
 class _Repository extends ExifRepository {
   final requests = <String, Completer<ExifMetadata>>{};
+  final saves = <(String, int)>[];
+  final pendingSaves = <Completer<void>>[];
+  final saved = <String, int>{};
 
   @override
-  Future<ExifMetadata> load(String filePath) =>
-      requests.putIfAbsent(filePath, Completer<ExifMetadata>.new).future;
+  Future<void> saveRating(String filePath, int rating) async {
+    saves.add((filePath, rating));
+    final pending = Completer<void>();
+    pendingSaves.add(pending);
+    await pending.future;
+    saved[filePath] = rating;
+    notifyListeners();
+  }
+
+  @override
+  Future<ExifMetadata> load(String filePath) => saved.containsKey(filePath)
+      ? Future.value(ExifMetadata(tags: {'Image Rating': '${saved[filePath]}'}))
+      : requests.putIfAbsent(filePath, Completer<ExifMetadata>.new).future;
 }
 
 Widget _app(
@@ -48,6 +63,99 @@ Widget _app(
 }
 
 void main() {
+  testWidgets(
+      'rating changes are drafts until saved, can be cleared and retried',
+      (tester) async {
+    tester.view.physicalSize = const Size(280, 540);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _Repository();
+    await tester.pumpWidget(_app(repository, '/photo.jpg'));
+    await tester.pump(const Duration(milliseconds: 160));
+    repository.requests['/photo.jpg']!
+        .complete(const ExifMetadata(tags: {'Image Rating': '2'}));
+    await tester.pumpAndSettle();
+    final save = find.byKey(const ValueKey('exif-rating-save'));
+    final four = find.byKey(const ValueKey('exif-rating-4'));
+    expect(save, findsNothing);
+    await tester.tap(four);
+    await tester.pumpAndSettle();
+    expect(find.text('4 / 5'), findsOneWidget);
+    expect(save, findsOneWidget);
+    expect(repository.saves, isEmpty);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byKey(const ValueKey('exif-rating-2')));
+    await tester.pumpAndSettle();
+    expect(save, findsNothing);
+    await tester.tap(four);
+    await tester.pumpAndSettle();
+    await tester.tap(save);
+    await tester.pump();
+    expect(repository.saves, [('/photo.jpg', 4)]);
+    expect(tester.widget<IconButton>(four).onPressed, isNull);
+    repository.pendingSaves.last.completeError(StateError('read-only'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not save the rating to XMP. Please try again.'),
+        findsOneWidget);
+    expect(find.text('4 / 5'), findsOneWidget);
+    await tester.tap(save);
+    await tester.pump();
+    repository.pendingSaves.last.complete();
+    await tester.pumpAndSettle();
+    expect(save, findsNothing);
+    expect(find.text('4 / 5'), findsOneWidget);
+    await tester.tap(four);
+    await tester.pumpAndSettle();
+    expect(find.text('Unrated'), findsOneWidget);
+    await tester.tap(save);
+    await tester.pump();
+    expect(repository.saves.last, ('/photo.jpg', 0));
+    repository.pendingSaves.last.complete();
+    await tester.pumpAndSettle();
+    expect(save, findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('navigation discards drafts and isolates in-flight saves',
+      (tester) async {
+    final repository = _Repository();
+    Future<void> open(String name) async {
+      await tester.pumpWidget(_app(repository, name));
+      await tester.pump(const Duration(milliseconds: 160));
+      repository.requests[name]!
+          .complete(const ExifMetadata(tags: {'Image Rating': '2'}));
+      await tester.pumpAndSettle();
+    }
+
+    await open('/a.jpg');
+    await tester.tap(find.byKey(const ValueKey('exif-rating-4')));
+    await tester.pumpAndSettle();
+    await open('/b.jpg');
+    expect(find.byKey(const ValueKey('exif-rating-save')), findsNothing);
+    expect(repository.saves, isEmpty);
+    await tester.tap(find.byKey(const ValueKey('exif-rating-5')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('exif-rating-save')));
+    await tester.pump();
+    await open('/c.jpg');
+    await tester.tap(find.byKey(const ValueKey('exif-rating-4')));
+    await tester.pumpAndSettle();
+    repository.pendingSaves.single.complete();
+    await tester.pumpAndSettle();
+    expect(repository.saves, [('/b.jpg', 5)]);
+    expect(find.text('4 / 5'), findsOneWidget);
+    expect(find.text('5 / 5'), findsNothing);
+    expect(find.byKey(const ValueKey('exif-rating-save')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('exif-rating-save')));
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox.shrink());
+    repository.pendingSaves.last.complete();
+    await tester.pumpAndSettle();
+    expect(repository.saved['/c.jpg'], 4);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
       'restores sections across languages without persisting search expansion',
       (tester) async {
@@ -122,6 +230,56 @@ void main() {
   });
 
   for (final locale in [const Locale('en'), const Locale('zh')]) {
+    for (final width in [280.0, 336.0]) {
+      testWidgets(
+          'rating edits keep surrounding content stable at $width in $locale',
+          (tester) async {
+        tester.view.physicalSize = Size(width, 540);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final repository = _Repository();
+        await tester
+            .pumpWidget(_app(repository, '/rating.jpg', locale: locale));
+        await tester.pump(const Duration(milliseconds: 160));
+        repository.requests['/rating.jpg']!.complete(const ExifMetadata(tags: {
+          'Image Rating': '2',
+        }));
+        await tester.pumpAndSettle();
+        final row = find.byKey(const ValueKey('exif-rating'));
+        final summary = find.byKey(const ValueKey('exif-shooting-summary'));
+        final initialRow = tester.getRect(row);
+        final initialSummary = tester.getRect(summary);
+        final star = find.byKey(const ValueKey('exif-rating-4'));
+        final initialStar = tester.getRect(star);
+        final save = find.byKey(const ValueKey('exif-rating-save'));
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: Offset.zero);
+        addTearDown(mouse.removePointer);
+        for (final rating in [4, 4, 1, 5, 5]) {
+          await tester.tap(find.byKey(ValueKey('exif-rating-$rating')));
+          await tester.pumpAndSettle();
+          expect(tester.getRect(row), initialRow);
+          expect(tester.getRect(summary), initialSummary);
+          expect(tester.getRect(star), initialStar);
+          expect(initialRow.contains(tester.getRect(save).bottomRight), isTrue);
+          await mouse.moveTo(tester.getCenter(save));
+          await tester.pump(const Duration(milliseconds: 100));
+          expect(tester.getRect(summary), initialSummary);
+          expect(tester.takeException(), isNull);
+        }
+        await tester.tap(save);
+        await tester.pump();
+        expect(tester.getRect(summary), initialSummary);
+        repository.pendingSaves.single.complete();
+        await tester.pumpAndSettle();
+        expect(save, findsNothing);
+        expect(tester.getRect(row), initialRow);
+        expect(tester.getRect(summary), initialSummary);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
     testWidgets('author stays visible after clearing search in $locale',
         (tester) async {
       final repository = _Repository();

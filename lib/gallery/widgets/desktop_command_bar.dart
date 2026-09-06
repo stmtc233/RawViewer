@@ -22,6 +22,8 @@ class DesktopCommandBar extends StatelessWidget {
   final bool showRatings;
   final ValueChanged<RatingFilter> onRatingFilterSelected;
   final ValueChanged<bool> onShowRatingsChanged;
+  final bool hideUnratedRatings;
+  final ValueChanged<bool> onHideUnratedRatingsChanged;
   final MediaSortOrder selectedMediaSortOrder;
   final int adaptiveCount;
   final int rawCount;
@@ -50,6 +52,8 @@ class DesktopCommandBar extends StatelessWidget {
     this.showRatings = true,
     required this.onRatingFilterSelected,
     required this.onShowRatingsChanged,
+    this.hideUnratedRatings = true,
+    required this.onHideUnratedRatingsChanged,
     required this.selectedMediaSortOrder,
     required this.adaptiveCount,
     required this.rawCount,
@@ -138,6 +142,8 @@ class DesktopCommandBar extends StatelessWidget {
                 onSelected: onRatingFilterSelected,
                 showRatings: showRatings,
                 onShowRatingsChanged: onShowRatingsChanged,
+                hideUnratedRatings: hideUnratedRatings,
+                onHideUnratedRatingsChanged: onHideUnratedRatingsChanged,
               ),
               const SizedBox(width: 4),
               MediaSortButton(

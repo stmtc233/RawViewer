@@ -6,12 +6,23 @@ import 'l10n/app_localizations.dart';
 class RatingBadge extends StatelessWidget {
   final String filePath;
   final RatingRepository repository;
+  final bool hideUnratedRatings;
 
   const RatingBadge(
-      {super.key, required this.filePath, required this.repository});
+      {super.key,
+      required this.filePath,
+      required this.repository,
+      this.hideUnratedRatings = true});
 
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: repository,
+      builder: (context, _) => _buildRating(context),
+    );
+  }
+
+  Widget _buildRating(BuildContext context) {
     return FutureBuilder<int?>(
       key: ValueKey(filePath),
       future: repository.load(filePath),
@@ -20,6 +31,7 @@ class RatingBadge extends StatelessWidget {
           return const SizedBox(height: 18);
         }
         final rating = snapshot.data ?? 0;
+        if (hideUnratedRatings && rating == 0) return const SizedBox.shrink();
         final l10n = AppLocalizations.of(context)!;
         final label = snapshot.data == null
             ? l10n.exifRatingMissing

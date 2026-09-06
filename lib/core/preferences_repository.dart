@@ -82,6 +82,7 @@ class StoredViewPreferences {
   final double previewFilmstripHeight;
   final bool showPreviewFilmstrip;
   final bool showThumbnailRatings;
+  final bool hideUnratedRatings;
   final bool showPreviewOverview;
   final ExifSidebarSettings exifSidebar;
   final RawViewMode? rawViewMode;
@@ -101,6 +102,7 @@ class StoredViewPreferences {
     required this.previewFilmstripHeight,
     required this.showPreviewFilmstrip,
     this.showThumbnailRatings = true,
+    this.hideUnratedRatings = true,
     required this.showPreviewOverview,
     this.exifSidebar = const ExifSidebarSettings(),
     required this.rawViewMode,
@@ -138,6 +140,7 @@ class PreferencesRepository {
   static const String _previewFilmstripHeight = 'preview_filmstrip_height';
   static const String _showPreviewFilmstrip = 'show_preview_filmstrip';
   static const String _showThumbnailRatings = 'show_thumbnail_ratings';
+  static const String _hideUnratedRatings = 'hide_unrated_ratings';
   static const String _showPreviewOverview = 'show_preview_overview';
   static const String _showExifSidebar = 'show_exif_sidebar';
   static const String _exifSidebarWidth = 'exif_sidebar_width';
@@ -227,6 +230,7 @@ class PreferencesRepository {
       ),
       showPreviewFilmstrip: prefs.getBool(_showPreviewFilmstrip) ?? true,
       showThumbnailRatings: prefs.getBool(_showThumbnailRatings) ?? true,
+      hideUnratedRatings: prefs.getBool(_hideUnratedRatings) ?? true,
       showPreviewOverview: prefs.getBool(_showPreviewOverview) ?? true,
       exifSidebar: ExifSidebarSettings(
         visible: prefs.getBool(_showExifSidebar) ?? false,
@@ -363,6 +367,11 @@ class PreferencesRepository {
   Future<void> saveShowPreviewOverview(bool show) async {
     final prefs = await _prefs;
     await prefs.setBool(_showPreviewOverview, show);
+  }
+
+  Future<void> saveHideUnratedRatings(bool hide) async {
+    final prefs = await _prefs;
+    await prefs.setBool(_hideUnratedRatings, hide);
   }
 
   Future<void> saveExifSidebarSettings(ExifSidebarSettings settings) async {

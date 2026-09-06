@@ -10,6 +10,8 @@ class _Exif extends ExifRepository {
   _Exif(this.read);
   @override
   Future<ExifMetadata> load(String filePath) => read(filePath);
+
+  void changed() => notifyListeners();
 }
 
 MediaGroup _group(String path) =>
@@ -28,6 +30,39 @@ Future<void> _finish(RatingFilterController controller) async {
 }
 
 void main() {
+  test('metadata changes refresh active filters and detach on disposal',
+      () async {
+    var rating = '3';
+    final exif =
+        _Exif((_) async => ExifMetadata(tags: {'Image Rating': rating}));
+    final ratings = RatingRepository(exifRepository: exif);
+    final gallery = RatingFilterController(ratings);
+    final preview = RatingFilterController(ratings);
+    final all = RatingFilterController(ratings);
+    final groups = [_group('photo')];
+    gallery.update(groups: groups, filter: RatingFilter.three);
+    preview.update(groups: groups, filter: RatingFilter.five);
+    all.update(groups: groups);
+    await _finish(gallery);
+    await _finish(preview);
+    expect(gallery.visibleGroups, groups);
+    expect(preview.visibleGroups, isEmpty);
+    rating = '5';
+    exif.changed();
+    await _finish(gallery);
+    await _finish(preview);
+    expect(gallery.visibleGroups, isEmpty);
+    expect(preview.visibleGroups, groups);
+    expect(all.visibleGroups, groups);
+    gallery.dispose();
+    preview.dispose();
+    all.dispose();
+    exif.changed();
+    ratings.dispose();
+    exif.changed();
+    exif.dispose();
+  });
+
   test('exact ratings distinguish zero, absent and invalid metadata', () {
     expect(parseExifRating(' 5 '), 5);
     for (final value in [null, '', '-1', '6', '2.5', 'unknown']) {

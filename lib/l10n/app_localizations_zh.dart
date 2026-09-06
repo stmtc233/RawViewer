@@ -15,6 +15,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get exifRating => '星级评分';
 
   @override
+  String get exifRatingSave => '保存星级';
+
+  @override
+  String get exifRatingSaveFailed => '无法将星级保存到 XMP，请重试。';
+
+  @override
+  String get exifXmpReadFailed => '无法读取 XMP 旁车文件，原有内容已保留。';
+
+  @override
   String get ratingFilterTooltip => '星级筛选';
 
   @override
@@ -26,7 +35,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get previewRatingsTitle => '缩略图星级';
+  String get previewRatingsTitle => '显示星级';
+
+  @override
+  String get hideUnratedRatingsTitle => '隐藏未评级';
 
   @override
   String get exifRatingUnrated => '未评分';

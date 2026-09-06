@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../media_group.dart';
 import 'exif_repository.dart';
+import 'xmp_sidecar.dart';
 
 @immutable
 class RatingFilter {
@@ -39,12 +40,30 @@ class RatingFilter {
   int get hashCode => _mask.hashCode;
 }
 
-class RatingRepository {
+class RatingRepository extends ChangeNotifier {
   final ExifRepository exifRepository;
+  final bool _ownsExifRepository;
   final _cache = <String, Future<int?>>{};
 
   RatingRepository({ExifRepository? exifRepository})
-      : exifRepository = exifRepository ?? ExifRepository();
+      : _ownsExifRepository = exifRepository == null,
+        exifRepository = exifRepository ?? ExifRepository() {
+    this.exifRepository.addListener(_onMetadataChanged);
+  }
+
+  void _onMetadataChanged() {
+    final savedPath = exifRepository.lastRatingSavedPath;
+    _cache.removeWhere(
+        (path, _) => savedPath == null || sharesXmpSidecar(path, savedPath));
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    exifRepository.removeListener(_onMetadataChanged);
+    if (_ownsExifRepository) exifRepository.dispose();
+    super.dispose();
+  }
 
   Future<int?> load(String path) {
     final cached = _cache.remove(path);
@@ -76,7 +95,13 @@ class RatingFilterController extends ChangeNotifier {
   bool loading = false;
   int _generation = 0;
 
-  RatingFilterController(this.repository);
+  RatingFilterController(this.repository) {
+    repository.addListener(_onRatingsChanged);
+  }
+
+  void _onRatingsChanged() {
+    if (selected != RatingFilter.all) update();
+  }
 
   void update({List<MediaGroup>? groups, RatingFilter? filter}) {
     if (groups != null) _groups = List.unmodifiable(groups);
@@ -112,6 +137,7 @@ class RatingFilterController extends ChangeNotifier {
 
   @override
   void dispose() {
+    repository.removeListener(_onRatingsChanged);
     _generation++;
     super.dispose();
   }

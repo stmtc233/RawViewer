@@ -7,6 +7,28 @@ import 'package:rawviewer/settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('hiding unrated badges defaults on and persists independently',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    const repository = PreferencesRepository();
+    expect((await repository.loadViewPreferences()).hideUnratedRatings, isTrue);
+    await repository.saveHideUnratedRatings(true);
+    await repository.saveShowThumbnailRatings(false);
+    final stored = await repository.loadViewPreferences();
+    expect(stored.hideUnratedRatings, isTrue);
+    final settings =
+        ViewerSettings(hideUnratedRatings: stored.hideUnratedRatings);
+    expect(settings.copyWith(showThumbnailRatings: false).hideUnratedRatings,
+        isTrue);
+    expect(settings.copyWith(hideUnratedRatings: false).hideUnratedRatings,
+        isFalse);
+    await repository.saveHideUnratedRatings(false);
+    expect(
+        (await repository.loadViewPreferences()).hideUnratedRatings, isFalse);
+    expect(
+        (await repository.loadViewPreferences()).showThumbnailRatings, isFalse);
+  });
+
   test('thumbnail rating visibility defaults on and persists both states',
       () async {
     SharedPreferences.setMockInitialValues({});

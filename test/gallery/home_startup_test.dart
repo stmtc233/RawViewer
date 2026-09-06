@@ -26,6 +26,11 @@ void main() {
     expect(
         tester
             .widget<RatingFilterButton>(find.byType(RatingFilterButton))
+            .hideUnratedRatings,
+        isTrue);
+    expect(
+        tester
+            .widget<RatingFilterButton>(find.byType(RatingFilterButton))
             .showRatings,
         isTrue);
     await tester.tap(find.byTooltip('Filter by rating'));
@@ -39,8 +44,21 @@ void main() {
             .widget<RatingFilterButton>(find.byType(RatingFilterButton))
             .selected,
         RatingFilter.three.toggle(RatingFilter.five));
-    expect(find.byType(CheckboxListTile), findsNWidgets(8));
-    await tester.tap(find.text('Thumbnail ratings'));
+    expect(find.byType(CheckboxListTile), findsNWidgets(9));
+    expect(tester.getRect(find.text('Hide unrated')).top,
+        greaterThan(tester.getRect(find.text('Show ratings')).bottom));
+    await tester.tap(find.text('Hide unrated'));
+    await tester.pumpAndSettle();
+    expect(
+        tester
+            .widget<RatingFilterButton>(find.byType(RatingFilterButton))
+            .hideUnratedRatings,
+        isFalse);
+    expect(
+        (await const PreferencesRepository().loadViewPreferences())
+            .hideUnratedRatings,
+        isFalse);
+    await tester.tap(find.text('Show ratings'));
     await tester.pumpAndSettle();
     expect(
         tester
@@ -53,6 +71,11 @@ void main() {
         isFalse);
     await tester.pumpWidget(const SizedBox.shrink());
     await open();
+    expect(
+        tester
+            .widget<RatingFilterButton>(find.byType(RatingFilterButton))
+            .hideUnratedRatings,
+        isFalse);
     expect(
         tester
             .widget<RatingFilterButton>(find.byType(RatingFilterButton))

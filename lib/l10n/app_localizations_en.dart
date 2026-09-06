@@ -15,6 +15,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exifRating => 'Rating';
 
   @override
+  String get exifRatingSave => 'Save rating';
+
+  @override
+  String get exifRatingSaveFailed => 'Could not save the rating to XMP. Please try again.';
+
+  @override
+  String get exifXmpReadFailed => 'Could not read the XMP sidecar. Its contents have been preserved.';
+
+  @override
   String get ratingFilterTooltip => 'Filter by rating';
 
   @override
@@ -32,7 +41,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get previewRatingsTitle => 'Thumbnail ratings';
+  String get previewRatingsTitle => 'Show ratings';
+
+  @override
+  String get hideUnratedRatingsTitle => 'Hide unrated';
 
   @override
   String get exifRatingUnrated => 'Unrated';

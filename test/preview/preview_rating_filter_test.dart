@@ -37,6 +37,7 @@ void main() {
       addTearDown(cache.clear);
       final filters = <RatingFilter>[];
       final visibility = <bool>[];
+      final hideUnrated = <bool>[];
       final filmstripVisibility = <bool>[];
       await tester.pumpWidget(MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -53,11 +54,12 @@ void main() {
           ratingRepository: RatingRepository(exifRepository: _Exif()),
           onRatingFilterChanged: filters.add,
           onThumbnailRatingsVisibilityChanged: visibility.add,
+          onHideUnratedRatingsChanged: hideUnrated.add,
           onPreviewFilmstripVisibilityChanged: filmstripVisibility.add,
           thumbnailResizeWidth: 256,
           imageStore: ImageStore(cache),
           timestampRepository: TimestampRepository(),
-          initialSettings: const ViewerSettings(),
+          initialSettings: const ViewerSettings(hideUnratedRatings: true),
           onClose: () {},
           onRawViewModeChanged: (_) {},
           onPreviewFilmstripHeightChanged: (_) {},
@@ -65,6 +67,7 @@ void main() {
       ));
       await tester.pumpAndSettle();
       PreviewFilmstrip strip() => tester.widget(find.byType(PreviewFilmstrip));
+      expect(strip().hideUnratedRatings, isTrue);
       expect(strip().mediaGroups.map((g) => g.primary.path),
           ['/three.jpg', '/three-b.jpg']);
       expect(strip().currentIndex, 1);
@@ -90,7 +93,7 @@ void main() {
       Future<void> choose(String label) async {
         await tester.tap(find.text(label));
         await tester.pumpAndSettle();
-        expect(find.byType(CheckboxListTile), findsNWidgets(8));
+        expect(find.byType(CheckboxListTile), findsNWidgets(9));
         expect(tester.takeException(), isNull);
       }
 
@@ -123,11 +126,27 @@ void main() {
       expect(strip().currentIndex, 1);
       expect(find.text('five.jpg'), findsOneWidget);
 
-      await choose('Thumbnail ratings');
+      await choose('Hide unrated');
+      expect(strip().hideUnratedRatings, isFalse);
+      expect(
+          tester
+              .widgetList<RatingBadge>(find.byType(RatingBadge))
+              .every((badge) => !badge.hideUnratedRatings),
+          isTrue);
+      await choose('Hide unrated');
+      expect(strip().hideUnratedRatings, isTrue);
+      expect(
+          tester
+              .widgetList<RatingBadge>(find.byType(RatingBadge))
+              .every((badge) => badge.hideUnratedRatings),
+          isTrue);
+      expect(hideUnrated, [false, true]);
+      expect(strip().mediaGroups, hasLength(3));
+      await choose('Show ratings');
       expect(strip().showRatings, isFalse);
       expect(find.byType(RatingBadge), findsNothing);
       expect(visibility, [false]);
-      await choose('Thumbnail ratings');
+      await choose('Show ratings');
       expect(strip().showRatings, isTrue);
       expect(find.byType(RatingBadge), findsWidgets);
       expect(visibility, [false, true]);

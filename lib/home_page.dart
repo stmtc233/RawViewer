@@ -104,6 +104,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _ratingFilter.dispose();
+    _ratingRepository.dispose();
     _gridZoomResetTimer?.cancel();
     super.dispose();
   }
@@ -133,6 +134,7 @@ class _HomePageState extends State<HomePage> {
         previewFilmstripHeight: stored.previewFilmstripHeight,
         showPreviewFilmstrip: stored.showPreviewFilmstrip,
         showThumbnailRatings: stored.showThumbnailRatings,
+        hideUnratedRatings: stored.hideUnratedRatings,
         showPreviewOverview: stored.showPreviewOverview,
         exifSidebar: stored.exifSidebar,
         rawViewMode: stored.rawViewMode,
@@ -289,6 +291,8 @@ class _HomePageState extends State<HomePage> {
         _settings.showPreviewFilmstrip != settings.showPreviewFilmstrip;
     final showThumbnailRatingsChanged =
         _settings.showThumbnailRatings != settings.showThumbnailRatings;
+    final hideUnratedRatingsChanged =
+        _settings.hideUnratedRatings != settings.hideUnratedRatings;
     final showPreviewOverviewChanged =
         _settings.showPreviewOverview != settings.showPreviewOverview;
     final exifSidebarChanged = _settings.exifSidebar != settings.exifSidebar;
@@ -351,6 +355,10 @@ class _HomePageState extends State<HomePage> {
     if (showThumbnailRatingsChanged) {
       unawaited(const PreferencesRepository()
           .saveShowThumbnailRatings(settings.showThumbnailRatings));
+    }
+    if (hideUnratedRatingsChanged) {
+      unawaited(const PreferencesRepository()
+          .saveHideUnratedRatings(settings.hideUnratedRatings));
     }
     if (showPreviewOverviewChanged) {
       unawaited(_persistShowPreviewOverview(settings.showPreviewOverview));
@@ -961,6 +969,9 @@ class _HomePageState extends State<HomePage> {
               onThumbnailRatingsVisibilityChanged: (show) => _updateSettings(
                 _settings.copyWith(showThumbnailRatings: show),
               ),
+              onHideUnratedRatingsChanged: (hide) => _updateSettings(
+                _settings.copyWith(hideUnratedRatings: hide),
+              ),
               initialSettings: _settings,
               onLoadDirectory:
                   deferDirectoryLoad ? _loadDeferredDirectoryForPreview : null,
@@ -1328,6 +1339,10 @@ class _HomePageState extends State<HomePage> {
               selectedMediaFilter: _mediaFilter,
               selectedRatingFilter: _ratingFilter.selected,
               showRatings: _settings.showThumbnailRatings,
+              hideUnratedRatings: _settings.hideUnratedRatings,
+              onHideUnratedRatingsChanged: (hide) => _updateSettings(
+                _settings.copyWith(hideUnratedRatings: hide),
+              ),
               onRatingFilterSelected: (filter) =>
                   _ratingFilter.update(filter: filter),
               onShowRatingsChanged: (show) => _updateSettings(

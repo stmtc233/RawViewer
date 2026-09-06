@@ -42,6 +42,7 @@ class ImagePreviewPage extends StatefulWidget {
   final RatingFilter initialRatingFilter;
   final ValueChanged<RatingFilter>? onRatingFilterChanged;
   final ValueChanged<bool>? onThumbnailRatingsVisibilityChanged;
+  final ValueChanged<bool>? onHideUnratedRatingsChanged;
 
   /// Settings as they were when this route was pushed — a snapshot, not a
   /// live view.
@@ -76,6 +77,7 @@ class ImagePreviewPage extends StatefulWidget {
     this.initialRatingFilter = RatingFilter.all,
     this.onRatingFilterChanged,
     this.onThumbnailRatingsVisibilityChanged,
+    this.onHideUnratedRatingsChanged,
     required this.initialSettings,
     required this.onClose,
     this.onLoadDirectory,
@@ -102,6 +104,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   late final RatingRepository _ratingRepository;
   late final RatingFilterController _ratingFilter;
   late bool _showThumbnailRatings;
+  late bool _hideUnratedRatings;
   String? _preferredRatingPath;
   late bool _showPreviewFilmstrip;
   late double _previewFilmstripHeight;
@@ -149,6 +152,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     _ratingRepository = widget.ratingRepository ?? RatingRepository();
     _exifRepository = _ratingRepository.exifRepository;
     _showThumbnailRatings = widget.initialSettings.showThumbnailRatings;
+    _hideUnratedRatings = widget.initialSettings.hideUnratedRatings;
     _ratingFilter = RatingFilterController(_ratingRepository)
       ..update(groups: _mediaGroups, filter: widget.initialRatingFilter)
       ..addListener(_onRatingResults);
@@ -221,6 +225,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   @override
   void dispose() {
     _ratingFilter.dispose();
+    if (widget.ratingRepository == null) _ratingRepository.dispose();
     _scrollStopTimer?.cancel();
     _trackpadPageDrag?.cancel();
     _trackpadVelocityTracker = null;
@@ -287,6 +292,11 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
           widget.onRatingFilterChanged?.call(filter);
         },
         showRatings: _showThumbnailRatings,
+        hideUnratedRatings: _hideUnratedRatings,
+        onHideUnratedRatingsChanged: (hide) {
+          setState(() => _hideUnratedRatings = hide);
+          widget.onHideUnratedRatingsChanged?.call(hide);
+        },
         onShowRatingsChanged: (show) {
           setState(() => _showThumbnailRatings = show);
           widget.onThumbnailRatingsVisibilityChanged?.call(show);
@@ -1057,6 +1067,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                               controls: _buildFilmstripControls(),
                               ratingRepository: _ratingRepository,
                               showRatings: _showThumbnailRatings,
+                              hideUnratedRatings: _hideUnratedRatings,
                               mediaGroups: _mediaGroups,
                               currentIndex: _currentIndex,
                               imageStore: widget.imageStore,

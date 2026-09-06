@@ -107,6 +107,24 @@ abstract class AppLocalizations {
   /// **'Rating'**
   String get exifRating;
 
+  /// No description provided for @exifRatingSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save rating'**
+  String get exifRatingSave;
+
+  /// No description provided for @exifRatingSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the rating to XMP. Please try again.'**
+  String get exifRatingSaveFailed;
+
+  /// No description provided for @exifXmpReadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read the XMP sidecar. Its contents have been preserved.'**
+  String get exifXmpReadFailed;
+
   /// No description provided for @ratingFilterTooltip.
   ///
   /// In en, this message translates to:
@@ -128,8 +146,14 @@ abstract class AppLocalizations {
   /// No description provided for @previewRatingsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Thumbnail ratings'**
+  /// **'Show ratings'**
   String get previewRatingsTitle;
+
+  /// No description provided for @hideUnratedRatingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide unrated'**
+  String get hideUnratedRatingsTitle;
 
   /// No description provided for @exifRatingUnrated.
   ///

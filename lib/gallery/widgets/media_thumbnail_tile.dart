@@ -224,6 +224,7 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
                       child: RatingBadge(
                         filePath: widget.filePath,
                         repository: widget.ratingRepository!,
+                        hideUnratedRatings: widget.settings.hideUnratedRatings,
                       ),
                     ),
                   ),

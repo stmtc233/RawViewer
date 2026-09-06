@@ -2,6 +2,9 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:exif/exif.dart';
+import 'package:flutter/foundation.dart';
+
+import 'xmp_sidecar.dart';
 
 int? parseExifRating(String? value) {
   final rating = int.tryParse(value?.trim() ?? '');
@@ -14,6 +17,7 @@ class ExifMetadata {
   final Map<String, String> tags;
   final Map<String, double> numericValues;
   final bool readFailed;
+  final bool xmpReadFailed;
 
   const ExifMetadata({
     this.fileSize,
@@ -21,12 +25,36 @@ class ExifMetadata {
     this.tags = const {},
     this.numericValues = const {},
     this.readFailed = false,
+    this.xmpReadFailed = false,
   });
 }
 
-class ExifRepository {
+class ExifRepository extends ChangeNotifier {
   final _cache = <String, Future<ExifMetadata>>{};
   Future<void> _pending = Future<void>.value();
+  bool _disposed = false;
+  String? _lastRatingSavedPath;
+  String? get lastRatingSavedPath => _lastRatingSavedPath;
+
+  Future<void> saveRating(String filePath, int rating) async {
+    if (rating < 0 || rating > 5) {
+      throw RangeError.range(rating, 0, 5, 'rating');
+    }
+    final future = _pending
+        .then((_) => Isolate.run(() => writeXmpRating(filePath, rating)));
+    _pending = future.then<void>((_) {}, onError: (Object _, StackTrace __) {});
+    await future;
+    // Same-stem RAW and JPEG files can share one sidecar.
+    _cache.removeWhere((path, _) => sharesXmpSidecar(path, filePath));
+    _lastRatingSavedPath = filePath;
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
 
   Future<ExifMetadata> load(String filePath) {
     final cached = _cache.remove(filePath);
@@ -47,6 +75,33 @@ class ExifRepository {
 }
 
 Future<ExifMetadata> _readExif(String filePath) async {
+  final metadata = await _readEmbeddedExif(filePath);
+  try {
+    final xmp = await readXmpSidecar(filePath);
+    return ExifMetadata(
+      fileSize: metadata.fileSize,
+      modifiedAt: metadata.modifiedAt,
+      tags: Map.unmodifiable({...metadata.tags, ...xmp}),
+      numericValues: Map.unmodifiable({
+        ...metadata.numericValues,
+        if (double.tryParse(xmp['Image Rating'] ?? '') case final double rating)
+          'Image Rating': rating,
+      }),
+      readFailed: metadata.readFailed,
+    );
+  } catch (_) {
+    return ExifMetadata(
+      fileSize: metadata.fileSize,
+      modifiedAt: metadata.modifiedAt,
+      tags: metadata.tags,
+      numericValues: metadata.numericValues,
+      readFailed: metadata.readFailed,
+      xmpReadFailed: true,
+    );
+  }
+}
+
+Future<ExifMetadata> _readEmbeddedExif(String filePath) async {
   int? fileSize;
   DateTime? modifiedAt;
   try {
