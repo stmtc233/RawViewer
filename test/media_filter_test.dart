@@ -52,7 +52,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byIcon(Icons.filter_alt));
+    await tester.tap(find.byIcon(Icons.filter_alt_outlined));
     await tester.pumpAndSettle();
 
     expect(find.text('Adaptive (4)'), findsOneWidget);
@@ -68,6 +68,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(selectedFilter, MediaFilter.raw);
-    expect(find.byIcon(Icons.filter_alt), findsOneWidget);
+    expect(find.byIcon(Icons.filter_alt_outlined), findsOneWidget);
   });
 }

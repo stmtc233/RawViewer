@@ -72,11 +72,8 @@ class MediaFilterButton extends StatelessWidget {
           label: l10n.mediaFilterImages(imageCount),
         ),
       ],
-      child: DesktopPopupMenuTrigger(
-        icon: selectedFilter == MediaFilter.all
-            ? Icons.filter_alt_outlined
-            : Icons.filter_alt,
-        selected: selectedFilter != MediaFilter.all,
+      child: const DesktopPopupMenuTrigger(
+        icon: Icons.filter_alt_outlined,
       ),
     );
   }

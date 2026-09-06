@@ -1051,62 +1051,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                                 ),
                               ),
                               const SizedBox(width: 4),
-                              DesktopIconButton(
-                                icon: Icons.info_outline,
-                                tooltip: _exifSidebar.visible
-                                    ? l10n.hideExifTooltip
-                                    : l10n.showExifTooltip,
-                                selected: _exifSidebar.visible,
-                                onPressed: () => _updateExifSidebar(
-                                  _exifSidebar.copyWith(
-                                      visible: !_exifSidebar.visible),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              DesktopPopupMenuButton<PreviewDisplayControl>(
-                                tooltip: l10n.previewDisplayControlsTooltip,
-                                onSelected: (control) {
-                                  setState(() {
-                                    switch (control) {
-                                      case PreviewDisplayControl.filmstrip:
-                                        _showPreviewFilmstrip =
-                                            !_showPreviewFilmstrip;
-                                        widget
-                                            .onPreviewFilmstripVisibilityChanged
-                                            ?.call(_showPreviewFilmstrip);
-                                        break;
-                                      case PreviewDisplayControl.overview:
-                                        _showPreviewOverview =
-                                            !_showPreviewOverview;
-                                        widget
-                                            .onPreviewOverviewVisibilityChanged
-                                            ?.call(_showPreviewOverview);
-                                        break;
-                                    }
-                                  });
-                                },
-                                itemBuilder: (context) => [
-                                  desktopPopupMenuItem(
-                                    value: PreviewDisplayControl.filmstrip,
-                                    icon: Icons.view_carousel_outlined,
-                                    selected: _showPreviewFilmstrip,
-                                    label: l10n.previewFilmstripTitle,
-                                  ),
-                                  desktopPopupMenuItem(
-                                    value: PreviewDisplayControl.overview,
-                                    icon: Icons.map_outlined,
-                                    selected: _showPreviewOverview,
-                                    label: l10n.previewOverviewTitle,
-                                  ),
-                                ],
-                                child: DesktopPopupMenuTrigger(
-                                  icon: Icons.tune,
-                                  selected: _showPreviewFilmstrip ||
-                                      _showPreviewOverview,
-                                ),
-                              ),
                               if (currentMediaGroup.isRaw) ...[
-                                const SizedBox(width: 8),
                                 DesktopPopupMenuButton<RawViewMode>(
                                   tooltip: l10n.rawViewModeTooltip,
                                   initialValue: currentViewMode,
@@ -1143,6 +1088,49 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                                   ],
                                 ),
                                 const SizedBox(width: 8),
+                              ],
+                              DesktopPopupMenuButton<PreviewDisplayControl>(
+                                tooltip: l10n.previewDisplayControlsTooltip,
+                                onSelected: (control) {
+                                  setState(() {
+                                    switch (control) {
+                                      case PreviewDisplayControl.filmstrip:
+                                        _showPreviewFilmstrip =
+                                            !_showPreviewFilmstrip;
+                                        widget
+                                            .onPreviewFilmstripVisibilityChanged
+                                            ?.call(_showPreviewFilmstrip);
+                                        break;
+                                      case PreviewDisplayControl.overview:
+                                        _showPreviewOverview =
+                                            !_showPreviewOverview;
+                                        widget
+                                            .onPreviewOverviewVisibilityChanged
+                                            ?.call(_showPreviewOverview);
+                                        break;
+                                    }
+                                  });
+                                },
+                                itemBuilder: (context) => [
+                                  desktopPopupMenuItem(
+                                    value: PreviewDisplayControl.filmstrip,
+                                    icon: Icons.view_carousel_outlined,
+                                    selected: _showPreviewFilmstrip,
+                                    label: l10n.previewFilmstripTitle,
+                                  ),
+                                  desktopPopupMenuItem(
+                                    value: PreviewDisplayControl.overview,
+                                    icon: Icons.map_outlined,
+                                    selected: _showPreviewOverview,
+                                    label: l10n.previewOverviewTitle,
+                                  ),
+                                ],
+                                child: const DesktopPopupMenuTrigger(
+                                  icon: Icons.tune,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              if (currentMediaGroup.isRaw) ...[
                                 DesktopPopupMenuButton<PreviewAction>(
                                   tooltip: l10n.moreActionsTooltip,
                                   enabled: !_isExportingEmbeddedJpeg,
@@ -1170,7 +1158,19 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                                     ),
                                   ],
                                 ),
+                                const SizedBox(width: 8),
                               ],
+                              DesktopIconButton(
+                                icon: Icons.info_outline,
+                                tooltip: _exifSidebar.visible
+                                    ? l10n.hideExifTooltip
+                                    : l10n.showExifTooltip,
+                                selected: _exifSidebar.visible,
+                                onPressed: () => _updateExifSidebar(
+                                  _exifSidebar.copyWith(
+                                      visible: !_exifSidebar.visible),
+                                ),
+                              ),
                             ],
                           ),
                         ),
