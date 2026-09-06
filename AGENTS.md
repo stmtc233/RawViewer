@@ -277,22 +277,75 @@ because it is the only mode available for every RAW file.
 
 ## Development Workflow
 
+Choose validation by the behavior and dependencies affected, not by the number
+of edited lines. These commands are a reference, not a checklist for every task:
+
 ```bash
-flutter pub get
-flutter analyze
-flutter test
-flutter test test/path/to/one_test.dart   # run a single test file
+dart format --output=none --set-exit-if-changed lib/path/to/changed.dart
+dart analyze lib/path/to/changed.dart    # repeat for affected Dart files
+flutter test test/path/to/relevant_test.dart
+flutter analyze                        # full project, when required below
+flutter test                           # full suite, when required below
 ```
 
-When changing platform or native code, build the affected target when the
-toolchain is available:
+Run `flutter pub get` only when dependencies changed or package resolution is
+missing or stale. Format only changed Dart files; avoid unrelated formatting.
+After ARB changes, run `flutter gen-l10n` as described under Localization.
+
+### Validation Scope
+
+| Change | Required validation |
+| --- | --- |
+| Documentation or comments only | Review the diff; no Flutter analysis, tests, or build. |
+| Pure UI presentation: button position, spacing, colors, icons, or copy, with unchanged behavior | Check formatting and analyze changed Dart files. No automated tests or build by default. Regenerate localization bindings when applicable. |
+| Local behavior: callbacks, state transitions, filtering, or a setting | Check formatting, analyze affected Dart files, and run the relevant test files. Add focused coverage for meaningful new behavior or a bug fix when existing tests do not cover it. |
+| Shared behavior or high risk: caching, decoding, concurrency, image ownership, preference migrations, shared API changes, broad refactors, or dependency/toolchain changes | Check formatting, run full `flutter analyze` and `flutter test`, and add focused regression coverage where needed. |
+| Native code or platform integration | Validate affected behavior and build the affected target when its toolchain is available. Also apply the shared/high-risk checks when changing FFI, decoding, shared contracts, or dependencies. |
+
+The user manually checks visual changes and routine interactions. For pure
+presentation changes, leave visual acceptance to that workflow; do not launch
+automated screenshot runs or wait for manual confirmation to finish the edit.
+Manual checking does not replace tests for hidden state, lifecycle, persistence,
+or concurrency failures. A visual request that also changes callbacks, hit
+testing, navigation, or state must use the behavior tier.
+
+Start with the smallest checks that cover the affected behavior. Expand only
+when the change's dependencies, a failure, or an unresolved risk warrants it.
+Do not rerun a passing check unless subsequent edits affect what it verified.
+A commit alone does not require a broader tier. Run full checks when the user
+explicitly requests them or when preparing a release.
+
+For an affected platform, choose the applicable build command:
 
 ```bash
-flutter build android --release
+flutter build apk --release
 flutter build linux  --release
 flutter build macos  --release
 flutter build windows --release
+flutter build ios --release --no-codesign
 ```
+
+### Test Value and Maintenance
+
+- Test observable behavior and failure cases: cache isolation and eviction,
+  ownership, stale async results, persistence, parsing, and meaningful UI actions.
+- Do not add tests solely for moving a button, changing a color, or tuning an
+  animation. Avoid assertions that merely repeat implementation constants such
+  as exact spacing, theme colors, or animation durations, unless the exact value
+  is an explicit compatibility or product requirement. A duration assertion is
+  not a performance test.
+- Keep layout tests that protect usability, such as preventing overflow or
+  keeping controls reachable. Prefer behavioral constraints over exact pixel
+  positions or widget-tree structure.
+- Extend the most relevant test file for the behavior. Do not create a new file
+  for every small change or accumulate unrelated tests in `widget_test.dart`.
+  File count is not a quality target; do not merge files merely to reduce it.
+- When an intentional UI change breaks a brittle presentation assertion, revise
+  or remove that assertion after checking its purpose. Preserve useful behavior
+  coverage; never weaken tests just to make an unexplained failure pass. Leave
+  unrelated test cleanup for a separate task.
+- Read relevant tests and summarize results concisely. On failure, inspect the
+  failing case and useful error context instead of repeatedly dumping full logs.
 
 ## Key Invariants
 
@@ -391,14 +444,17 @@ Always update both `app_en.arb` and `app_zh.arb` for every user-visible string.
 - Treat C and C++ native changes as cross-platform: update every corresponding
   platform implementation together unless a platform has no equivalent
   integration. Document and confirm any intentional exception.
-- Add focused tests for behavior changes. Run `flutter analyze` and
-  `flutter test` before committing.
+- Apply Validation Scope and Test Value and Maintenance above when deciding
+  whether to add tests and which checks to run, including before committing.
 
 ## Completion and Collaboration
 
-- A task is not complete until `flutter analyze` reports no issues and
-  `flutter test` passes. For native or platform changes, also run the relevant
-  platform build when the toolchain is available.
+- A task is complete when the requested change is implemented and the checks
+  required by Validation Scope pass. Full analysis, full tests, and platform
+  builds are not universal completion requirements.
+- In the final response, briefly state what changed and which checks ran. When
+  skipping tests for a low-risk change, say so in one sentence. Report failed or
+  unavailable required checks and their limitations; do not claim they passed.
 - When a requirement, tradeoff, or intended behavior needs confirmation, ask
   before choosing an implementation.
 - When resolving multiple independent problems, keep their changes and git
