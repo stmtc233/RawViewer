@@ -107,6 +107,30 @@ abstract class AppLocalizations {
   /// **'Settings'**
   String get settingsTitle;
 
+  /// No description provided for @settingsCategoryGeneral.
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get settingsCategoryGeneral;
+
+  /// No description provided for @settingsCategoryAppearance.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get settingsCategoryAppearance;
+
+  /// No description provided for @settingsCategoryPerformance.
+  ///
+  /// In en, this message translates to:
+  /// **'Performance'**
+  String get settingsCategoryPerformance;
+
+  /// No description provided for @settingsCategoryIntegration.
+  ///
+  /// In en, this message translates to:
+  /// **'System Integration'**
+  String get settingsCategoryIntegration;
+
   /// No description provided for @gridAspectRatioSectionTitle.
   ///
   /// In en, this message translates to:

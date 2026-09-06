@@ -15,6 +15,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsTitle => '设置';
 
   @override
+  String get settingsCategoryGeneral => '通用';
+
+  @override
+  String get settingsCategoryAppearance => '外观';
+
+  @override
+  String get settingsCategoryPerformance => '性能';
+
+  @override
+  String get settingsCategoryIntegration => '系统集成';
+
+  @override
   String get gridAspectRatioSectionTitle => '预览网格比例';
 
   @override

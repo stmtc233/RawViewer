@@ -26,6 +26,31 @@ import 'package:rawviewer/settings_page.dart';
 import 'package:rawviewer/ui/app_theme.dart';
 import 'package:rawviewer/viewer_image.dart';
 
+/// The scrolling content list for one settings category.
+///
+/// Needed because the narrow layout also mounts a horizontally scrolling tab
+/// bar, so `find.byType(Scrollable).first` would scroll the wrong thing.
+Finder settingsCategoryList(SettingsCategory category) {
+  return find.byKey(PageStorageKey<String>('settings-category-${category.name}'));
+}
+
+/// Opens one settings category.
+///
+/// The page shows a rail on wide viewports and a scrollable tab bar on narrow
+/// ones, so both keys are tried; only one is mounted at a time.
+Future<void> openSettingsCategory(
+  WidgetTester tester,
+  SettingsCategory category,
+) async {
+  final tile = find.byKey(ValueKey('settings-category-tile-${category.name}'));
+  final tab = find.byKey(ValueKey('settings-category-tab-${category.name}'));
+  final target = tester.any(tile) ? tile : tab;
+  await tester.ensureVisible(target);
+  await tester.pumpAndSettle();
+  await tester.tap(target);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   group('bucketDecodeWidth', () {
     test('snaps up to the next bucket', () {
@@ -603,6 +628,9 @@ void main() {
           ),
         ));
         await tester.pumpAndSettle();
+        // 360px is below the rail breakpoint, so the categories render as a
+        // scrollable tab bar; the opacity sliders live under Appearance.
+        await openSettingsCategory(tester, SettingsCategory.appearance);
         final l10n = AppLocalizations.of(
           tester.element(find.byType(SettingsPage)),
         )!;
@@ -612,7 +640,14 @@ void main() {
           ('preview-overlay-opacity', l10n.previewOverlayOpacityTitle, 0.5),
         ]) {
           final row = find.byKey(ValueKey(key));
-          await tester.scrollUntilVisible(row, 200);
+          await tester.scrollUntilVisible(
+            row,
+            200,
+            scrollable: find.descendant(
+              of: settingsCategoryList(SettingsCategory.appearance),
+              matching: find.byType(Scrollable),
+            ),
+          );
           await tester.pumpAndSettle();
           final slider =
               find.descendant(of: row, matching: find.byType(Slider));
@@ -659,7 +694,13 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final settingsList = find.byType(Scrollable).first;
+      // Grid ratio, page-switch animation and the opacity sliders all live
+      // under Appearance, so one category switch covers this whole test.
+      await openSettingsCategory(tester, SettingsCategory.appearance);
+      final settingsList = find.descendant(
+        of: settingsCategoryList(SettingsCategory.appearance),
+        matching: find.byType(Scrollable),
+      );
       final wideGrid = find.byKey(const ValueKey('grid-aspect-ratio16x9'));
       await tester.scrollUntilVisible(
         wideGrid,
@@ -783,7 +824,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final settingsList = find.byType(Scrollable).first;
+      await openSettingsCategory(tester, SettingsCategory.integration);
+      final settingsList = find.descendant(
+        of: settingsCategoryList(SettingsCategory.integration),
+        matching: find.byType(Scrollable),
+      );
       final actions = find.byKey(const ValueKey('file-association-actions'));
       await tester.scrollUntilVisible(actions, 300, scrollable: settingsList);
       await tester.pumpAndSettle();

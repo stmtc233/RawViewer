@@ -9,6 +9,40 @@ import 'l10n/app_localizations.dart';
 import 'ui/app_theme.dart';
 import 'ui/desktop_controls.dart';
 
+/// Width below which the category rail folds into a scrollable top tab bar.
+const double kSettingsRailBreakpoint = 560;
+
+/// The settings page's top-level categories, in display order.
+enum SettingsCategory { general, appearance, performance, integration }
+
+extension SettingsCategoryPresentation on SettingsCategory {
+  IconData get icon {
+    switch (this) {
+      case SettingsCategory.general:
+        return Icons.tune;
+      case SettingsCategory.appearance:
+        return Icons.palette_outlined;
+      case SettingsCategory.performance:
+        return Icons.speed_outlined;
+      case SettingsCategory.integration:
+        return Icons.desktop_windows_outlined;
+    }
+  }
+
+  String label(AppLocalizations l10n) {
+    switch (this) {
+      case SettingsCategory.general:
+        return l10n.settingsCategoryGeneral;
+      case SettingsCategory.appearance:
+        return l10n.settingsCategoryAppearance;
+      case SettingsCategory.performance:
+        return l10n.settingsCategoryPerformance;
+      case SettingsCategory.integration:
+        return l10n.settingsCategoryIntegration;
+    }
+  }
+}
+
 enum TimeDisplaySource { capturedAt, modifiedAt }
 
 enum AppLanguage { system, zhHans, english }
@@ -252,6 +286,7 @@ class _SettingsPageState extends State<SettingsPage>
   late ViewerSettings _currentSettings;
   bool _isUpdatingWindowsContextMenu = false;
   bool _isUpdatingFileAssociations = false;
+  SettingsCategory _selectedCategory = SettingsCategory.general;
 
   String _languageLabel(AppLanguage language, AppLocalizations l10n) {
     switch (language) {
@@ -537,9 +572,384 @@ class _SettingsPageState extends State<SettingsPage>
     );
   }
 
+  /// Categories to show, in order. The integration category is dropped
+  /// entirely on platforms that expose neither shell hook, rather than
+  /// offering a category that opens onto nothing.
+  List<SettingsCategory> get _visibleCategories {
+    final hasIntegration =
+        _showWindowsContextMenuSection || _showFileAssociationSection;
+    return [
+      for (final category in SettingsCategory.values)
+        if (category != SettingsCategory.integration || hasIntegration)
+          category,
+    ];
+  }
+
+  List<Widget> _categorySections(
+    SettingsCategory category,
+    AppLocalizations l10n,
+  ) {
+    switch (category) {
+      case SettingsCategory.general:
+        return _buildGeneralSections(l10n);
+      case SettingsCategory.appearance:
+        return _buildAppearanceSections(l10n);
+      case SettingsCategory.performance:
+        return _buildPerformanceSections(l10n);
+      case SettingsCategory.integration:
+        return _buildIntegrationSections(l10n);
+    }
+  }
+
+  List<Widget> _buildGeneralSections(AppLocalizations l10n) {
+    return [
+      DesktopSettingsSection(
+        title: l10n.languageSectionTitle,
+        children: _withDividers(
+          AppLanguage.values
+              .map(
+                (language) => DesktopSettingsOption(
+                  title: _languageLabel(language, l10n),
+                  selected: _currentSettings.appLanguage == language,
+                  onTap: () => _updateSettings(
+                    _currentSettings.copyWith(appLanguage: language),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+      ),
+      DesktopSettingsSection(
+        title: l10n.timeDisplaySectionTitle,
+        children: _withDividers([
+          DesktopSettingsOption(
+            title: l10n.captureTimeTitle,
+            subtitle: l10n.captureTimeSubtitle,
+            selected:
+                _currentSettings.timeDisplaySource == TimeDisplaySource.capturedAt,
+            onTap: () => _updateSettings(
+              _currentSettings.copyWith(
+                timeDisplaySource: TimeDisplaySource.capturedAt,
+              ),
+            ),
+          ),
+          DesktopSettingsOption(
+            title: l10n.fileModifiedTimeTitle,
+            subtitle: l10n.fileModifiedTimeSubtitle,
+            selected:
+                _currentSettings.timeDisplaySource == TimeDisplaySource.modifiedAt,
+            onTap: () => _updateSettings(
+              _currentSettings.copyWith(
+                timeDisplaySource: TimeDisplaySource.modifiedAt,
+              ),
+            ),
+          ),
+        ]),
+      ),
+    ];
+  }
+
+  List<Widget> _buildAppearanceSections(AppLocalizations l10n) {
+    return [
+      DesktopSettingsSection(
+        title: l10n.gridAspectRatioSectionTitle,
+        children: _withDividers(
+          GridAspectRatio.values
+              .map(
+                (ratio) => DesktopSettingsOption(
+                  key: ValueKey('grid-aspect-${ratio.name}'),
+                  title: ratio.isAdaptive
+                      ? l10n.gridAspectRatioAdaptive
+                      : ratio.label,
+                  selected: _currentSettings.gridAspectRatio == ratio,
+                  onTap: () => _updateSettings(
+                    _currentSettings.copyWith(gridAspectRatio: ratio),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+      ),
+      DesktopSettingsSection(
+        title: l10n.navigationSectionTitle,
+        children: [
+          DesktopSettingsRow(
+            key: const ValueKey('page-switch-animation'),
+            title: l10n.pageSwitchAnimationTitle,
+            subtitle: l10n.pageSwitchAnimationSubtitle,
+            control: Switch(
+              value: _currentSettings.pageSwitchAnimationEnabled,
+              onChanged: (value) => _updateSettings(
+                _currentSettings.copyWith(pageSwitchAnimationEnabled: value),
+              ),
+            ),
+          ),
+        ],
+      ),
+      DesktopSettingsSection(
+        title: l10n.imagePreviewSectionTitle,
+        children: _withDividers([
+          _buildOpacityRow(
+            key: 'preview-toolbar-opacity',
+            title: l10n.previewToolbarOpacityTitle,
+            value: _currentSettings.previewToolbarOpacity,
+            onChanged: (value) => _updateSettings(
+              _currentSettings.copyWith(previewToolbarOpacity: value),
+            ),
+          ),
+          _buildOpacityRow(
+            key: 'preview-filmstrip-opacity',
+            title: l10n.previewFilmstripOpacityTitle,
+            value: _currentSettings.previewFilmstripOpacity,
+            onChanged: (value) => _updateSettings(
+              _currentSettings.copyWith(previewFilmstripOpacity: value),
+            ),
+          ),
+          _buildOpacityRow(
+            key: 'preview-overlay-opacity',
+            title: l10n.previewOverlayOpacityTitle,
+            subtitle: l10n.previewOverlayOpacitySubtitle,
+            value: _currentSettings.previewOverlayOpacity,
+            onChanged: (value) => _updateSettings(
+              _currentSettings.copyWith(previewOverlayOpacity: value),
+            ),
+          ),
+        ]),
+      ),
+    ];
+  }
+
+  List<Widget> _buildPerformanceSections(AppLocalizations l10n) {
+    return [
+      DesktopSettingsSection(
+        title: l10n.rawProcessingSectionTitle,
+        children: [
+          DesktopSettingsRow(
+            title: l10n.halfSizeRawDecodeTitle,
+            subtitle: l10n.halfSizeRawDecodeSubtitle,
+            control: Switch(
+              value: _currentSettings.useHalfSizeRawDecode,
+              onChanged: (value) => _updateSettings(
+                _currentSettings.copyWith(useHalfSizeRawDecode: value),
+              ),
+            ),
+          ),
+        ],
+      ),
+      DesktopSettingsSection(
+        title: l10n.cacheSectionTitle,
+        children: [
+          DesktopSettingsRow(
+            title: l10n.maxCacheSizeTitle,
+            control: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: RawViewerColors.canvas,
+                border: Border.all(color: RawViewerColors.border),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                l10n.cacheSizeMb(_currentSettings.maxCacheSize),
+                style: const TextStyle(
+                  color: RawViewerColors.text,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+            child: Slider(
+              value: _currentSettings.maxCacheSize.toDouble(),
+              min: 64,
+              max: 4096,
+              divisions: (4096 - 64) ~/ 64,
+              label: l10n.cacheSizeMb(_currentSettings.maxCacheSize),
+              onChanged: (value) => _updateSettings(
+                _currentSettings.copyWith(maxCacheSize: value.toInt()),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ];
+  }
+
+  List<Widget> _buildIntegrationSections(AppLocalizations l10n) {
+    return [
+      if (_showWindowsContextMenuSection)
+        DesktopSettingsSection(
+          title: l10n.windowsExplorerSectionTitle,
+          children: _withDividers([
+            DesktopSettingsRow(
+              title: l10n.windowsContextMenuToggleTitle,
+              subtitle: _currentSettings.windowsContextMenu.enabled
+                  ? l10n.windowsContextMenuEnabledSubtitle
+                  : l10n.windowsContextMenuDisabledSubtitle,
+              control: _isUpdatingWindowsContextMenu
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Switch(
+                      value: _currentSettings.windowsContextMenu.enabled,
+                      onChanged: _handleWindowsContextMenuChanged,
+                    ),
+            ),
+            DesktopSettingsRow(
+              title: l10n.installScopeTitle,
+              control: Text(
+                _currentSettings.windowsContextMenu.enabled
+                    ? l10n.installScopeCurrentUser
+                    : l10n.installScopeNotInstalled,
+                style: const TextStyle(
+                  color: RawViewerColors.mutedText,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ]),
+        ),
+      if (_showFileAssociationSection)
+        DesktopSettingsSection(
+          title: l10n.fileAssociationsSectionTitle,
+          children: _withDividers([
+            _buildFileAssociationActions(l10n),
+            for (final extension in supportedExtensions)
+              DesktopSettingsRow(
+                key: ValueKey('file-association-$extension'),
+                title: extension.substring(1).toUpperCase(),
+                subtitle: l10n.fileAssociationFormatSubtitle(
+                  extension.substring(1).toUpperCase(),
+                ),
+                control:
+                    _currentSettings.fileAssociations.requiresSystemSettings
+                        ? Tooltip(
+                            message: _currentSettings.fileAssociations
+                                    .isBound(extension)
+                                ? l10n.fileAssociationDefault
+                                : l10n.fileAssociationNotDefault,
+                            child: Icon(
+                              _currentSettings.fileAssociations
+                                      .isBound(extension)
+                                  ? Icons.check_circle_outline
+                                  : Icons.radio_button_unchecked,
+                              size: 20,
+                            ),
+                          )
+                        : _isUpdatingFileAssociations
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Switch(
+                                value: _currentSettings.fileAssociations
+                                    .isBound(extension),
+                                onChanged: (value) =>
+                                    _handleFileAssociationChanged(
+                                  extension,
+                                  value,
+                                ),
+                              ),
+              ),
+          ]),
+        ),
+    ];
+  }
+
+  Widget _buildCategoryContent(
+    SettingsCategory category,
+    AppLocalizations l10n,
+  ) {
+    return ListView(
+      key: PageStorageKey<String>('settings-category-${category.name}'),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+      children: _categorySections(category, l10n),
+    );
+  }
+
+  Widget _buildRail(
+    List<SettingsCategory> categories,
+    AppLocalizations l10n,
+  ) {
+    return Container(
+      width: 176,
+      decoration: const BoxDecoration(
+        color: RawViewerColors.surface,
+        border: Border(right: BorderSide(color: RawViewerColors.mutedBorder)),
+      ),
+      child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        children: [
+          for (final category in categories)
+            _SettingsCategoryTile(
+              key: ValueKey('settings-category-tile-${category.name}'),
+              category: category,
+              label: category.label(l10n),
+              selected: _selectedCategory == category,
+              onTap: () => setState(() => _selectedCategory = category),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabBar(
+    List<SettingsCategory> categories,
+    AppLocalizations l10n,
+  ) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: RawViewerColors.surface,
+        border: Border(bottom: BorderSide(color: RawViewerColors.mutedBorder)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: Row(
+          children: [
+            for (final category in categories)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: _SettingsCategoryTile(
+                  key: ValueKey('settings-category-tab-${category.name}'),
+                  category: category,
+                  label: category.label(l10n),
+                  selected: _selectedCategory == category,
+                  compact: true,
+                  onTap: () => setState(() => _selectedCategory = category),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final categories = _visibleCategories;
+    // A category can disappear when a platform hook goes away mid-session.
+    final selected = categories.contains(_selectedCategory)
+        ? _selectedCategory
+        : categories.first;
+    final selectedIndex = categories.indexOf(selected);
+
+    // IndexedStack keeps every category's scroll offset and slider state alive,
+    // so switching back lands where the user left off.
+    final content = IndexedStack(
+      index: selectedIndex,
+      sizing: StackFit.expand,
+      children: [
+        for (final category in categories)
+          _buildCategoryContent(category, l10n),
+      ],
+    );
 
     return Scaffold(
       body: Column(
@@ -571,267 +981,97 @@ class _SettingsPageState extends State<SettingsPage>
             ),
           ),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-              children: [
-                DesktopSettingsSection(
-                  title: l10n.languageSectionTitle,
-                  children: _withDividers(
-                    AppLanguage.values
-                        .map(
-                          (language) => DesktopSettingsOption(
-                            title: _languageLabel(language, l10n),
-                            selected: _currentSettings.appLanguage == language,
-                            onTap: () => _updateSettings(
-                              _currentSettings.copyWith(appLanguage: language),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ),
-                DesktopSettingsSection(
-                  title: l10n.gridAspectRatioSectionTitle,
-                  children: _withDividers(
-                    GridAspectRatio.values
-                        .map(
-                          (ratio) => DesktopSettingsOption(
-                            key: ValueKey('grid-aspect-${ratio.name}'),
-                            title: ratio.isAdaptive
-                                ? l10n.gridAspectRatioAdaptive
-                                : ratio.label,
-                            selected: _currentSettings.gridAspectRatio == ratio,
-                            onTap: () => _updateSettings(
-                              _currentSettings.copyWith(
-                                gridAspectRatio: ratio,
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ),
-                DesktopSettingsSection(
-                  title: l10n.navigationSectionTitle,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < kSettingsRailBreakpoint) {
+                  return Column(
+                    children: [
+                      _buildTabBar(categories, l10n),
+                      Expanded(child: content),
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    DesktopSettingsRow(
-                      key: const ValueKey('page-switch-animation'),
-                      title: l10n.pageSwitchAnimationTitle,
-                      subtitle: l10n.pageSwitchAnimationSubtitle,
-                      control: Switch(
-                        value: _currentSettings.pageSwitchAnimationEnabled,
-                        onChanged: (value) => _updateSettings(
-                          _currentSettings.copyWith(
-                            pageSwitchAnimationEnabled: value,
-                          ),
-                        ),
-                      ),
-                    ),
+                    _buildRail(categories, l10n),
+                    Expanded(child: content),
                   ],
-                ),
-                DesktopSettingsSection(
-                  title: l10n.imagePreviewSectionTitle,
-                  children: _withDividers([
-                    _buildOpacityRow(
-                      key: 'preview-toolbar-opacity',
-                      title: l10n.previewToolbarOpacityTitle,
-                      value: _currentSettings.previewToolbarOpacity,
-                      onChanged: (value) => _updateSettings(
-                        _currentSettings.copyWith(previewToolbarOpacity: value),
-                      ),
-                    ),
-                    _buildOpacityRow(
-                      key: 'preview-filmstrip-opacity',
-                      title: l10n.previewFilmstripOpacityTitle,
-                      value: _currentSettings.previewFilmstripOpacity,
-                      onChanged: (value) => _updateSettings(
-                        _currentSettings.copyWith(
-                            previewFilmstripOpacity: value),
-                      ),
-                    ),
-                    _buildOpacityRow(
-                      key: 'preview-overlay-opacity',
-                      title: l10n.previewOverlayOpacityTitle,
-                      subtitle: l10n.previewOverlayOpacitySubtitle,
-                      value: _currentSettings.previewOverlayOpacity,
-                      onChanged: (value) => _updateSettings(
-                        _currentSettings.copyWith(previewOverlayOpacity: value),
-                      ),
-                    ),
-                  ]),
-                ),
-                DesktopSettingsSection(
-                  title: l10n.rawProcessingSectionTitle,
-                  children: [
-                    DesktopSettingsRow(
-                      title: l10n.halfSizeRawDecodeTitle,
-                      subtitle: l10n.halfSizeRawDecodeSubtitle,
-                      control: Switch(
-                        value: _currentSettings.useHalfSizeRawDecode,
-                        onChanged: (value) => _updateSettings(
-                          _currentSettings.copyWith(
-                            useHalfSizeRawDecode: value,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                DesktopSettingsSection(
-                  title: l10n.timeDisplaySectionTitle,
-                  children: _withDividers([
-                    DesktopSettingsOption(
-                      title: l10n.captureTimeTitle,
-                      subtitle: l10n.captureTimeSubtitle,
-                      selected: _currentSettings.timeDisplaySource ==
-                          TimeDisplaySource.capturedAt,
-                      onTap: () => _updateSettings(
-                        _currentSettings.copyWith(
-                          timeDisplaySource: TimeDisplaySource.capturedAt,
-                        ),
-                      ),
-                    ),
-                    DesktopSettingsOption(
-                      title: l10n.fileModifiedTimeTitle,
-                      subtitle: l10n.fileModifiedTimeSubtitle,
-                      selected: _currentSettings.timeDisplaySource ==
-                          TimeDisplaySource.modifiedAt,
-                      onTap: () => _updateSettings(
-                        _currentSettings.copyWith(
-                          timeDisplaySource: TimeDisplaySource.modifiedAt,
-                        ),
-                      ),
-                    ),
-                  ]),
-                ),
-                DesktopSettingsSection(
-                  title: l10n.cacheSectionTitle,
-                  children: [
-                    DesktopSettingsRow(
-                      title: l10n.maxCacheSizeTitle,
-                      control: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: RawViewerColors.canvas,
-                          border: Border.all(color: RawViewerColors.border),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          l10n.cacheSizeMb(_currentSettings.maxCacheSize),
-                          style: const TextStyle(
-                            color: RawViewerColors.text,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
-                      child: Slider(
-                        value: _currentSettings.maxCacheSize.toDouble(),
-                        min: 64,
-                        max: 4096,
-                        divisions: (4096 - 64) ~/ 64,
-                        label: l10n.cacheSizeMb(_currentSettings.maxCacheSize),
-                        onChanged: (value) => _updateSettings(
-                          _currentSettings.copyWith(
-                              maxCacheSize: value.toInt()),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (_showWindowsContextMenuSection)
-                  DesktopSettingsSection(
-                    title: l10n.windowsExplorerSectionTitle,
-                    children: _withDividers([
-                      DesktopSettingsRow(
-                        title: l10n.windowsContextMenuToggleTitle,
-                        subtitle: _currentSettings.windowsContextMenu.enabled
-                            ? l10n.windowsContextMenuEnabledSubtitle
-                            : l10n.windowsContextMenuDisabledSubtitle,
-                        control: _isUpdatingWindowsContextMenu
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : Switch(
-                                value:
-                                    _currentSettings.windowsContextMenu.enabled,
-                                onChanged: _handleWindowsContextMenuChanged,
-                              ),
-                      ),
-                      DesktopSettingsRow(
-                        title: l10n.installScopeTitle,
-                        control: Text(
-                          _currentSettings.windowsContextMenu.enabled
-                              ? l10n.installScopeCurrentUser
-                              : l10n.installScopeNotInstalled,
-                          style: const TextStyle(
-                            color: RawViewerColors.mutedText,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ]),
-                  ),
-                if (_showFileAssociationSection)
-                  DesktopSettingsSection(
-                    title: l10n.fileAssociationsSectionTitle,
-                    children: _withDividers([
-                      _buildFileAssociationActions(l10n),
-                      for (final extension in supportedExtensions)
-                        DesktopSettingsRow(
-                          key: ValueKey('file-association-$extension'),
-                          title: extension.substring(1).toUpperCase(),
-                          subtitle: l10n.fileAssociationFormatSubtitle(
-                            extension.substring(1).toUpperCase(),
-                          ),
-                          control: _currentSettings
-                                  .fileAssociations.requiresSystemSettings
-                              ? Tooltip(
-                                  message: _currentSettings.fileAssociations
-                                          .isBound(extension)
-                                      ? l10n.fileAssociationDefault
-                                      : l10n.fileAssociationNotDefault,
-                                  child: Icon(
-                                    _currentSettings.fileAssociations
-                                            .isBound(extension)
-                                        ? Icons.check_circle_outline
-                                        : Icons.radio_button_unchecked,
-                                    size: 20,
-                                  ),
-                                )
-                              : _isUpdatingFileAssociations
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : Switch(
-                                      value: _currentSettings.fileAssociations
-                                          .isBound(extension),
-                                      onChanged: (value) =>
-                                          _handleFileAssociationChanged(
-                                        extension,
-                                        value,
-                                      ),
-                                    ),
-                        ),
-                    ]),
-                  ),
-              ],
+                );
+              },
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One entry in the category rail or the narrow-window tab bar.
+class _SettingsCategoryTile extends StatelessWidget {
+  final SettingsCategory category;
+  final String label;
+  final bool selected;
+  final bool compact;
+  final VoidCallback onTap;
+
+  const _SettingsCategoryTile({
+    super.key,
+    required this.category,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.compact = false,
+  });
+
+  Widget _label(bool compact) {
+    final foreground =
+        selected ? RawViewerColors.accent : RawViewerColors.mutedText;
+    final text = Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      softWrap: false,
+      style: TextStyle(
+        color: selected ? RawViewerColors.text : foreground,
+        fontSize: 12,
+        fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+      ),
+    );
+    return compact ? text : Expanded(child: text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground =
+        selected ? RawViewerColors.accent : RawViewerColors.mutedText;
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected ? RawViewerColors.accentMuted : Colors.transparent,
+        borderRadius: BorderRadius.circular(5),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(5),
+          hoverColor: RawViewerColors.raisedSurface,
+          onTap: onTap,
+          child: Container(
+            height: 34,
+            padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 10),
+            child: Row(
+              mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
+              children: [
+                Icon(category.icon, size: 17, color: foreground),
+                const SizedBox(width: 8),
+                // In the rail the tile has a fixed width, so a long category
+                // name must ellipsize rather than overflow. The tab bar sizes
+                // to its content and scrolls instead.
+                _label(compact),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -15,6 +15,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsTitle => 'Settings';
 
   @override
+  String get settingsCategoryGeneral => 'General';
+
+  @override
+  String get settingsCategoryAppearance => 'Appearance';
+
+  @override
+  String get settingsCategoryPerformance => 'Performance';
+
+  @override
+  String get settingsCategoryIntegration => 'System Integration';
+
+  @override
   String get gridAspectRatioSectionTitle => 'Grid Cell Ratio';
 
   @override

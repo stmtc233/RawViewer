@@ -1178,7 +1178,7 @@ class _HomePageState extends State<HomePage> {
         return Dialog(
           insetPadding: const EdgeInsets.all(24),
           child: SizedBox(
-            width: 640,
+            width: 760,
             height: 720,
             child: SettingsPage(
               settings: _settings,
