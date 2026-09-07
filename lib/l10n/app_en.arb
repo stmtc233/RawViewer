@@ -311,6 +311,8 @@
   "mediaSortCapturedOldest": "Capture time (oldest first)",
   "mediaSortModifiedNewest": "Date modified (newest first)",
   "mediaSortModifiedOldest": "Date modified (oldest first)",
+  "mediaSortRatingDescending": "Rating (high to low)",
+  "mediaSortRatingAscending": "Rating (low to high)",
   "rawViewModeTooltip": "View mode",
   "embeddedJpegModeLabel": "Embedded JPG",
   "decodedRawModeLabel": "RAW",

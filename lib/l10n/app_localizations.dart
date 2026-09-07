@@ -1223,6 +1223,18 @@ abstract class AppLocalizations {
   /// **'Date modified (oldest first)'**
   String get mediaSortModifiedOldest;
 
+  /// No description provided for @mediaSortRatingDescending.
+  ///
+  /// In en, this message translates to:
+  /// **'Rating (high to low)'**
+  String get mediaSortRatingDescending;
+
+  /// No description provided for @mediaSortRatingAscending.
+  ///
+  /// In en, this message translates to:
+  /// **'Rating (low to high)'**
+  String get mediaSortRatingAscending;
+
   /// No description provided for @rawViewModeTooltip.
   ///
   /// In en, this message translates to:

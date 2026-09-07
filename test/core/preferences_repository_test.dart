@@ -7,6 +7,18 @@ import 'package:rawviewer/settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('persists both rating sort directions', () async {
+    SharedPreferences.setMockInitialValues({});
+    const repository = PreferencesRepository();
+    for (final order in [
+      MediaSortOrder.ratingDescending,
+      MediaSortOrder.ratingAscending
+    ]) {
+      await repository.saveMediaSortOrder(order);
+      expect((await repository.loadViewPreferences()).mediaSortOrder, order);
+    }
+  });
+
   test('hiding unrated badges defaults on and persists independently',
       () async {
     SharedPreferences.setMockInitialValues({});

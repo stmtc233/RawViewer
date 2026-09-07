@@ -623,6 +623,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mediaSortModifiedOldest => '修改时间（最早优先）';
 
   @override
+  String get mediaSortRatingDescending => '星级（高到低）';
+
+  @override
+  String get mediaSortRatingAscending => '星级（低到高）';
+
+  @override
   String get rawViewModeTooltip => '查看模式';
 
   @override

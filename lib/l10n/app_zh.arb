@@ -311,6 +311,8 @@
   "mediaSortCapturedOldest": "拍摄时间（最早优先）",
   "mediaSortModifiedNewest": "修改时间（最新优先）",
   "mediaSortModifiedOldest": "修改时间（最早优先）",
+  "mediaSortRatingDescending": "星级（高到低）",
+  "mediaSortRatingAscending": "星级（低到高）",
   "rawViewModeTooltip": "查看模式",
   "embeddedJpegModeLabel": "内嵌 JPG",
   "decodedRawModeLabel": "RAW",

@@ -635,6 +635,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mediaSortModifiedOldest => 'Date modified (oldest first)';
 
   @override
+  String get mediaSortRatingDescending => 'Rating (high to low)';
+
+  @override
+  String get mediaSortRatingAscending => 'Rating (low to high)';
+
+  @override
   String get rawViewModeTooltip => 'View mode';
 
   @override

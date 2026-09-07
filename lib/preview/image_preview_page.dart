@@ -18,6 +18,7 @@ import '../core/raw_view_mode.dart';
 import '../image_store.dart';
 import '../l10n/app_localizations.dart';
 import '../media_group.dart';
+import '../media_sort.dart';
 import '../native_lib.dart';
 import '../settings_page.dart';
 import '../ui/app_theme.dart';
@@ -40,6 +41,8 @@ class ImagePreviewPage extends StatefulWidget {
   final TimestampRepository timestampRepository;
   final RatingRepository? ratingRepository;
   final RatingFilter initialRatingFilter;
+  final MediaSortOrder initialSortOrder;
+  final ValueChanged<MediaSortOrder>? onSortOrderChanged;
   final ValueChanged<RatingFilter>? onRatingFilterChanged;
   final ValueChanged<bool>? onThumbnailRatingsVisibilityChanged;
   final ValueChanged<bool>? onHideUnratedRatingsChanged;
@@ -75,6 +78,8 @@ class ImagePreviewPage extends StatefulWidget {
     required this.timestampRepository,
     this.ratingRepository,
     this.initialRatingFilter = RatingFilter.all,
+    this.initialSortOrder = defaultMediaSortOrder,
+    this.onSortOrderChanged,
     this.onRatingFilterChanged,
     this.onThumbnailRatingsVisibilityChanged,
     this.onHideUnratedRatingsChanged,
@@ -103,6 +108,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   late final ExifRepository _exifRepository;
   late final RatingRepository _ratingRepository;
   late final RatingFilterController _ratingFilter;
+  late MediaSortOrder _sortOrder;
+  int _sortGeneration = 0;
   late bool _showThumbnailRatings;
   late bool _hideUnratedRatings;
   String? _preferredRatingPath;
@@ -151,6 +158,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     _mediaGroups = List<MediaGroup>.of(widget.mediaGroups);
     _ratingRepository = widget.ratingRepository ?? RatingRepository();
     _exifRepository = _ratingRepository.exifRepository;
+    _sortOrder = widget.initialSortOrder;
+    _ratingRepository.addListener(_onRatingSortChanged);
     _showThumbnailRatings = widget.initialSettings.showThumbnailRatings;
     _hideUnratedRatings = widget.initialSettings.hideUnratedRatings;
     _ratingFilter = RatingFilterController(_ratingRepository)
@@ -208,6 +217,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
       });
       _preferredRatingPath = resolvedGroup.primary.path;
       _ratingFilter.update(groups: mediaGroups);
+      unawaited(_resortGroups());
     } catch (error) {
       if (mounted) {
         final l10n = AppLocalizations.of(context)!;
@@ -224,6 +234,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
 
   @override
   void dispose() {
+    _sortGeneration++;
+    _ratingRepository.removeListener(_onRatingSortChanged);
     _ratingFilter.dispose();
     if (widget.ratingRepository == null) _ratingRepository.dispose();
     _scrollStopTimer?.cancel();
@@ -303,6 +315,37 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
         },
       );
 
+  void _setSortOrder(MediaSortOrder order) {
+    if (_sortOrder == order) return;
+    setState(() => _sortOrder = order);
+    unawaited(_resortGroups());
+    widget.onSortOrderChanged?.call(order);
+  }
+
+  void _onRatingSortChanged() {
+    if (_sortOrder.isRating) unawaited(_resortGroups());
+  }
+
+  Future<void> _resortGroups() async {
+    final generation = ++_sortGeneration;
+    final groups = _ratingFilter.groups;
+    final byPath = {for (final group in groups) group.primary.path: group};
+    final sorted = await sortMediaFiles(
+      groups.map((group) => group.primary),
+      _sortOrder,
+      loadRating: _ratingRepository.load,
+      loadCapturedAt: (filePath) async {
+        final timestamp = await widget.timestampRepository.load(filePath);
+        return timestamp.capturedAt ?? timestamp.modifiedAt;
+      },
+    );
+    if (!mounted || generation != _sortGeneration) return;
+    // Sort the complete group set so changing a filter cannot restore an old
+    // order. The existing results handler keeps the current image by path.
+    _ratingFilter
+        .update(groups: [for (final file in sorted) byPath[file.path]!]);
+  }
+
   void _setFilmstripVisibility(bool show) {
     setState(() => _showPreviewFilmstrip = show);
     widget.onPreviewFilmstripVisibilityChanged?.call(show);
@@ -316,6 +359,11 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildRatingFilter(),
+            MediaSortButton(
+              selectedSortOrder: _sortOrder,
+              enabled: _isDirectoryLoaded && !_isLoadingDirectory,
+              onSelected: _setSortOrder,
+            ),
             DesktopIconButton(
               key: const ValueKey('preview-filmstrip-close'),
               icon: Icons.close,

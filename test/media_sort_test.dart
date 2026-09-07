@@ -7,6 +7,57 @@ import 'package:rawviewer/media_group.dart';
 import 'package:rawviewer/media_sort.dart';
 
 void main() {
+  test(
+      'sorts ratings in both directions with stable names for ties and unrated',
+      () async {
+    final ratings = <String, int?>{
+      'five-b': 5,
+      'missing': null,
+      'three': 3,
+      'five-a': 5,
+      'zero': 0,
+      'invalid': 9,
+      'failed': null,
+    };
+    final files = [
+      for (final name in ratings.keys)
+        MediaFile(path: '/$name.jpg', kind: MediaKind.bitmap)
+    ];
+    Future<int?> loadRating(String filePath) async {
+      final name = filePath.substring(1, filePath.length - 4);
+      if (name == 'failed') throw const FileSystemException('Unreadable');
+      return ratings[name];
+    }
+
+    final descending = await sortMediaFiles(
+        files, MediaSortOrder.ratingDescending,
+        loadRating: loadRating);
+    final ascending = await sortMediaFiles(
+        files, MediaSortOrder.ratingAscending,
+        loadRating: loadRating);
+    expect(descending.map((f) => f.path), [
+      '/five-a.jpg',
+      '/five-b.jpg',
+      '/three.jpg',
+      '/failed.jpg',
+      '/invalid.jpg',
+      '/missing.jpg',
+      '/zero.jpg',
+    ]);
+    expect(ascending.map((f) => f.path), [
+      '/failed.jpg',
+      '/invalid.jpg',
+      '/missing.jpg',
+      '/zero.jpg',
+      '/three.jpg',
+      '/five-a.jpg',
+      '/five-b.jpg',
+    ]);
+    expect(files.first.path, '/five-b.jpg');
+    await expectLater(sortMediaFiles(files, MediaSortOrder.ratingDescending),
+        throwsArgumentError);
+  });
+
   test('sorts media files by file name in both directions', () async {
     const files = [
       MediaFile(path: '/photos/IMG_010.jpg', kind: MediaKind.bitmap),
@@ -115,6 +166,8 @@ void main() {
 
     expect(find.text('Name (A-Z)'), findsOneWidget);
     expect(find.text('Capture time (newest first)'), findsOneWidget);
+    expect(find.text('Rating (high to low)'), findsOneWidget);
+    expect(find.text('Rating (low to high)'), findsOneWidget);
 
     final capturedNewest = find.ancestor(
       of: find.text('Capture time (newest first)'),

@@ -13,7 +13,11 @@ enum MediaSortOrder {
   capturedNewest,
   capturedOldest,
   modifiedNewest,
-  modifiedOldest;
+  modifiedOldest,
+  ratingDescending,
+  ratingAscending;
+
+  bool get isRating => this == ratingDescending || this == ratingAscending;
 }
 
 const defaultMediaSortOrder = MediaSortOrder.nameAscending;
@@ -28,7 +32,8 @@ typedef CapturedAtLoader = Future<DateTime> Function(String filePath);
 /// the file has no readable capture timestamp.
 Future<List<MediaFile>> sortMediaFiles(
     Iterable<MediaFile> files, MediaSortOrder sortOrder,
-    {CapturedAtLoader? loadCapturedAt}) async {
+    {CapturedAtLoader? loadCapturedAt,
+    Future<int?> Function(String filePath)? loadRating}) async {
   final sortedFiles = List<MediaFile>.of(files);
   switch (sortOrder) {
     case MediaSortOrder.nameAscending:
@@ -56,6 +61,29 @@ Future<List<MediaFile>> sortMediaFiles(
         newestFirst: sortOrder == MediaSortOrder.modifiedNewest,
         loadTime: (file) => File(file.path).lastModified(),
       );
+    case MediaSortOrder.ratingDescending:
+    case MediaSortOrder.ratingAscending:
+      if (loadRating == null) {
+        throw ArgumentError('Rating sorting requires a loadRating callback.');
+      }
+      final ratings = <String, int>{};
+      for (final file in sortedFiles) {
+        try {
+          final rating = await loadRating(file.path);
+          ratings[file.path] =
+              rating != null && rating >= 0 && rating <= 5 ? rating : 0;
+        } catch (_) {
+          ratings[file.path] = 0;
+        }
+      }
+      sortedFiles.sort((a, b) {
+        final comparison = ratings[a.path]!.compareTo(ratings[b.path]!);
+        if (comparison == 0) return _compareByName(a, b);
+        return sortOrder == MediaSortOrder.ratingDescending
+            ? -comparison
+            : comparison;
+      });
+      return sortedFiles;
   }
 }
 
@@ -148,6 +176,18 @@ class MediaSortButton extends StatelessWidget {
           icon: Icons.schedule,
           selected: selectedSortOrder == MediaSortOrder.modifiedOldest,
           label: l10n.mediaSortModifiedOldest,
+        ),
+        desktopPopupMenuItem(
+          value: MediaSortOrder.ratingDescending,
+          icon: Icons.star_outline,
+          selected: selectedSortOrder == MediaSortOrder.ratingDescending,
+          label: l10n.mediaSortRatingDescending,
+        ),
+        desktopPopupMenuItem(
+          value: MediaSortOrder.ratingAscending,
+          icon: Icons.star_outline,
+          selected: selectedSortOrder == MediaSortOrder.ratingAscending,
+          label: l10n.mediaSortRatingAscending,
         ),
       ],
       child: const DesktopPopupMenuTrigger(icon: Icons.sort),

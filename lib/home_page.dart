@@ -95,6 +95,7 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _ratingFilter = RatingFilterController(_ratingRepository)
       ..addListener(_onRatingsChanged);
+    _ratingRepository.addListener(_onRatingSortChanged);
     _loadPreferences();
     _initCache();
     unawaited(_listenForDesktopOpenRequests());
@@ -170,6 +171,10 @@ class _HomePageState extends State<HomePage> {
     });
     unawaited(_resortCurrentFiles());
     unawaited(const PreferencesRepository().saveMediaSortOrder(sortOrder));
+  }
+
+  void _onRatingSortChanged() {
+    if (_mediaSortOrder.isRating) unawaited(_resortCurrentFiles());
   }
 
   Future<void> _resortCurrentFiles() async {
@@ -824,6 +829,7 @@ class _HomePageState extends State<HomePage> {
       files,
       sortOrder,
       loadCapturedAt: _loadCapturedAt,
+      loadRating: _ratingRepository.load,
     );
   }
 
@@ -961,6 +967,8 @@ class _HomePageState extends State<HomePage> {
               imageStore: _imageStore,
               timestampRepository: _timestampRepository,
               ratingRepository: _ratingRepository,
+              initialSortOrder: _mediaSortOrder,
+              onSortOrderChanged: _updateMediaSortOrder,
               initialRatingFilter: deferDirectoryLoad
                   ? RatingFilter.all
                   : _ratingFilter.selected,
