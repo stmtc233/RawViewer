@@ -98,9 +98,11 @@ void main() {
 
       // General opens first and owns language + time display.
       expect(find.byKey(const ValueKey('grid-aspect-adaptive')), findsNothing);
+      expect(find.byKey(const ValueKey('hot-folder-enabled')), findsOneWidget);
 
       await _open(tester, SettingsCategory.appearance);
-      expect(find.byKey(const ValueKey('grid-aspect-adaptive')), findsOneWidget);
+      expect(
+          find.byKey(const ValueKey('grid-aspect-adaptive')), findsOneWidget);
       expect(
         find.byKey(const ValueKey('page-switch-animation')),
         findsOneWidget,
@@ -160,7 +162,8 @@ void main() {
       await tester.pumpAndSettle();
       await _open(tester, SettingsCategory.about);
 
-      await tester.tap(find.byKey(const ValueKey('about-check-updates-button')));
+      await tester
+          .tap(find.byKey(const ValueKey('about-check-updates-button')));
       await tester.pumpAndSettle();
 
       expect(find.text('New version v1.5.0 available'), findsOneWidget);
@@ -171,7 +174,8 @@ void main() {
       await tester.pumpAndSettle();
       await _open(tester, SettingsCategory.about);
 
-      await tester.tap(find.byKey(const ValueKey('about-check-updates-button')));
+      await tester
+          .tap(find.byKey(const ValueKey('about-check-updates-button')));
       await tester.pumpAndSettle();
 
       expect(find.text('You are on the latest version'), findsOneWidget);
@@ -179,12 +183,14 @@ void main() {
 
     testWidgets('surfaces a rate limit as its own message', (tester) async {
       await tester.pumpWidget(_page(
-        latestTagFetcher: () async => throw const UpdateHttpStatusException(403),
+        latestTagFetcher: () async =>
+            throw const UpdateHttpStatusException(403),
       ));
       await tester.pumpAndSettle();
       await _open(tester, SettingsCategory.about);
 
-      await tester.tap(find.byKey(const ValueKey('about-check-updates-button')));
+      await tester
+          .tap(find.byKey(const ValueKey('about-check-updates-button')));
       await tester.pumpAndSettle();
 
       expect(

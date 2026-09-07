@@ -101,6 +101,18 @@ abstract class AppLocalizations {
   /// **'Directory browsing'**
   String get directoryBrowsing;
 
+  /// No description provided for @hotFolderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Hot Folder'**
+  String get hotFolderTitle;
+
+  /// No description provided for @hotFolderSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh the open folder when its contents change.'**
+  String get hotFolderSubtitle;
+
   /// No description provided for @parentDirectory.
   ///
   /// In en, this message translates to:

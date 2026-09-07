@@ -191,6 +191,7 @@ typedef FileAssociationChangeHandler = Future<FileAssociationSettings> Function(
 
 class ViewerSettings {
   final bool directoryBrowsingEnabled;
+  final bool hotFolderEnabled;
   // Which image the preview shows for RAW files. Chosen from the preview's own
   // top-right switch rather than this settings page, and persisted.
   final RawViewMode rawViewMode;
@@ -219,6 +220,7 @@ class ViewerSettings {
 
   const ViewerSettings({
     this.directoryBrowsingEnabled = false,
+    this.hotFolderEnabled = false,
     this.rawViewMode = RawViewMode.decodedRaw,
     this.useHalfSizeRawDecode = true,
     this.maxCacheSize = 512,
@@ -241,6 +243,7 @@ class ViewerSettings {
 
   ViewerSettings copyWith({
     bool? directoryBrowsingEnabled,
+    bool? hotFolderEnabled,
     RawViewMode? rawViewMode,
     bool? useHalfSizeRawDecode,
     int? maxCacheSize,
@@ -263,6 +266,7 @@ class ViewerSettings {
     return ViewerSettings(
       directoryBrowsingEnabled:
           directoryBrowsingEnabled ?? this.directoryBrowsingEnabled,
+      hotFolderEnabled: hotFolderEnabled ?? this.hotFolderEnabled,
       rawViewMode: rawViewMode ?? this.rawViewMode,
       useHalfSizeRawDecode: useHalfSizeRawDecode ?? this.useHalfSizeRawDecode,
       maxCacheSize: maxCacheSize ?? this.maxCacheSize,
@@ -702,6 +706,22 @@ class _SettingsPageState extends State<SettingsPage>
               value: _currentSettings.directoryBrowsingEnabled,
               onChanged: (enabled) => _updateSettings(
                 _currentSettings.copyWith(directoryBrowsingEnabled: enabled),
+              ),
+            ),
+          ),
+        ],
+      ),
+      DesktopSettingsSection(
+        title: l10n.hotFolderTitle,
+        children: [
+          DesktopSettingsRow(
+            key: const ValueKey('hot-folder-enabled'),
+            title: l10n.hotFolderTitle,
+            subtitle: l10n.hotFolderSubtitle,
+            control: Switch(
+              value: _currentSettings.hotFolderEnabled,
+              onChanged: (enabled) => _updateSettings(
+                _currentSettings.copyWith(hotFolderEnabled: enabled),
               ),
             ),
           ),

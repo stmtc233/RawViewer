@@ -1,6 +1,8 @@
 {
   "@@locale": "en",
   "directoryBrowsing": "Directory browsing",
+  "hotFolderTitle": "Hot Folder",
+  "hotFolderSubtitle": "Refresh the open folder when its contents change.",
   "parentDirectory": "Up one level",
   "refreshDirectories": "Refresh folders",
   "exifResizeTooltip": "Resize EXIF sidebar",

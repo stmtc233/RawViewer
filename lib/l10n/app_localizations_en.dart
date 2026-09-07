@@ -12,6 +12,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get directoryBrowsing => 'Directory browsing';
 
   @override
+  String get hotFolderTitle => 'Hot Folder';
+
+  @override
+  String get hotFolderSubtitle => 'Refresh the open folder when its contents change.';
+
+  @override
   String get parentDirectory => 'Up one level';
 
   @override

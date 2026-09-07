@@ -12,6 +12,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get directoryBrowsing => '目录浏览';
 
   @override
+  String get hotFolderTitle => '热文件夹';
+
+  @override
+  String get hotFolderSubtitle => '当前打开的目录内容变更时自动刷新。';
+
+  @override
   String get parentDirectory => '上一级目录';
 
   @override

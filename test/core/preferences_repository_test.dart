@@ -27,6 +27,19 @@ void main() {
     expect((await repository.loadViewPreferences()).directoryBrowsingEnabled,
         isFalse);
   });
+  test('hot folder defaults off and persists both states', () async {
+    SharedPreferences.setMockInitialValues({});
+    const repository = PreferencesRepository();
+    expect((await repository.loadViewPreferences()).hotFolderEnabled, isFalse);
+    await repository.saveHotFolderEnabled(true);
+    expect((await repository.loadViewPreferences()).hotFolderEnabled, isTrue);
+    const settings = ViewerSettings(hotFolderEnabled: true);
+    expect(settings.copyWith(maxCacheSize: 256).hotFolderEnabled, isTrue);
+    expect(
+        settings.copyWith(hotFolderEnabled: false).hotFolderEnabled, isFalse);
+    await repository.saveHotFolderEnabled(false);
+    expect((await repository.loadViewPreferences()).hotFolderEnabled, isFalse);
+  });
   test('persists both rating sort directions', () async {
     SharedPreferences.setMockInitialValues({});
     const repository = PreferencesRepository();

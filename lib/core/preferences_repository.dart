@@ -70,6 +70,7 @@ class WindowGeometry {
 /// View preferences restored at startup.
 class StoredViewPreferences {
   final bool directoryBrowsingEnabled;
+  final bool hotFolderEnabled;
   final int crossAxisCount;
   final GridAspectRatio? gridAspectRatio;
   final bool useHalfSizeRawDecode;
@@ -91,6 +92,7 @@ class StoredViewPreferences {
 
   const StoredViewPreferences({
     this.directoryBrowsingEnabled = false,
+    this.hotFolderEnabled = false,
     required this.crossAxisCount,
     required this.gridAspectRatio,
     required this.useHalfSizeRawDecode,
@@ -143,10 +145,16 @@ class PreferencesRepository {
   static const String _showPreviewFilmstrip = 'show_preview_filmstrip';
   static const String _showThumbnailRatings = 'show_thumbnail_ratings';
   static const String _directoryBrowsingEnabled = 'directory_browsing_enabled';
+  static const String _hotFolderEnabled = 'hot_folder_enabled';
 
   Future<void> saveDirectoryBrowsingEnabled(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_directoryBrowsingEnabled, enabled);
+  }
+
+  Future<void> saveHotFolderEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_hotFolderEnabled, enabled);
   }
 
   static const String _hideUnratedRatings = 'hide_unrated_ratings';
@@ -241,6 +249,7 @@ class PreferencesRepository {
       showThumbnailRatings: prefs.getBool(_showThumbnailRatings) ?? true,
       directoryBrowsingEnabled:
           prefs.getBool(_directoryBrowsingEnabled) ?? false,
+      hotFolderEnabled: prefs.getBool(_hotFolderEnabled) ?? false,
       hideUnratedRatings: prefs.getBool(_hideUnratedRatings) ?? true,
       showPreviewOverview: prefs.getBool(_showPreviewOverview) ?? true,
       exifSidebar: ExifSidebarSettings(

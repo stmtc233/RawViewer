@@ -40,6 +40,8 @@ import 'worker_service.dart';
 
 enum _OpenedSourceKind { none, folder, files }
 
+const _hotFolderRefreshDelay = Duration(milliseconds: 300);
+
 class _LoadedDirectory {
   const _LoadedDirectory({
     required this.path,
@@ -68,6 +70,11 @@ class _HomePageState extends State<HomePage> {
   String? _currentDirectoryPath;
   String? _deferredDirectoryPath;
   int? _openedDirectoryCount;
+  StreamSubscription<FileSystemEvent>? _hotFolderSubscription;
+  Timer? _hotFolderRefreshTimer;
+  String? _watchedHotFolderPath;
+  int _hotFolderGeneration = 0;
+  int _directoryBrowserVersion = 0;
   String? _lastSyncedWindowsContextMenuText;
   List<MediaFile> _files = [];
   List<RecentOpenItem> _recentOpenItems = [];
@@ -109,6 +116,9 @@ class _HomePageState extends State<HomePage> {
     _ratingFilter.dispose();
     _ratingRepository.dispose();
     _gridZoomResetTimer?.cancel();
+    _hotFolderRefreshTimer?.cancel();
+    _hotFolderGeneration++;
+    unawaited(_hotFolderSubscription?.cancel() ?? Future<void>.value());
     super.dispose();
   }
 
@@ -138,6 +148,7 @@ class _HomePageState extends State<HomePage> {
         showPreviewFilmstrip: stored.showPreviewFilmstrip,
         showThumbnailRatings: stored.showThumbnailRatings,
         directoryBrowsingEnabled: stored.directoryBrowsingEnabled,
+        hotFolderEnabled: stored.hotFolderEnabled,
         hideUnratedRatings: stored.hideUnratedRatings,
         showPreviewOverview: stored.showPreviewOverview,
         exifSidebar: stored.exifSidebar,
@@ -147,6 +158,7 @@ class _HomePageState extends State<HomePage> {
         _recentOpenItems = recentOpenItems;
       }
     });
+    _updateHotFolderWatch();
     if (_settings.maxCacheSize != const ViewerSettings().maxCacheSize) {
       _replaceCache();
     }
@@ -278,6 +290,8 @@ class _HomePageState extends State<HomePage> {
   void _updateSettings(ViewerSettings settings) {
     final directoryBrowsingChanged =
         _settings.directoryBrowsingEnabled != settings.directoryBrowsingEnabled;
+    final hotFolderChanged =
+        _settings.hotFolderEnabled != settings.hotFolderEnabled;
     final appLanguageChanged = _settings.appLanguage != settings.appLanguage;
     final gridAspectRatioChanged =
         _settings.gridAspectRatio != settings.gridAspectRatio;
@@ -317,6 +331,14 @@ class _HomePageState extends State<HomePage> {
     if (directoryBrowsingChanged) {
       unawaited(const PreferencesRepository()
           .saveDirectoryBrowsingEnabled(settings.directoryBrowsingEnabled));
+    }
+    if (hotFolderChanged) {
+      _updateHotFolderWatch();
+      unawaited(
+        const PreferencesRepository().saveHotFolderEnabled(
+          settings.hotFolderEnabled,
+        ),
+      );
     }
     if (appLanguageChanged) {
       widget.onAppLanguageChanged(settings.appLanguage);
@@ -380,6 +402,103 @@ class _HomePageState extends State<HomePage> {
     if (exifSidebarChanged) {
       unawaited(const PreferencesRepository()
           .saveExifSidebarSettings(settings.exifSidebar));
+    }
+  }
+
+  void _updateHotFolderWatch() {
+    final directoryPath = _settings.hotFolderEnabled &&
+            _openedSourceKind == _OpenedSourceKind.folder &&
+            _openedDirectoryCount == 1
+        ? _currentDirectoryPath
+        : null;
+    if (directoryPath == _watchedHotFolderPath) {
+      return;
+    }
+
+    _hotFolderRefreshTimer?.cancel();
+    _hotFolderRefreshTimer = null;
+    final previousSubscription = _hotFolderSubscription;
+    _hotFolderSubscription = null;
+    _watchedHotFolderPath = directoryPath;
+    final generation = ++_hotFolderGeneration;
+    if (previousSubscription != null) {
+      unawaited(previousSubscription.cancel());
+    }
+    if (directoryPath == null) {
+      return;
+    }
+
+    try {
+      _hotFolderSubscription = Directory(directoryPath).watch().listen(
+        (event) => _handleHotFolderEvent(event, directoryPath, generation),
+        onError: (_, __) {},
+        onDone: () {
+          if (generation == _hotFolderGeneration) {
+            _hotFolderSubscription = null;
+            _watchedHotFolderPath = null;
+          }
+        },
+      );
+    } on FileSystemException {
+      if (generation == _hotFolderGeneration) {
+        _watchedHotFolderPath = null;
+      }
+    }
+  }
+
+  void _handleHotFolderEvent(
+    FileSystemEvent event,
+    String directoryPath,
+    int generation,
+  ) {
+    if (!event.isDirectory && _mediaFileFromPath(event.path) == null) {
+      return;
+    }
+    _scheduleHotFolderRefresh(directoryPath, generation);
+  }
+
+  void _scheduleHotFolderRefresh(String directoryPath, int generation) {
+    if (!_isCurrentHotFolder(directoryPath, generation)) {
+      return;
+    }
+
+    _hotFolderRefreshTimer?.cancel();
+    _hotFolderRefreshTimer = Timer(_hotFolderRefreshDelay, () {
+      unawaited(_refreshHotFolder(directoryPath, generation));
+    });
+  }
+
+  bool _isCurrentHotFolder(String directoryPath, int generation) {
+    return mounted &&
+        generation == _hotFolderGeneration &&
+        _settings.hotFolderEnabled &&
+        _openedSourceKind == _OpenedSourceKind.folder &&
+        _openedDirectoryCount == 1 &&
+        _currentDirectoryPath == directoryPath;
+  }
+
+  Future<void> _refreshHotFolder(String directoryPath, int generation) async {
+    if (!_isCurrentHotFolder(directoryPath, generation)) {
+      return;
+    }
+
+    try {
+      final files = _listRawFilesInDirectory(directoryPath);
+      if (!_isCurrentHotFolder(directoryPath, generation)) {
+        return;
+      }
+      await _applyOpenedFiles(
+        files: files,
+        sourceKind: _OpenedSourceKind.folder,
+        clearCache: true,
+        openedDirectoryPath: directoryPath,
+        openedDirectoryCount: 1,
+        refreshDirectoryBrowser: true,
+      );
+    } on FileSystemException catch (error) {
+      if (_isCurrentHotFolder(directoryPath, generation)) {
+        _showDirectoryLoadError(error);
+      }
     }
   }
 
@@ -802,6 +921,7 @@ class _HomePageState extends State<HomePage> {
     String? openedDirectoryPath,
     int? openedDirectoryCount,
     String? deferredDirectoryPath,
+    bool refreshDirectoryBrowser = false,
   }) async {
     if (!mounted) {
       return;
@@ -830,9 +950,13 @@ class _HomePageState extends State<HomePage> {
       _currentDirectoryPath = openedDirectoryPath;
       _openedDirectoryCount = openedDirectoryCount;
       _deferredDirectoryPath = deferredDirectoryPath;
+      if (refreshDirectoryBrowser) {
+        _directoryBrowserVersion++;
+      }
       _files = sortedFiles;
       _refreshRatingGroups();
     });
+    _updateHotFolderWatch();
   }
 
   Future<List<MediaFile>> _sortMediaFiles(
@@ -1448,6 +1572,9 @@ class _HomePageState extends State<HomePage> {
               child: _settings.directoryBrowsingEnabled &&
                       _currentDirectoryPath != null
                   ? DirectoryBrowser(
+                      key: ValueKey(
+                        'directory-browser-$_directoryBrowserVersion',
+                      ),
                       directoryPath: _currentDirectoryPath!,
                       onOpenDirectory: (directory) =>
                           _handleIncomingPaths([directory]),

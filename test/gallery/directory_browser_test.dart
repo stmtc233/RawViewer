@@ -139,4 +139,51 @@ void main() {
       expect(find.text('new-folder'), findsOneWidget);
     });
   });
+
+  testWidgets('hot folder refreshes the open directory after a file change',
+      (tester) async {
+    await tester.runAsync(() async {
+      final root = Directory.systemTemp.createTempSync('hot-folder-');
+      addTearDown(() => root.deleteSync(recursive: true));
+      File('${root.path}/first.png').writeAsBytesSync(base64Decode(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII='));
+      SharedPreferences.setMockInitialValues({});
+      await const PreferencesRepository().saveHotFolderEnabled(true);
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(
+          desktopOpenChannel, (_) async => [root.path]);
+      addTearDown(
+          () => messenger.setMockMethodCallHandler(desktopOpenChannel, null));
+      await tester.pumpWidget(MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: HomePage(onAppLanguageChanged: (_) {}),
+      ));
+
+      Future<void> settle() async {
+        for (var i = 0; i < 10; i++) {
+          await tester.pump();
+          await Future<void>.delayed(const Duration(milliseconds: 30));
+        }
+        await tester.pumpAndSettle();
+      }
+
+      await settle();
+      expect(find.byType(MediaThumbnailTile), findsOneWidget);
+
+      File('${root.path}/added.png').writeAsBytesSync(base64Decode(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII='));
+      for (var i = 0; i < 20; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await tester.pump();
+        if (find.byType(MediaThumbnailTile).evaluate().length == 2) {
+          break;
+        }
+      }
+
+      expect(find.byType(MediaThumbnailTile), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }, skip: !Platform.isMacOS && !Platform.isWindows && !Platform.isLinux);
 }

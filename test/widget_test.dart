@@ -697,6 +697,21 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      final hotFolder = find.byKey(const ValueKey('hot-folder-enabled'));
+      expect(
+        tester
+            .widget<Switch>(
+              find.descendant(of: hotFolder, matching: find.byType(Switch)),
+            )
+            .value,
+        isFalse,
+      );
+      await tester.tap(
+        find.descendant(of: hotFolder, matching: find.byType(Switch)),
+      );
+      await tester.pump();
+      expect(updatedSettings!.hotFolderEnabled, isTrue);
+
       // Grid ratio, page-switch animation and the opacity sliders all live
       // under Appearance, so one category switch covers this whole test.
       await openSettingsCategory(tester, SettingsCategory.appearance);
