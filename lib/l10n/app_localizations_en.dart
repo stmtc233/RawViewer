@@ -9,6 +9,15 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get directoryBrowsing => 'Directory browsing';
+
+  @override
+  String get parentDirectory => 'Up one level';
+
+  @override
+  String get refreshDirectories => 'Refresh folders';
+
+  @override
   String get exifResizeTooltip => 'Resize EXIF sidebar';
 
   @override

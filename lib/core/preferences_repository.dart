@@ -69,6 +69,7 @@ class WindowGeometry {
 
 /// View preferences restored at startup.
 class StoredViewPreferences {
+  final bool directoryBrowsingEnabled;
   final int crossAxisCount;
   final GridAspectRatio? gridAspectRatio;
   final bool useHalfSizeRawDecode;
@@ -89,6 +90,7 @@ class StoredViewPreferences {
   final MediaSortOrder mediaSortOrder;
 
   const StoredViewPreferences({
+    this.directoryBrowsingEnabled = false,
     required this.crossAxisCount,
     required this.gridAspectRatio,
     required this.useHalfSizeRawDecode,
@@ -140,6 +142,13 @@ class PreferencesRepository {
   static const String _previewFilmstripHeight = 'preview_filmstrip_height';
   static const String _showPreviewFilmstrip = 'show_preview_filmstrip';
   static const String _showThumbnailRatings = 'show_thumbnail_ratings';
+  static const String _directoryBrowsingEnabled = 'directory_browsing_enabled';
+
+  Future<void> saveDirectoryBrowsingEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_directoryBrowsingEnabled, enabled);
+  }
+
   static const String _hideUnratedRatings = 'hide_unrated_ratings';
   static const String _showPreviewOverview = 'show_preview_overview';
   static const String _showExifSidebar = 'show_exif_sidebar';
@@ -230,6 +239,8 @@ class PreferencesRepository {
       ),
       showPreviewFilmstrip: prefs.getBool(_showPreviewFilmstrip) ?? true,
       showThumbnailRatings: prefs.getBool(_showThumbnailRatings) ?? true,
+      directoryBrowsingEnabled:
+          prefs.getBool(_directoryBrowsingEnabled) ?? false,
       hideUnratedRatings: prefs.getBool(_hideUnratedRatings) ?? true,
       showPreviewOverview: prefs.getBool(_showPreviewOverview) ?? true,
       exifSidebar: ExifSidebarSettings(

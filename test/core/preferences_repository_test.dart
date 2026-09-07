@@ -7,6 +7,26 @@ import 'package:rawviewer/settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('directory browsing defaults off and persists both states', () async {
+    SharedPreferences.setMockInitialValues({});
+    const repository = PreferencesRepository();
+    expect((await repository.loadViewPreferences()).directoryBrowsingEnabled,
+        isFalse);
+    await repository.saveDirectoryBrowsingEnabled(true);
+    expect((await repository.loadViewPreferences()).directoryBrowsingEnabled,
+        isTrue);
+    const settings = ViewerSettings(directoryBrowsingEnabled: true);
+    expect(
+        settings.copyWith(maxCacheSize: 256).directoryBrowsingEnabled, isTrue);
+    expect(
+        settings
+            .copyWith(directoryBrowsingEnabled: false)
+            .directoryBrowsingEnabled,
+        isFalse);
+    await repository.saveDirectoryBrowsingEnabled(false);
+    expect((await repository.loadViewPreferences()).directoryBrowsingEnabled,
+        isFalse);
+  });
   test('persists both rating sort directions', () async {
     SharedPreferences.setMockInitialValues({});
     const repository = PreferencesRepository();

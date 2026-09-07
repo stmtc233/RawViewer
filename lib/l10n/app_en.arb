@@ -1,5 +1,8 @@
 {
   "@@locale": "en",
+  "directoryBrowsing": "Directory browsing",
+  "parentDirectory": "Up one level",
+  "refreshDirectories": "Refresh folders",
   "exifResizeTooltip": "Resize EXIF sidebar",
   "exifRating": "Rating",
   "exifRatingSave": "Save rating",

@@ -9,6 +9,15 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get directoryBrowsing => '目录浏览';
+
+  @override
+  String get parentDirectory => '上一级目录';
+
+  @override
+  String get refreshDirectories => '刷新目录';
+
+  @override
   String get exifResizeTooltip => '调整 EXIF 侧栏宽度';
 
   @override

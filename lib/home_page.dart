@@ -33,6 +33,8 @@ import 'media_sort.dart';
 import 'preview/image_preview_page.dart';
 import 'preview/preview_geometry.dart';
 import 'settings_page.dart';
+import 'gallery/widgets/directory_browser.dart';
+import 'gallery/widgets/directory_thumbnail_tile.dart';
 import 'viewer_image.dart';
 import 'worker_service.dart';
 
@@ -85,7 +87,7 @@ class _HomePageState extends State<HomePage> {
   bool _hasUserConfiguredGridAspectRatio = false;
   final GridZoomAccumulator _gridZoom = GridZoomAccumulator();
   Timer? _gridZoomResetTimer;
-  final Map<String, double> _mediaAspectRatios = <String, double>{};
+  final _mediaAspectRatios = LruCache<String, double>(10000);
   final Map<String, double> _pendingMediaAspectRatios = <String, double>{};
   bool _mediaAspectRatioUpdateScheduled = false;
   int _lastGalleryPrefetchAnchor = -1;
@@ -135,6 +137,7 @@ class _HomePageState extends State<HomePage> {
         previewFilmstripHeight: stored.previewFilmstripHeight,
         showPreviewFilmstrip: stored.showPreviewFilmstrip,
         showThumbnailRatings: stored.showThumbnailRatings,
+        directoryBrowsingEnabled: stored.directoryBrowsingEnabled,
         hideUnratedRatings: stored.hideUnratedRatings,
         showPreviewOverview: stored.showPreviewOverview,
         exifSidebar: stored.exifSidebar,
@@ -273,6 +276,8 @@ class _HomePageState extends State<HomePage> {
       const PreferencesRepository().saveShowPreviewOverview(show);
 
   void _updateSettings(ViewerSettings settings) {
+    final directoryBrowsingChanged =
+        _settings.directoryBrowsingEnabled != settings.directoryBrowsingEnabled;
     final appLanguageChanged = _settings.appLanguage != settings.appLanguage;
     final gridAspectRatioChanged =
         _settings.gridAspectRatio != settings.gridAspectRatio;
@@ -308,6 +313,10 @@ class _HomePageState extends State<HomePage> {
 
     if (maxCacheSizeChanged) {
       _replaceCache();
+    }
+    if (directoryBrowsingChanged) {
+      unawaited(const PreferencesRepository()
+          .saveDirectoryBrowsingEnabled(settings.directoryBrowsingEnabled));
     }
     if (appLanguageChanged) {
       widget.onAppLanguageChanged(settings.appLanguage);
@@ -744,6 +753,7 @@ class _HomePageState extends State<HomePage> {
         files: nextFiles,
         sourceKind: _OpenedSourceKind.folder,
         clearCache: true,
+        preserveBrowsingCache: true,
         openedDirectoryPath: directories.length == 1 ? directories.first : null,
         openedDirectoryCount: directories.length,
       );
@@ -788,6 +798,7 @@ class _HomePageState extends State<HomePage> {
     required List<MediaFile> files,
     required _OpenedSourceKind sourceKind,
     required bool clearCache,
+    bool preserveBrowsingCache = false,
     String? openedDirectoryPath,
     int? openedDirectoryCount,
     String? deferredDirectoryPath,
@@ -796,7 +807,7 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    if (clearCache) {
+    if (clearCache && !preserveBrowsingCache) {
       _timestampRepository.clear();
     }
     final generation = ++_mediaSortGeneration;
@@ -806,8 +817,11 @@ class _HomePageState extends State<HomePage> {
     }
 
     if (clearCache) {
-      _imageCache.clear();
-      _mediaAspectRatios.clear();
+      // Directory navigation reuses resident data within each cache's budget.
+      if (!preserveBrowsingCache) {
+        _imageCache.clear();
+        _mediaAspectRatios.clear();
+      }
       _pendingMediaAspectRatios.clear();
     }
 
@@ -1060,7 +1074,7 @@ class _HomePageState extends State<HomePage> {
     }
 
     final previous =
-        _pendingMediaAspectRatios[filePath] ?? _mediaAspectRatios[filePath];
+        _pendingMediaAspectRatios[filePath] ?? _mediaAspectRatios.get(filePath);
     if (previous != null && (previous - aspectRatio).abs() < 0.001) {
       return;
     }
@@ -1080,7 +1094,7 @@ class _HomePageState extends State<HomePage> {
       final updates = Map<String, double>.from(_pendingMediaAspectRatios);
       _pendingMediaAspectRatios.clear();
       setState(() {
-        _mediaAspectRatios.addAll(updates);
+        updates.forEach(_mediaAspectRatios.put);
       });
     });
   }
@@ -1117,9 +1131,56 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildDirectoryTile(String directory) => DirectoryThumbnailTile(
+        directoryPath: directory,
+        onOpen: () => _handleIncomingPaths([directory]),
+      );
+
+  Widget _buildGalleryContents(
+    AppLocalizations l10n,
+    List<MediaGroup> mediaGroups,
+    int thumbnailResizeWidth,
+    List<String> directories,
+  ) {
+    return Stack(
+      children: [
+        if (directories.isNotEmpty || mediaGroups.isNotEmpty)
+          _buildGalleryGrid(mediaGroups, thumbnailResizeWidth, directories)
+        else if (_files.isEmpty)
+          EmptyGallery(
+            message: l10n.homeEmptyState,
+            openFolderLabel: l10n.openFolder,
+            openFilesLabel: l10n.openFiles,
+            recentItemsTitle: l10n.recentOpenItemsTitle,
+            onOpenFiles: _openFiles,
+            onOpenFolder: _openFolder,
+            recentOpenItems: _recentOpenItems,
+            onRecentOpenItemSelected: _openRecentItem,
+          )
+        else if (_ratingFilter.loading)
+          const Center(child: CircularProgressIndicator())
+        else
+          Center(child: Text(l10n.mediaFilterEmptyState)),
+        Positioned(
+          right: 12,
+          bottom: 12,
+          child: ThumbnailSizeControls(
+            largerThumbnailsTooltip: l10n.largerThumbnailsTooltip,
+            smallerThumbnailsTooltip: l10n.smallerThumbnailsTooltip,
+            onDecreaseThumbnailSize:
+                _crossAxisCount > 1 ? () => _updateCrossAxisCount(-1) : null,
+            onIncreaseThumbnailSize:
+                _crossAxisCount < 10 ? () => _updateCrossAxisCount(1) : null,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildAdaptiveGrid(
     List<MediaGroup> mediaGroups,
     int thumbnailResizeWidth,
+    List<String> directories,
   ) {
     const gridPadding = EdgeInsets.fromLTRB(12, 12, 12, 88);
     const gridSpacing = 10.0;
@@ -1132,13 +1193,12 @@ class _HomePageState extends State<HomePage> {
             (width - gridSpacing * (_crossAxisCount - 1)) / _crossAxisCount;
         final targetRowHeight = nominalCellWidth / (3 / 2);
         final rows = buildJustifiedGridRows(
-          aspectRatios: mediaGroups
-              .map(
-                (mediaGroup) =>
-                    _mediaAspectRatios[mediaGroup.primary.path] ??
-                    GridAspectRatio.adaptive.aspectRatio,
-              )
-              .toList(growable: false),
+          aspectRatios: [
+            for (final _ in directories) GridAspectRatio.adaptive.aspectRatio,
+            for (final mediaGroup in mediaGroups)
+              _mediaAspectRatios.get(mediaGroup.primary.path) ??
+                  GridAspectRatio.adaptive.aspectRatio,
+          ],
           availableWidth: width,
           targetRowHeight: targetRowHeight,
           spacing: gridSpacing,
@@ -1172,11 +1232,15 @@ class _HomePageState extends State<HomePage> {
                             ),
                             child: SizedBox(
                               width: row.widths[itemIndex],
-                              child: _buildThumbnailTile(
-                                mediaGroups,
-                                row.indices[itemIndex],
-                                thumbnailResizeWidth,
-                              ),
+                              child: row.indices[itemIndex] < directories.length
+                                  ? _buildDirectoryTile(
+                                      directories[row.indices[itemIndex]])
+                                  : _buildThumbnailTile(
+                                      mediaGroups,
+                                      row.indices[itemIndex] -
+                                          directories.length,
+                                      thumbnailResizeWidth,
+                                    ),
                             ),
                           ),
                         ),
@@ -1195,9 +1259,10 @@ class _HomePageState extends State<HomePage> {
   Widget _buildGalleryGrid(
     List<MediaGroup> mediaGroups,
     int thumbnailResizeWidth,
+    List<String> directories,
   ) {
     final grid = _settings.gridAspectRatio.isAdaptive
-        ? _buildAdaptiveGrid(mediaGroups, thumbnailResizeWidth)
+        ? _buildAdaptiveGrid(mediaGroups, thumbnailResizeWidth, directories)
         : GridView.builder(
             addAutomaticKeepAlives: false,
             scrollCacheExtent: const ScrollCacheExtent.pixels(200),
@@ -1208,11 +1273,14 @@ class _HomePageState extends State<HomePage> {
               mainAxisSpacing: 10,
               childAspectRatio: _settings.gridAspectRatio.aspectRatio,
             ),
-            itemCount: mediaGroups.length,
+            itemCount: directories.length + mediaGroups.length,
             itemBuilder: (context, index) {
+              if (index < directories.length) {
+                return _buildDirectoryTile(directories[index]);
+              }
               return _buildThumbnailTile(
                 mediaGroups,
-                index,
+                index - directories.length,
                 thumbnailResizeWidth,
               );
             },
@@ -1377,46 +1445,25 @@ class _HomePageState extends State<HomePage> {
                   : () => _openCurrentFolder(currentFolderPath),
             ),
             Expanded(
-              child: Stack(
-                children: [
-                  ExcludeSemantics(
-                    child: _files.isEmpty
-                        ? EmptyGallery(
-                            message: l10n.homeEmptyState,
-                            openFolderLabel: l10n.openFolder,
-                            openFilesLabel: l10n.openFiles,
-                            recentItemsTitle: l10n.recentOpenItemsTitle,
-                            onOpenFiles: _openFiles,
-                            onOpenFolder: _openFolder,
-                            recentOpenItems: _recentOpenItems,
-                            onRecentOpenItemSelected: _openRecentItem,
-                          )
-                        : _ratingFilter.loading
-                            ? const Center(child: CircularProgressIndicator())
-                            : visibleMediaGroups.isEmpty
-                                ? Center(
-                                    child: Text(l10n.mediaFilterEmptyState))
-                                : _buildGalleryGrid(
-                                    visibleMediaGroups,
-                                    thumbnailResizeWidth,
-                                  ),
-                  ),
-                  Positioned(
-                    right: 12,
-                    bottom: 12,
-                    child: ThumbnailSizeControls(
-                      largerThumbnailsTooltip: l10n.largerThumbnailsTooltip,
-                      smallerThumbnailsTooltip: l10n.smallerThumbnailsTooltip,
-                      onDecreaseThumbnailSize: _crossAxisCount > 1
-                          ? () => _updateCrossAxisCount(-1)
-                          : null,
-                      onIncreaseThumbnailSize: _crossAxisCount < 10
-                          ? () => _updateCrossAxisCount(1)
-                          : null,
+              child: _settings.directoryBrowsingEnabled &&
+                      _currentDirectoryPath != null
+                  ? DirectoryBrowser(
+                      directoryPath: _currentDirectoryPath!,
+                      onOpenDirectory: (directory) =>
+                          _handleIncomingPaths([directory]),
+                      builder: (context, directories) => _buildGalleryContents(
+                        l10n,
+                        visibleMediaGroups,
+                        thumbnailResizeWidth,
+                        directories,
+                      ),
+                    )
+                  : _buildGalleryContents(
+                      l10n,
+                      visibleMediaGroups,
+                      thumbnailResizeWidth,
+                      const [],
                     ),
-                  ),
-                ],
-              ),
             ),
             GalleryStatusBar(
               itemCountLabel: l10n.galleryItemCount(visibleMediaGroups.length),

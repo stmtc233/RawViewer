@@ -1,5 +1,8 @@
 {
   "@@locale": "zh",
+  "directoryBrowsing": "目录浏览",
+  "parentDirectory": "上一级目录",
+  "refreshDirectories": "刷新目录",
   "exifResizeTooltip": "调整 EXIF 侧栏宽度",
   "exifRating": "星级评分",
   "exifRatingSave": "保存星级",

@@ -190,6 +190,7 @@ typedef FileAssociationChangeHandler = Future<FileAssociationSettings> Function(
     Set<String> extensions);
 
 class ViewerSettings {
+  final bool directoryBrowsingEnabled;
   // Which image the preview shows for RAW files. Chosen from the preview's own
   // top-right switch rather than this settings page, and persisted.
   final RawViewMode rawViewMode;
@@ -217,6 +218,7 @@ class ViewerSettings {
   final FileAssociationSettings fileAssociations;
 
   const ViewerSettings({
+    this.directoryBrowsingEnabled = false,
     this.rawViewMode = RawViewMode.decodedRaw,
     this.useHalfSizeRawDecode = true,
     this.maxCacheSize = 512,
@@ -238,6 +240,7 @@ class ViewerSettings {
   });
 
   ViewerSettings copyWith({
+    bool? directoryBrowsingEnabled,
     RawViewMode? rawViewMode,
     bool? useHalfSizeRawDecode,
     int? maxCacheSize,
@@ -258,6 +261,8 @@ class ViewerSettings {
     FileAssociationSettings? fileAssociations,
   }) {
     return ViewerSettings(
+      directoryBrowsingEnabled:
+          directoryBrowsingEnabled ?? this.directoryBrowsingEnabled,
       rawViewMode: rawViewMode ?? this.rawViewMode,
       useHalfSizeRawDecode: useHalfSizeRawDecode ?? this.useHalfSizeRawDecode,
       maxCacheSize: maxCacheSize ?? this.maxCacheSize,
@@ -688,6 +693,20 @@ class _SettingsPageState extends State<SettingsPage>
 
   List<Widget> _buildGeneralSections(AppLocalizations l10n) {
     return [
+      DesktopSettingsSection(
+        title: l10n.directoryBrowsing,
+        children: [
+          DesktopSettingsRow(
+            title: l10n.directoryBrowsing,
+            control: Switch(
+              value: _currentSettings.directoryBrowsingEnabled,
+              onChanged: (enabled) => _updateSettings(
+                _currentSettings.copyWith(directoryBrowsingEnabled: enabled),
+              ),
+            ),
+          ),
+        ],
+      ),
       DesktopSettingsSection(
         title: l10n.languageSectionTitle,
         children: _withDividers(

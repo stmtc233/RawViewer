@@ -95,6 +95,24 @@ abstract class AppLocalizations {
     Locale('zh')
   ];
 
+  /// No description provided for @directoryBrowsing.
+  ///
+  /// In en, this message translates to:
+  /// **'Directory browsing'**
+  String get directoryBrowsing;
+
+  /// No description provided for @parentDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Up one level'**
+  String get parentDirectory;
+
+  /// No description provided for @refreshDirectories.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh folders'**
+  String get refreshDirectories;
+
   /// No description provided for @exifResizeTooltip.
   ///
   /// In en, this message translates to:
