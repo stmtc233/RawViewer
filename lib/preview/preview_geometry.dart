@@ -32,7 +32,7 @@ const Duration kImagePreviewRapidSwitchSettleDelay =
     Duration(milliseconds: 140);
 
 const double kMinPreviewScale = 0.25;
-const double kMaxPreviewScale = 5.0;
+const double kMaxPreviewScale = 100.0;
 
 // --- internal to preview ---
 const double previewImageControlsHeight = 42;

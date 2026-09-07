@@ -123,7 +123,8 @@ void main() {
     test('enforces zoom bounds and separates zoom-out at fit scale', () {
       expect(clampPreviewScale(0.1), kMinPreviewScale);
       expect(clampPreviewScale(1.5), 1.5);
-      expect(clampPreviewScale(10), kMaxPreviewScale);
+      expect(clampPreviewScale(10), 10);
+      expect(clampPreviewScale(kMaxPreviewScale * 2), kMaxPreviewScale);
 
       expect(
         shouldResetPreviewPositionAtFitScale(

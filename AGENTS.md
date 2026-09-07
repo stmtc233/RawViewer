@@ -228,12 +228,17 @@ Two stacked `Image` widgets, both `FileImage` + `ResizeImage`:
 
 1. `thumbnailResizeWidth` — the entry the grid already warmed, so the page
    switch paints immediately.
-2. `bucketDecodeWidth(viewportWidth * 2.0)` clamped to 4096 physical px, added
-   only when the page is active and not fast-scrolling.
+2. Initially `bucketDecodeWidth(viewportWidth * 2.0)` clamped to 4096 physical
+   px, added only when the page is active and not fast-scrolling. After zoom
+   settles, the decode width grows in doubling scale tiers (up to the maximum
+   preview scale). `ResizeImagePolicy.fit` caps actual decoding at the source
+   resolution. The previous image stays visible while its replacement loads.
 
 The cap exists because a full-resolution bitmap decode costs `w * h * 4` bytes
 regardless of window size — an 8000×6000 JPEG is ~192 MB. The `2.0` factor is
-zoom headroom.
+zoom headroom. Loaded detail is retained when zooming out; leaving the active
+page or switching away from the bitmap resets the detail tier. Fast scrolling
+suppresses detail loading until navigation settles.
 
 ### Filmstrip and preload
 

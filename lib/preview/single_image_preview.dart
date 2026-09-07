@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -107,6 +108,9 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
   Timer? _fitScaleLockTimer;
   bool _isFitScaleLocked = false;
   PreviewScaleDirection? _fitScaleLockDirection;
+  Timer? _bitmapDetailTimer;
+  double _bitmapDetailScale = 1;
+  double? _pendingBitmapDetailScale;
 
   /// Only the expensive decoded-RAW task is tracked for cancellation.
   ///
@@ -184,12 +188,14 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
       // Reload skips whatever layer is already available.
       unawaited(_loadRawDisplayLayers());
     }
+    _scheduleBitmapDetail();
   }
 
   @override
   void dispose() {
     widget.isFastScrolling.removeListener(_onFastScrollingChanged);
     _clearFitScaleLock();
+    _bitmapDetailTimer?.cancel();
     _decodedRawTask?.cancel();
     _thumbnailImage?.dispose();
     _embeddedJpegImage?.dispose();
@@ -228,6 +234,7 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
   }
 
   void _onFastScrollingChanged() {
+    _scheduleBitmapDetail();
     if (!widget.isActive) return;
 
     if (widget.isFastScrolling.value) {
@@ -239,6 +246,7 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
   }
 
   void _onTransformationChange() {
+    _scheduleBitmapDetail();
     final scale = _transformationController.value.getMaxScaleOnAxis();
     final newPanEnabled = (scale - previewFitScale).abs() > previewScaleEpsilon;
     if (_panEnabled != newPanEnabled || _isZoomed != newPanEnabled) {
@@ -247,6 +255,39 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
         _isZoomed = newPanEnabled;
       });
     }
+  }
+
+  void _scheduleBitmapDetail() {
+    if (!widget.isActive ||
+        widget.isFastScrolling.value ||
+        (widget.isRaw && !_isShowingPairedJpeg)) {
+      _bitmapDetailTimer?.cancel();
+      _pendingBitmapDetailScale = null;
+      if (!widget.isActive || (widget.isRaw && !_isShowingPairedJpeg)) {
+        _bitmapDetailScale = 1;
+      }
+      return;
+    }
+
+    final scale = _transformationController.value.getMaxScaleOnAxis();
+    var detailScale = 1.0;
+    while (detailScale < clampPreviewScale(scale)) {
+      detailScale *= 2;
+    }
+    detailScale = clampPreviewScale(detailScale);
+
+    // Keep loaded detail while zooming out. Pan events and changes within one
+    // resolution tier must not restart the timer or produce new cache entries.
+    if (detailScale == _pendingBitmapDetailScale) return;
+    _bitmapDetailTimer?.cancel();
+    _pendingBitmapDetailScale = null;
+    if (detailScale <= _bitmapDetailScale) return;
+
+    _pendingBitmapDetailScale = detailScale;
+    _bitmapDetailTimer = Timer(_bitmapDetailSettleDelay, () {
+      _pendingBitmapDetailScale = null;
+      setState(() => _bitmapDetailScale = detailScale);
+    });
   }
 
   void _lockAtFitScale(PreviewScaleDirection direction) {
@@ -765,17 +806,20 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
   Widget _buildBitmapPreview(String filePath) {
     final file = File(filePath);
 
-    // Decoding a bitmap at full resolution costs width*height*4 bytes no matter
-    // how small the window is — an 8000x6000 JPEG is ~192 MB. Cap the decode at
-    // what the viewport can actually show, with headroom for zooming in.
+    // Bound the initial decode, then add detail in settled zoom tiers.
+    // ResizeImagePolicy.fit stops at the source resolution without upscaling.
     final mediaQuery = MediaQuery.of(context);
     final viewportWidth = mediaQuery.size.width * mediaQuery.devicePixelRatio;
-    final fullDecodeWidth = bucketDecodeWidth(
+    final initialDecodeWidth = bucketDecodeWidth(
       (viewportWidth * _bitmapZoomHeadroom).clamp(
         widget.thumbnailResizeWidth.toDouble(),
         _maxBitmapDecodeWidth,
       ),
     );
+    final fullDecodeWidth = bucketDecodeWidth(math.max(
+      initialDecodeWidth.toDouble(),
+      _bitmapDetailScale > 1 ? viewportWidth * _bitmapDetailScale : 0.0,
+    ));
 
     Widget image = ValueListenableBuilder<bool>(
       valueListenable: widget.isFastScrolling,
@@ -823,5 +867,7 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
 /// Extra resolution decoded beyond the viewport so zooming stays sharp.
 const double _bitmapZoomHeadroom = 2.0;
 
-/// Hard ceiling on bitmap decode width, in physical pixels.
+/// Ceiling for the initial bitmap preview, before zooming requests more detail.
 const double _maxBitmapDecodeWidth = 4096;
+
+const Duration _bitmapDetailSettleDelay = Duration(milliseconds: 150);
