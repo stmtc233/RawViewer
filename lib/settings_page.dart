@@ -733,6 +733,21 @@ class _SettingsPageState extends State<SettingsPage>
         ],
       ),
       DesktopSettingsSection(
+        title: l10n.imagePreviewSectionTitle,
+        children: [
+          DesktopSettingsRow(
+            key: const ValueKey('long-press-live-photo'),
+            title: l10n.longPressLivePhotoTitle,
+            control: Switch(
+              value: _currentSettings.longPressLivePhotoEnabled,
+              onChanged: (value) => _updateSettings(
+                _currentSettings.copyWith(longPressLivePhotoEnabled: value),
+              ),
+            ),
+          ),
+        ],
+      ),
+      DesktopSettingsSection(
         title: l10n.languageSectionTitle,
         children: _withDividers(
           AppLanguage.values
@@ -818,16 +833,6 @@ class _SettingsPageState extends State<SettingsPage>
       DesktopSettingsSection(
         title: l10n.imagePreviewSectionTitle,
         children: _withDividers([
-          DesktopSettingsRow(
-            key: const ValueKey('long-press-live-photo'),
-            title: l10n.longPressLivePhotoTitle,
-            control: Switch(
-              value: _currentSettings.longPressLivePhotoEnabled,
-              onChanged: (value) => _updateSettings(
-                _currentSettings.copyWith(longPressLivePhotoEnabled: value),
-              ),
-            ),
-          ),
           _buildOpacityRow(
             key: 'preview-toolbar-opacity',
             title: l10n.previewToolbarOpacityTitle,

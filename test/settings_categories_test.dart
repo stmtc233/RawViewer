@@ -52,13 +52,13 @@ Future<void> _open(WidgetTester tester, SettingsCategory category) async {
 }
 
 void main() {
-  testWidgets('long-press Live playback can be enabled in preview settings',
+  testWidgets('long-press Live playback can be enabled in general settings',
       (tester) async {
     ViewerSettings? changed;
     await tester
         .pumpWidget(_page(onSettingsChanged: (value) => changed = value));
     await tester.pumpAndSettle();
-    await _open(tester, SettingsCategory.appearance);
+    await _open(tester, SettingsCategory.general);
     final toggle = find.descendant(
         of: find.byKey(const ValueKey('long-press-live-photo')),
         matching: find.byType(Switch));
@@ -69,6 +69,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(changed!.longPressLivePhotoEnabled, isTrue);
     expect(tester.widget<Switch>(toggle).value, isTrue);
+    await _open(tester, SettingsCategory.appearance);
+    expect(find.byKey(const ValueKey('long-press-live-photo')), findsNothing);
   });
 
   group('category navigation', () {
