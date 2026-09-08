@@ -515,6 +515,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get resetImageViewTooltip => '重置图片视图';
 
   @override
+  String get enableHdrPreviewTooltip => '显示 HDR 预览';
+
+  @override
+  String get disableHdrPreviewTooltip => '显示 SDR 预览';
+
+  @override
   String get previewDisplayControlsTooltip => '预览显示';
 
   @override

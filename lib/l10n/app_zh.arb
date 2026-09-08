@@ -222,6 +222,8 @@
   "zoomInImageTooltip": "放大图片",
   "zoomOutImageTooltip": "缩小图片",
   "resetImageViewTooltip": "重置图片视图",
+  "enableHdrPreviewTooltip": "显示 HDR 预览",
+  "disableHdrPreviewTooltip": "显示 SDR 预览",
   "previewDisplayControlsTooltip": "预览显示",
   "previewFilmstripTitle": "缩略图导航",
   "previewOverviewTitle": "鸟瞰图",

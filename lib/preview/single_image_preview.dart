@@ -12,6 +12,8 @@ import '../image_store.dart';
 import '../l10n/app_localizations.dart';
 import '../media_group.dart';
 import '../settings_page.dart';
+import '../ui/app_theme.dart';
+import '../ui/desktop_controls.dart';
 import '../native_lib.dart';
 import '../ui/raw_image_widget.dart';
 import '../viewer_image.dart';
@@ -46,6 +48,18 @@ class SingleImagePreview extends StatefulWidget {
   /// preview's mode switch can grey out that option.
   final ValueChanged<bool>? onEmbeddedJpegAvailability;
 
+  /// Reports that the active bitmap was successfully rendered through the
+  /// native HDR surface.
+  final VoidCallback? onHdrDetected;
+
+  /// Whether this image has been confirmed as HDR by the native surface.
+  final bool hasHdr;
+
+  /// HDR is display-only state owned by the preview route, so a user can turn
+  /// it off for the current preview without changing a persisted preference.
+  final bool showHdr;
+  final VoidCallback? onHdrToggle;
+
   const SingleImagePreview({
     super.key,
     required this.mediaGroup,
@@ -67,6 +81,10 @@ class SingleImagePreview extends StatefulWidget {
     required this.isFastScrolling,
     this.onScaleStateChanged,
     this.onEmbeddedJpegAvailability,
+    this.onHdrDetected,
+    this.hasHdr = false,
+    this.showHdr = true,
+    this.onHdrToggle,
   });
 
   String get filePath => mediaGroup.primary.path;
@@ -742,6 +760,29 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
                   ),
                 ),
               ),
+            if (widget.isActive && widget.hasHdr)
+              Positioned(
+                top: 12,
+                right: 12,
+                child: PreviewHoverReveal(
+                  restingOpacity: widget.settings.previewOverlayOpacity,
+                  hitTestBehavior: HitTestBehavior.opaque,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: RawViewerColors.surface.withValues(alpha: 0.84),
+                      border: Border.all(color: RawViewerColors.border),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(3),
+                      child: _HdrPreviewToggle(
+                        enabled: widget.showHdr,
+                        onPressed: widget.onHdrToggle,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             if (widget.isActive && _bitmapFrameCount > 1)
               Positioned(
                 left: 16,
@@ -949,12 +990,16 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
                   child: Icon(Icons.broken_image, color: Colors.white),
                 ),
               ),
-            if (widget.isActive && !isFastScrolling && _bitmapFrameCount == 1)
+            if (widget.showHdr &&
+                widget.isActive &&
+                !isFastScrolling &&
+                _bitmapFrameCount == 1)
               Positioned.fill(
                 child: HdrImage(
                   key: ValueKey('hdr:$filePath:$fullDecodeWidth'),
                   filePath: filePath,
                   decodeWidth: fullDecodeWidth,
+                  onHdrDetected: widget.onHdrDetected,
                 ),
               ),
           ],
@@ -967,6 +1012,51 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
       return Hero(tag: widget.filePath, child: image);
     }
     return image;
+  }
+}
+
+class _HdrPreviewToggle extends StatelessWidget {
+  final bool enabled;
+  final VoidCallback? onPressed;
+
+  const _HdrPreviewToggle({required this.enabled, this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Tooltip(
+      message: enabled
+          ? l10n.disableHdrPreviewTooltip
+          : l10n.enableHdrPreviewTooltip,
+      child: SizedBox(
+        height: desktopControlSize,
+        child: Material(
+          color: enabled ? RawViewerColors.accentMuted : Colors.transparent,
+          borderRadius: BorderRadius.circular(5),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(5),
+            onTap: onPressed,
+            hoverColor: RawViewerColors.raisedSurface,
+            splashColor: RawViewerColors.accentMuted,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  'HDR',
+                  style: TextStyle(
+                    color: enabled
+                        ? RawViewerColors.accent
+                        : RawViewerColors.mutedText,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

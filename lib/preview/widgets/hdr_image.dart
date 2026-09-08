@@ -9,9 +9,14 @@ import 'package:flutter/services.dart';
 class HdrImage extends StatefulWidget {
   final String filePath;
   final int decodeWidth;
+  final VoidCallback? onHdrDetected;
 
-  const HdrImage(
-      {super.key, required this.filePath, required this.decodeWidth});
+  const HdrImage({
+    super.key,
+    required this.filePath,
+    required this.decodeWidth,
+    this.onHdrDetected,
+  });
 
   @override
   State<HdrImage> createState() => _HdrImageState();
@@ -20,6 +25,7 @@ class HdrImage extends StatefulWidget {
 class _HdrImageState extends State<HdrImage> {
   bool _supported = false;
   bool _failed = false;
+  bool _reportedHdr = false;
 
   @override
   void initState() {
@@ -52,7 +58,12 @@ class _HdrImageState extends State<HdrImage> {
                 'width': widget.decodeWidth,
               }) ??
               false;
-      if (mounted && !loaded) setState(() => _failed = true);
+      if (!mounted) return;
+      if (loaded && !_reportedHdr) {
+        _reportedHdr = true;
+        widget.onHdrDetected?.call();
+      }
+      if (!loaded) setState(() => _failed = true);
     } on PlatformException {
       if (mounted) setState(() => _failed = true);
     } on MissingPluginException {

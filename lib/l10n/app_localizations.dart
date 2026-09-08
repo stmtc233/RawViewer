@@ -1067,6 +1067,18 @@ abstract class AppLocalizations {
   /// **'Reset image view'**
   String get resetImageViewTooltip;
 
+  /// No description provided for @enableHdrPreviewTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Show HDR preview'**
+  String get enableHdrPreviewTooltip;
+
+  /// No description provided for @disableHdrPreviewTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Show SDR preview'**
+  String get disableHdrPreviewTooltip;
+
   /// No description provided for @previewDisplayControlsTooltip.
   ///
   /// In en, this message translates to:

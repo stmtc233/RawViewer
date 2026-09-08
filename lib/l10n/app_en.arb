@@ -222,6 +222,8 @@
   "zoomInImageTooltip": "Zoom in",
   "zoomOutImageTooltip": "Zoom out",
   "resetImageViewTooltip": "Reset image view",
+  "enableHdrPreviewTooltip": "Show HDR preview",
+  "disableHdrPreviewTooltip": "Show SDR preview",
   "previewDisplayControlsTooltip": "Preview display",
   "previewFilmstripTitle": "Thumbnail navigation",
   "previewOverviewTitle": "Overview map",

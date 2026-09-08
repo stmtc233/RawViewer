@@ -521,6 +521,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get resetImageViewTooltip => 'Reset image view';
 
   @override
+  String get enableHdrPreviewTooltip => 'Show HDR preview';
+
+  @override
+  String get disableHdrPreviewTooltip => 'Show SDR preview';
+
+  @override
   String get previewDisplayControlsTooltip => 'Preview display';
 
   @override

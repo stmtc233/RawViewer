@@ -138,6 +138,12 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   /// preview's own load of that layer. Absent means "not probed yet", which is
   /// treated as available so the switch does not flicker to greyed and back.
   final Map<String, bool> _hasEmbeddedJpeg = <String, bool>{};
+
+  /// HDR capability is discovered only after the native surface accepts the
+  /// bitmap. These sets are scoped to this route: the user can switch HDR off
+  /// for an image without creating a persistent app preference.
+  final Set<String> _hdrImagePaths = <String>{};
+  final Set<String> _hdrDisabledPaths = <String>{};
   bool _isExportingEmbeddedJpeg = false;
 
   DateTime? _lastSwitchTime;
@@ -790,6 +796,21 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     });
   }
 
+  void _recordHdrDetected(String filePath) {
+    if (_hdrImagePaths.contains(filePath)) return;
+    setState(() {
+      _hdrImagePaths.add(filePath);
+    });
+  }
+
+  void _toggleHdr(String filePath) {
+    setState(() {
+      if (!_hdrDisabledPaths.add(filePath)) {
+        _hdrDisabledPaths.remove(filePath);
+      }
+    });
+  }
+
   void _selectViewMode(MediaGroup mediaGroup, RawViewMode mode) {
     if (!mediaGroup.isRaw || mode == _rawViewMode) {
       return;
@@ -1014,6 +1035,10 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                       onEmbeddedJpegAvailability: (hasEmbeddedJpeg) =>
                           _recordEmbeddedJpegAvailability(
                               filePath, hasEmbeddedJpeg),
+                      onHdrDetected: () => _recordHdrDetected(filePath),
+                      hasHdr: _hdrImagePaths.contains(filePath),
+                      showHdr: !_hdrDisabledPaths.contains(filePath),
+                      onHdrToggle: () => _toggleHdr(filePath),
                       onResetRotationRequested: () =>
                           _resetImageRotation(filePath),
                       onSwitchRequest: _switchPage,
