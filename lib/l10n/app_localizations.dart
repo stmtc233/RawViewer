@@ -1313,6 +1313,18 @@ abstract class AppLocalizations {
   /// **'Play Live Photo'**
   String get playLivePhoto;
 
+  /// No description provided for @previousImageFrame.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous frame'**
+  String get previousImageFrame;
+
+  /// No description provided for @nextImageFrame.
+  ///
+  /// In en, this message translates to:
+  /// **'Next frame'**
+  String get nextImageFrame;
+
   /// No description provided for @longPressLivePhotoTitle.
   ///
   /// In en, this message translates to:

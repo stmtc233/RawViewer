@@ -1471,7 +1471,7 @@ class _HomePageState extends State<HomePage> {
       final mediaFile = mediaGroups[index].primary;
       if (!mediaFile.isRaw) {
         precacheImage(
-          ResizeImage(bitmapImageProvider(mediaFile.path),
+          resizedBitmapImageProvider(mediaFile.path,
               width: thumbnailResizeWidth),
           context,
         );

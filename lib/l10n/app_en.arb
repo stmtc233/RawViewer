@@ -326,6 +326,8 @@
   "rawJpegShortLabel": "R&J",
   "imageShortLabel": "IMG",
   "playLivePhoto": "Play Live Photo",
+  "previousImageFrame": "Previous frame",
+  "nextImageFrame": "Next frame",
   "longPressLivePhotoTitle": "Press and hold to play Live Photos",
   "stopLivePhoto": "Stop Live Photo",
   "unmuteLivePhoto": "Unmute Live Photo",

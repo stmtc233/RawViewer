@@ -161,8 +161,8 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
       return;
     }
 
-    final imageProvider = ResizeImage(
-      bitmapImageProvider(widget.filePath),
+    final imageProvider = resizedBitmapImageProvider(
+      widget.filePath,
       width: widget.resizeWidth,
     );
     final imageStream = imageProvider.resolve(ImageConfiguration.empty);
@@ -340,8 +340,8 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
 
   Widget _buildBitmapThumbnail() {
     Widget image = Image(
-      image: ResizeImage(
-        bitmapImageProvider(widget.filePath),
+      image: resizedBitmapImageProvider(
+        widget.filePath,
         width: widget.resizeWidth,
       ),
       fit: BoxFit.cover,

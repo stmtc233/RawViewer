@@ -680,6 +680,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playLivePhoto => 'Play Live Photo';
 
   @override
+  String get previousImageFrame => 'Previous frame';
+
+  @override
+  String get nextImageFrame => 'Next frame';
+
+  @override
   String get longPressLivePhotoTitle => 'Press and hold to play Live Photos';
 
   @override

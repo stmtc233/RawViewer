@@ -668,6 +668,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playLivePhoto => '播放动态照片';
 
   @override
+  String get previousImageFrame => '上一帧';
+
+  @override
+  String get nextImageFrame => '下一帧';
+
+  @override
   String get longPressLivePhotoTitle => '长按播放动态照片';
 
   @override

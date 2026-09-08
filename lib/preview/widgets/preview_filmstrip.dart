@@ -464,8 +464,8 @@ class _PreviewFilmstripThumbnailState
             );
     } else {
       image = Image(
-        image: ResizeImage(
-          bitmapImageProvider(_filePath),
+        image: resizedBitmapImageProvider(
+          _filePath,
           width: widget.decodeWidth,
         ),
         fit: BoxFit.cover,

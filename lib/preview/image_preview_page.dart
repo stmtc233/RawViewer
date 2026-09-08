@@ -516,8 +516,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
       // For bitmaps, preload the same low-res layer used by single preview
       if (mounted) {
         precacheImage(
-          ResizeImage(
-            bitmapImageProvider(filePath),
+          resizedBitmapImageProvider(
+            filePath,
             width: targetWidth,
           ),
           context,

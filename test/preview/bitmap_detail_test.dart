@@ -5,6 +5,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rawviewer/core/raw_view_mode.dart';
+import 'package:rawviewer/core/bitmap_image_provider.dart';
+import 'package:rawviewer/l10n/app_localizations.dart';
 import 'package:rawviewer/image_store.dart';
 import 'package:rawviewer/lru_cache.dart';
 import 'package:rawviewer/media_group.dart';
@@ -12,6 +14,7 @@ import 'package:rawviewer/preview/preview_geometry.dart';
 import 'package:rawviewer/preview/single_image_preview.dart';
 import 'package:rawviewer/settings_page.dart';
 import 'package:rawviewer/viewer_image.dart';
+import '../fixtures/animated_png.dart';
 
 ResizeImage _detailProvider(WidgetTester tester) =>
     tester.widgetList<Image>(find.byType(Image)).last.image as ResizeImage;
@@ -36,6 +39,90 @@ Future<int> _decodedWidth(WidgetTester tester, ImageProvider provider) async {
 }
 
 void main() {
+  testWidgets(
+      'multi-frame PNG exposes bounded manual navigation and resets for another file',
+      (tester) async {
+    final directory = Directory.systemTemp.createTempSync('preview-frames-');
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final file = File('${directory.path}/three.png')
+      ..writeAsBytesSync(threeFramePng());
+    final second = File('${directory.path}/other.png')
+      ..writeAsBytesSync(threeFramePng());
+    final scrolling = ValueNotifier(false);
+    addTearDown(scrolling.dispose);
+    final store = ImageStore(LruCache<String, ViewerImage>(1024,
+        onEvict: (_, image) => image.dispose()));
+    Widget preview(String path) => MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: SingleImagePreview(
+            mediaGroup: MediaGroup(
+                primary: MediaFile(path: path, kind: MediaKind.bitmap)),
+            thumbnailResizeWidth: 128,
+            previewThumbnailResizeWidth: 256,
+            imageStore: store,
+            settings: const ViewerSettings(),
+            rotationQuarterTurns: 0,
+            viewMode: RawViewMode.decodedRaw,
+            onResetRotationRequested: () {},
+            onSwitchRequest: (_) {},
+            onTrackpadPanStart: (_) {},
+            onTrackpadPanUpdate: (_) {},
+            onTrackpadPanEnd: (_) {},
+            onTrackpadPanCancel: () {},
+            isActive: true,
+            showPreviewOverview: false,
+            overviewBottomInset: 0,
+            isFastScrolling: scrolling,
+          ),
+        );
+    await tester.runAsync(() async {
+      await tester.pumpWidget(preview(file.path));
+      await _loadFramesReady(tester);
+    });
+    await tester.pump();
+    expect(find.text('1 / 3'), findsOneWidget);
+    expect(
+        tester
+            .widget<IconButton>(
+                find.widgetWithIcon(IconButton, Icons.chevron_left))
+            .onPressed,
+        isNull);
+    await tester.tap(find.byTooltip('Next frame'));
+    await tester.pump();
+    expect(find.text('2 / 3'), findsOneWidget);
+    expect(
+        _detailProvider(tester).imageProvider,
+        bitmapImageProvider(file.path,
+            frameIndex: 1, decodeWidth: _detailProvider(tester).width));
+    await tester.tap(find.byTooltip('Next frame'));
+    await tester.pump();
+    expect(find.text('3 / 3'), findsOneWidget);
+    expect(
+        tester
+            .widget<IconButton>(
+                find.widgetWithIcon(IconButton, Icons.chevron_right))
+            .onPressed,
+        isNull);
+    await tester.tap(find.byTooltip('Previous frame'));
+    await tester.pump();
+    expect(find.text('2 / 3'), findsOneWidget);
+    await tester.runAsync(() async {
+      await tester.pumpWidget(preview(second.path));
+      await _loadFramesReady(tester);
+    });
+    await tester.pump();
+    expect(find.text('1 / 3'), findsOneWidget);
+    expect(
+        _detailProvider(tester).imageProvider,
+        bitmapImageProvider(second.path,
+            decodeWidth: _detailProvider(tester).width));
+    await tester.pumpWidget(const SizedBox());
+    await tester.runAsync(() async {});
+    expect(tester.takeException(), isNull);
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
+  });
   for (final paired in [false, true]) {
     testWidgets(
         '${paired ? 'paired' : 'standalone'} bitmap loads original '
@@ -151,5 +238,12 @@ void main() {
       PaintingBinding.instance.imageCache.clear();
       PaintingBinding.instance.imageCache.clearLiveImages();
     });
+  }
+}
+
+Future<void> _loadFramesReady(WidgetTester tester) async {
+  for (var i = 0; i < 100 && find.text('1 / 3').evaluate().isEmpty; i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    await tester.pump();
   }
 }

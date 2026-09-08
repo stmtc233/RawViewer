@@ -9,6 +9,7 @@ import '../core/bitmap_image_provider.dart';
 import '../core/pointer_modifiers.dart';
 import '../core/raw_view_mode.dart';
 import '../image_store.dart';
+import '../l10n/app_localizations.dart';
 import '../media_group.dart';
 import '../settings_page.dart';
 import '../native_lib.dart';
@@ -112,6 +113,30 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
   PreviewScaleDirection? _fitScaleLockDirection;
   Timer? _bitmapDetailTimer;
   double _bitmapDetailScale = 1;
+  int _bitmapFrameIndex = 0;
+  int _bitmapFrameCount = 1;
+  int _frameProbeGeneration = 0;
+
+  String? get _bitmapPath => _isShowingPairedJpeg
+      ? widget.mediaGroup.pairedJpeg?.path
+      : widget.isRaw
+          ? null
+          : widget.filePath;
+
+  Future<void> _loadBitmapFrameCount() async {
+    final generation = ++_frameProbeGeneration;
+    final filePath = _bitmapPath;
+    if (filePath == null) return;
+    try {
+      final count = await bitmapFrameCount(filePath);
+      if (mounted && generation == _frameProbeGeneration) {
+        setState(() => _bitmapFrameCount = count);
+      }
+    } catch (_) {
+      // The image widget reports unreadable files through its error builder.
+    }
+  }
+
   double? _pendingBitmapDetailScale;
 
   /// Only the expensive decoded-RAW task is tracked for cancellation.
@@ -129,6 +154,7 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
   @override
   void initState() {
     super.initState();
+    unawaited(_loadBitmapFrameCount());
     _rawDecodeHalfSize = widget.settings.useHalfSizeRawDecode ? 1 : 0;
 
     // Take a cached thumbnail-layer image synchronously so the first frame of a
@@ -157,6 +183,14 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
   @override
   void didUpdateWidget(SingleImagePreview oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.filePath != widget.filePath ||
+        oldWidget.mediaGroup.pairedJpeg?.path !=
+            widget.mediaGroup.pairedJpeg?.path ||
+        oldWidget.viewMode != widget.viewMode) {
+      _bitmapFrameIndex = 0;
+      _bitmapFrameCount = 1;
+      unawaited(_loadBitmapFrameCount());
+    }
 
     if (oldWidget.isFastScrolling != widget.isFastScrolling) {
       oldWidget.isFastScrolling.removeListener(_onFastScrollingChanged);
@@ -708,6 +742,48 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
                   ),
                 ),
               ),
+            if (widget.isActive && _bitmapFrameCount > 1)
+              Positioned(
+                left: 16,
+                bottom: widget.overviewBottomInset +
+                    MediaQuery.paddingOf(context).bottom +
+                    previewImageControlsHeight +
+                    12,
+                child: PreviewHoverReveal(
+                  restingOpacity: widget.settings.previewOverlayOpacity,
+                  hitTestBehavior: HitTestBehavior.opaque,
+                  child: Material(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(6),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      IconButton(
+                        tooltip:
+                            AppLocalizations.of(context)!.previousImageFrame,
+                        onPressed: _bitmapFrameIndex > 0
+                            ? () => setState(() => _bitmapFrameIndex--)
+                            : null,
+                        icon: const Icon(Icons.chevron_left),
+                        color: Colors.white,
+                      ),
+                      SizedBox(
+                        width: 24 + _bitmapFrameCount.toString().length * 24.0,
+                        child: Center(
+                            child: Text(
+                                '${_bitmapFrameIndex + 1} / $_bitmapFrameCount',
+                                style: const TextStyle(color: Colors.white))),
+                      ),
+                      IconButton(
+                        tooltip: AppLocalizations.of(context)!.nextImageFrame,
+                        onPressed: _bitmapFrameIndex + 1 < _bitmapFrameCount
+                            ? () => setState(() => _bitmapFrameIndex++)
+                            : null,
+                        icon: const Icon(Icons.chevron_right),
+                        color: Colors.white,
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
           ],
         );
         final bitmapPath = _isShowingPairedJpeg
@@ -767,8 +843,9 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
 
   Widget _buildOverviewBitmap(String filePath) {
     return Image(
-      image: ResizeImage(
-        bitmapImageProvider(filePath),
+      image: resizedBitmapImageProvider(
+        filePath,
+        frameIndex: _bitmapFrameIndex,
         width:
             (kPreviewOverviewMapWidth * MediaQuery.devicePixelRatioOf(context))
                 .round(),
@@ -825,8 +902,6 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
   }
 
   Widget _buildBitmapPreview(String filePath) {
-    final provider = bitmapImageProvider(filePath);
-
     // Bound the initial decode, then add detail in settled zoom tiers.
     // ResizeImagePolicy.fit stops at the source resolution without upscaling.
     final mediaQuery = MediaQuery.of(context);
@@ -849,8 +924,9 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
           fit: StackFit.expand,
           children: [
             Image(
-              image: ResizeImage(
-                provider,
+              image: resizedBitmapImageProvider(
+                filePath,
+                frameIndex: _bitmapFrameIndex,
                 width: widget.thumbnailResizeWidth,
               ),
               fit: BoxFit.contain,
@@ -861,8 +937,9 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
             ),
             if (widget.isActive && !isFastScrolling)
               Image(
-                image: ResizeImage(
-                  provider,
+                image: resizedBitmapImageProvider(
+                  filePath,
+                  frameIndex: _bitmapFrameIndex,
                   width: fullDecodeWidth,
                   policy: ResizeImagePolicy.fit,
                 ),
@@ -872,7 +949,7 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
                   child: Icon(Icons.broken_image, color: Colors.white),
                 ),
               ),
-            if (widget.isActive && !isFastScrolling)
+            if (widget.isActive && !isFastScrolling && _bitmapFrameCount == 1)
               Positioned.fill(
                 child: HdrImage(
                   key: ValueKey('hdr:$filePath:$fullDecodeWidth'),
