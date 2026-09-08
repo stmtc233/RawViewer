@@ -793,35 +793,49 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
                 child: PreviewHoverReveal(
                   restingOpacity: widget.settings.previewOverlayOpacity,
                   hitTestBehavior: HitTestBehavior.opaque,
-                  child: Material(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(6),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      IconButton(
-                        tooltip:
-                            AppLocalizations.of(context)!.previousImageFrame,
-                        onPressed: _bitmapFrameIndex > 0
-                            ? () => setState(() => _bitmapFrameIndex--)
-                            : null,
-                        icon: const Icon(Icons.chevron_left),
-                        color: Colors.white,
-                      ),
-                      SizedBox(
-                        width: 24 + _bitmapFrameCount.toString().length * 24.0,
-                        child: Center(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: RawViewerColors.surface.withValues(alpha: 0.84),
+                      border: Border.all(color: RawViewerColors.border),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(3),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        DesktopIconButton(
+                          icon: Icons.chevron_left,
+                          tooltip:
+                              AppLocalizations.of(context)!.previousImageFrame,
+                          onPressed: _bitmapFrameIndex > 0
+                              ? () => setState(() => _bitmapFrameIndex--)
+                              : null,
+                        ),
+                        const SizedBox(width: 2),
+                        SizedBox(
+                          width:
+                              24 + _bitmapFrameCount.toString().length * 24.0,
+                          height: desktopControlSize,
+                          child: Center(
                             child: Text(
-                                '${_bitmapFrameIndex + 1} / $_bitmapFrameCount',
-                                style: const TextStyle(color: Colors.white))),
-                      ),
-                      IconButton(
-                        tooltip: AppLocalizations.of(context)!.nextImageFrame,
-                        onPressed: _bitmapFrameIndex + 1 < _bitmapFrameCount
-                            ? () => setState(() => _bitmapFrameIndex++)
-                            : null,
-                        icon: const Icon(Icons.chevron_right),
-                        color: Colors.white,
-                      ),
-                    ]),
+                              '${_bitmapFrameIndex + 1} / $_bitmapFrameCount',
+                              style: const TextStyle(
+                                color: RawViewerColors.text,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        DesktopIconButton(
+                          icon: Icons.chevron_right,
+                          tooltip: AppLocalizations.of(context)!.nextImageFrame,
+                          onPressed: _bitmapFrameIndex + 1 < _bitmapFrameCount
+                              ? () => setState(() => _bitmapFrameIndex++)
+                              : null,
+                        ),
+                      ]),
+                    ),
                   ),
                 ),
               ),

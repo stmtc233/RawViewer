@@ -13,6 +13,7 @@ import 'package:rawviewer/media_group.dart';
 import 'package:rawviewer/preview/preview_geometry.dart';
 import 'package:rawviewer/preview/single_image_preview.dart';
 import 'package:rawviewer/settings_page.dart';
+import 'package:rawviewer/ui/desktop_controls.dart';
 import 'package:rawviewer/viewer_image.dart';
 import '../fixtures/animated_png.dart';
 
@@ -37,6 +38,10 @@ Future<int> _decodedWidth(WidgetTester tester, ImageProvider provider) async {
     }
   }))!;
 }
+
+DesktopIconButton _frameButton(WidgetTester tester, IconData icon) =>
+    tester.widget<DesktopIconButton>(find.byWidgetPredicate(
+        (widget) => widget is DesktopIconButton && widget.icon == icon));
 
 void main() {
   testWidgets(
@@ -82,12 +87,7 @@ void main() {
     });
     await tester.pump();
     expect(find.text('1 / 3'), findsOneWidget);
-    expect(
-        tester
-            .widget<IconButton>(
-                find.widgetWithIcon(IconButton, Icons.chevron_left))
-            .onPressed,
-        isNull);
+    expect(_frameButton(tester, Icons.chevron_left).onPressed, isNull);
     await tester.tap(find.byTooltip('Next frame'));
     await tester.pump();
     expect(find.text('2 / 3'), findsOneWidget);
@@ -98,12 +98,7 @@ void main() {
     await tester.tap(find.byTooltip('Next frame'));
     await tester.pump();
     expect(find.text('3 / 3'), findsOneWidget);
-    expect(
-        tester
-            .widget<IconButton>(
-                find.widgetWithIcon(IconButton, Icons.chevron_right))
-            .onPressed,
-        isNull);
+    expect(_frameButton(tester, Icons.chevron_right).onPressed, isNull);
     await tester.tap(find.byTooltip('Previous frame'));
     await tester.pump();
     expect(find.text('2 / 3'), findsOneWidget);
