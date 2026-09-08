@@ -6,12 +6,16 @@ import 'package:video_player/video_player.dart';
 
 import '../../core/live_photo.dart';
 import '../../l10n/app_localizations.dart';
+import '../../ui/app_theme.dart';
+import '../../ui/desktop_controls.dart';
+import 'preview_hover_reveal.dart';
 
 class LivePhotoPreview extends StatefulWidget {
   final String filePath;
   final bool active;
   final bool longPressPlaybackEnabled;
   final int quarterTurns;
+  final double overlayOpacity;
   final double bottomInset;
   final Widget child;
   final Future<LivePhotoSource?> Function(String) sourceLoader;
@@ -22,6 +26,7 @@ class LivePhotoPreview extends StatefulWidget {
     required this.active,
     this.longPressPlaybackEnabled = false,
     required this.quarterTurns,
+    this.overlayOpacity = 1,
     required this.bottomInset,
     required this.child,
     this.sourceLoader = findLivePhoto,
@@ -313,27 +318,47 @@ class _LivePhotoPreviewState extends State<LivePhotoPreview>
           Positioned(
             left: 16,
             bottom: widget.bottomInset + 12,
-            child: Material(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(6),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                IconButton(
-                  tooltip: playing ? l10n!.stopLivePhoto : l10n!.playLivePhoto,
-                  onPressed: playing ? () => setState(_stop) : _play,
-                  icon: _loading
-                      ? const SizedBox.square(
-                          dimension: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : Icon(playing ? Icons.stop : Icons.motion_photos_on,
-                          color: Colors.white),
+            child: PreviewHoverReveal(
+              restingOpacity: widget.overlayOpacity,
+              hitTestBehavior: HitTestBehavior.opaque,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: RawViewerColors.surface.withValues(alpha: 0.84),
+                  border: Border.all(color: RawViewerColors.border),
+                  borderRadius: BorderRadius.circular(5),
                 ),
-                IconButton(
-                  tooltip: _muted ? l10n.unmuteLivePhoto : l10n.muteLivePhoto,
-                  onPressed: _toggleMute,
-                  icon: Icon(_muted ? Icons.volume_off : Icons.volume_up,
-                      color: Colors.white),
+                child: Padding(
+                  padding: const EdgeInsets.all(3),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        DesktopIconButton(
+                          icon: playing ? Icons.stop : Icons.motion_photos_on,
+                          tooltip: playing
+                              ? l10n!.stopLivePhoto
+                              : l10n!.playLivePhoto,
+                          onPressed: playing ? () => setState(_stop) : _play,
+                        ),
+                        if (_loading)
+                          const IgnorePointer(
+                            child: SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(width: 2),
+                    DesktopIconButton(
+                      icon: _muted ? Icons.volume_off : Icons.volume_up,
+                      tooltip:
+                          _muted ? l10n.unmuteLivePhoto : l10n.muteLivePhoto,
+                      onPressed: _toggleMute,
+                    ),
+                  ]),
                 ),
-              ]),
+              ),
             ),
           ),
       ],

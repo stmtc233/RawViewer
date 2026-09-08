@@ -854,6 +854,7 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
             active: widget.isActive && !fastScrolling,
             longPressPlaybackEnabled: widget.settings.longPressLivePhotoEnabled,
             quarterTurns: widget.rotationQuarterTurns,
+            overlayOpacity: widget.settings.previewOverlayOpacity,
             bottomInset: widget.overviewBottomInset +
                 MediaQuery.paddingOf(context).bottom +
                 previewImageControlsHeight,
@@ -1045,7 +1046,7 @@ class _HdrPreviewToggle extends StatelessWidget {
       child: SizedBox(
         height: desktopControlSize,
         child: Material(
-          color: enabled ? RawViewerColors.accentMuted : Colors.transparent,
+          color: Colors.transparent,
           borderRadius: BorderRadius.circular(5),
           child: InkWell(
             borderRadius: BorderRadius.circular(5),
@@ -1058,11 +1059,14 @@ class _HdrPreviewToggle extends StatelessWidget {
                 child: Text(
                   'HDR',
                   style: TextStyle(
-                    color: enabled
-                        ? RawViewerColors.accent
-                        : RawViewerColors.mutedText,
+                    color: RawViewerColors.mutedText,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
+                    decoration: enabled
+                        ? TextDecoration.none
+                        : TextDecoration.lineThrough,
+                    decorationColor: RawViewerColors.mutedText,
+                    decorationThickness: 1.5,
                   ),
                 ),
               ),
