@@ -160,27 +160,25 @@ void main() {
         home: HomePage(onAppLanguageChanged: (_) {}),
       ));
 
-      Future<void> settle() async {
-        for (var i = 0; i < 10; i++) {
+      Future<void> waitForMediaTiles(int count) async {
+        for (var i = 0; i < 100; i++) {
           await tester.pump();
-          await Future<void>.delayed(const Duration(milliseconds: 30));
+          if (find.byType(MediaThumbnailTile).evaluate().length == count) {
+            return;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 50));
         }
-        await tester.pumpAndSettle();
       }
 
-      await settle();
+      // The desktop open request and directory watcher are real async I/O.
+      // Wait for the initial load before creating the watched file so a slow
+      // CI runner cannot create it before the watcher is subscribed.
+      await waitForMediaTiles(1);
       expect(find.byType(MediaThumbnailTile), findsOneWidget);
 
       File('${root.path}/added.png').writeAsBytesSync(base64Decode(
           'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII='));
-      for (var i = 0; i < 20; i++) {
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-        await tester.pump();
-        if (find.byType(MediaThumbnailTile).evaluate().length == 2) {
-          break;
-        }
-      }
-
+      await waitForMediaTiles(2);
       expect(find.byType(MediaThumbnailTile), findsNWidgets(2));
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
