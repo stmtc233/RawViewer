@@ -61,6 +61,8 @@ Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueTyp
 Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".jpeg"; ValueData: "RawViewer.jpeg"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".png"; ValueData: "RawViewer.png"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".webp"; ValueData: "RawViewer.webp"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".heic"; ValueData: "RawViewer.heic"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\RawViewer\Capabilities\FileAssociations"; ValueType: string; ValueName: ".heif"; ValueData: "RawViewer.heif"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.arw"; ValueType: string; ValueName: ""; ValueData: "Raw Viewer image"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.cr2"; ValueType: string; ValueName: ""; ValueData: "Raw Viewer image"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.cr3"; ValueType: string; ValueName: ""; ValueData: "Raw Viewer image"; Flags: uninsdeletekey
@@ -74,6 +76,8 @@ Root: HKCU; Subkey: "Software\Classes\RawViewer.jpg"; ValueType: string; ValueNa
 Root: HKCU; Subkey: "Software\Classes\RawViewer.jpeg"; ValueType: string; ValueName: ""; ValueData: "Raw Viewer image"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.png"; ValueType: string; ValueName: ""; ValueData: "Raw Viewer image"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.webp"; ValueType: string; ValueName: ""; ValueData: "Raw Viewer image"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\RawViewer.heic"; ValueType: string; ValueName: ""; ValueData: "Raw Viewer image"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\RawViewer.heif"; ValueType: string; ValueName: ""; ValueData: "Raw Viewer image"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.arw\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.cr2\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.cr3\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Flags: uninsdeletekey
@@ -87,6 +91,8 @@ Root: HKCU; Subkey: "Software\Classes\RawViewer.jpg\DefaultIcon"; ValueType: str
 Root: HKCU; Subkey: "Software\Classes\RawViewer.jpeg\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.png\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.webp\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\RawViewer.heic\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\RawViewer.heif\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.arw\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.cr2\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.cr3\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
@@ -100,6 +106,8 @@ Root: HKCU; Subkey: "Software\Classes\RawViewer.jpg\shell\open\command"; ValueTy
 Root: HKCU; Subkey: "Software\Classes\RawViewer.jpeg\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.png\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\RawViewer.webp\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\RawViewer.heic\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\RawViewer.heif\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent

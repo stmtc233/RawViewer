@@ -23,6 +23,12 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(':app')
+    if (project.name == 'heic_native') {
+        project.plugins.withId('com.android.library') {
+            // Keep the decoder on the same NDK as the app's native wrapper.
+            project.android.ndkVersion = rootProject.project(':app').android.ndkVersion
+        }
+    }
 }
 
 tasks.register("clean", Delete) {

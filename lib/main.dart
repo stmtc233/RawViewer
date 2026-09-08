@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:video_player_media_kit/video_player_media_kit.dart';
 
 import 'app.dart';
 import 'core/preferences_repository.dart';
@@ -9,6 +10,7 @@ import 'core/windows_startup.dart';
 
 void main() async {
   final binding = WidgetsFlutterBinding.ensureInitialized();
+  if (Platform.isLinux) VideoPlayerMediaKit.ensureInitialized(linux: true);
 
   if (Platform.isWindows) {
     // Build while preferences and native setup run, but keep the first frame
@@ -23,8 +25,7 @@ void main() async {
   if (Platform.isMacOS || Platform.isLinux) {
     await windowManager.ensureInitialized();
 
-    final geometry =
-        await const PreferencesRepository().loadWindowGeometry();
+    final geometry = await const PreferencesRepository().loadWindowGeometry();
 
     WindowOptions windowOptions = WindowOptions(
       size: Size(geometry.width, geometry.height),

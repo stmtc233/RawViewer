@@ -324,5 +324,11 @@
   "pairedJpegModeLabel": "JPG",
   "rawShortLabel": "RAW",
   "rawJpegShortLabel": "R&J",
-  "imageShortLabel": "IMG"
+  "imageShortLabel": "IMG",
+  "playLivePhoto": "播放动态照片",
+  "longPressLivePhotoTitle": "长按播放动态照片",
+  "stopLivePhoto": "停止动态照片",
+  "unmuteLivePhoto": "开启动态照片声音",
+  "muteLivePhoto": "静音动态照片",
+  "livePhotoPlaybackFailed": "无法播放这张动态照片"
 }

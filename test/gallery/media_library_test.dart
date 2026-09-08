@@ -7,8 +7,17 @@ import 'package:rawviewer/media_group.dart';
 void main() {
   group('mediaFileFromPath', () {
     test('recognises RAW extensions as raw', () {
-      for (final ext in ['.arw', '.cr2', '.cr3', '.dng', '.nef', '.orf',
-                         '.raf', '.rw2', '.srw']) {
+      for (final ext in [
+        '.arw',
+        '.cr2',
+        '.cr3',
+        '.dng',
+        '.nef',
+        '.orf',
+        '.raf',
+        '.rw2',
+        '.srw'
+      ]) {
         final result = mediaFileFromPath('/photos/shot$ext');
         expect(result, isNotNull, reason: 'expected $ext to be recognised');
         expect(result!.isRaw, isTrue, reason: '$ext should be raw');
@@ -16,7 +25,7 @@ void main() {
     });
 
     test('recognises bitmap extensions as bitmap', () {
-      for (final ext in ['.jpg', '.jpeg', '.png', '.webp']) {
+      for (final ext in ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif']) {
         final result = mediaFileFromPath('/photos/shot$ext');
         expect(result, isNotNull, reason: 'expected $ext to be recognised');
         expect(result!.isRaw, isFalse, reason: '$ext should be bitmap');
@@ -38,9 +47,10 @@ void main() {
     test('returns a normalised absolute path', () {
       final result = mediaFileFromPath('relative/shot.arw');
       expect(result, isNotNull);
-      expect(result!.path, equals(
-          '${Directory.current.path}/relative/shot.arw'
-              .replaceAll('//','/')
+      expect(
+          result!.path,
+          equals('${Directory.current.path}/relative/shot.arw'
+              .replaceAll('//', '/')
               .replaceAll(RegExp(r'/+'), '/')));
     });
   });

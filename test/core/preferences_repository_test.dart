@@ -7,6 +7,30 @@ import 'package:rawviewer/settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('long-press Live playback defaults off and persists both states',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    const repository = PreferencesRepository();
+    expect(const ViewerSettings().longPressLivePhotoEnabled, isFalse);
+    expect((await repository.loadViewPreferences()).longPressLivePhotoEnabled,
+        isFalse);
+    await repository.saveLongPressLivePhotoEnabled(true);
+    final stored = await repository.loadViewPreferences();
+    final settings = ViewerSettings(
+        longPressLivePhotoEnabled: stored.longPressLivePhotoEnabled);
+    expect(settings.longPressLivePhotoEnabled, isTrue);
+    expect(
+        settings.copyWith(maxCacheSize: 256).longPressLivePhotoEnabled, isTrue);
+    expect(
+        settings
+            .copyWith(longPressLivePhotoEnabled: false)
+            .longPressLivePhotoEnabled,
+        isFalse);
+    await repository.saveLongPressLivePhotoEnabled(false);
+    expect((await repository.loadViewPreferences()).longPressLivePhotoEnabled,
+        isFalse);
+  });
+
   test('directory browsing defaults off and persists both states', () async {
     SharedPreferences.setMockInitialValues({});
     const repository = PreferencesRepository();

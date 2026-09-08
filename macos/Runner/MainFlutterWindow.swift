@@ -85,6 +85,7 @@ class MainFlutterWindow: NSWindow {
     self.contentView?.addSubview(dragHandlingView, positioned: .above, relativeTo: nil)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
+    HdrImagePlugin.register(with: flutterViewController.registrar(forPlugin: "HdrImagePlugin"))
     OpenPathChannel.shared.attach(to: flutterViewController)
     DirectoryAccessChannel.shared.attach(to: flutterViewController)
     FileAssociationChannel.shared.attach(to: flutterViewController)

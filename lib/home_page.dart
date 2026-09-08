@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'core/bitmap_image_provider.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
@@ -141,6 +142,7 @@ class _HomePageState extends State<HomePage> {
         timeDisplaySource: stored.timeDisplaySource,
         appLanguage: stored.appLanguage,
         pageSwitchAnimationEnabled: stored.pageSwitchAnimationEnabled,
+        longPressLivePhotoEnabled: stored.longPressLivePhotoEnabled,
         previewOverlayOpacity: stored.previewOverlayOpacity,
         previewToolbarOpacity: stored.previewToolbarOpacity,
         previewFilmstripOpacity: stored.previewFilmstripOpacity,
@@ -297,6 +299,8 @@ class _HomePageState extends State<HomePage> {
         _settings.gridAspectRatio != settings.gridAspectRatio;
     final pageSwitchAnimationChanged = _settings.pageSwitchAnimationEnabled !=
         settings.pageSwitchAnimationEnabled;
+    final longPressLivePhotoChanged = _settings.longPressLivePhotoEnabled !=
+        settings.longPressLivePhotoEnabled;
     final previewOverlayOpacityChanged =
         _settings.previewOverlayOpacity != settings.previewOverlayOpacity;
     final previewToolbarOpacityChanged =
@@ -363,6 +367,10 @@ class _HomePageState extends State<HomePage> {
           settings.pageSwitchAnimationEnabled,
         ),
       );
+    }
+    if (longPressLivePhotoChanged) {
+      unawaited(const PreferencesRepository()
+          .saveLongPressLivePhotoEnabled(settings.longPressLivePhotoEnabled));
     }
     if (previewOverlayOpacityChanged) {
       unawaited(
@@ -1463,7 +1471,7 @@ class _HomePageState extends State<HomePage> {
       final mediaFile = mediaGroups[index].primary;
       if (!mediaFile.isRaw) {
         precacheImage(
-          ResizeImage(FileImage(File(mediaFile.path)),
+          ResizeImage(bitmapImageProvider(mediaFile.path),
               width: thumbnailResizeWidth),
           context,
         );

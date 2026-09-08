@@ -1,10 +1,10 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 
 import '../../core/media_timestamps.dart';
+import '../../core/bitmap_image_provider.dart';
 import '../../core/rating_filter.dart';
 import '../../rating_badge.dart';
 import '../../image_store.dart';
@@ -162,7 +162,7 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
     }
 
     final imageProvider = ResizeImage(
-      FileImage(File(widget.filePath)),
+      bitmapImageProvider(widget.filePath),
       width: widget.resizeWidth,
     );
     final imageStream = imageProvider.resolve(ImageConfiguration.empty);
@@ -341,7 +341,7 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
   Widget _buildBitmapThumbnail() {
     Widget image = Image(
       image: ResizeImage(
-        FileImage(File(widget.filePath)),
+        bitmapImageProvider(widget.filePath),
         width: widget.resizeWidth,
       ),
       fit: BoxFit.cover,

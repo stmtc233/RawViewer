@@ -78,6 +78,7 @@ class StoredViewPreferences {
   final TimeDisplaySource timeDisplaySource;
   final AppLanguage appLanguage;
   final bool pageSwitchAnimationEnabled;
+  final bool longPressLivePhotoEnabled;
   final double previewOverlayOpacity;
   final double previewToolbarOpacity;
   final double previewFilmstripOpacity;
@@ -100,6 +101,7 @@ class StoredViewPreferences {
     required this.timeDisplaySource,
     required this.appLanguage,
     required this.pageSwitchAnimationEnabled,
+    this.longPressLivePhotoEnabled = false,
     required this.previewOverlayOpacity,
     required this.previewToolbarOpacity,
     required this.previewFilmstripOpacity,
@@ -138,6 +140,8 @@ class PreferencesRepository {
   static const String _appLanguage = 'app_language';
   static const String _pageSwitchAnimationEnabled =
       'page_switch_animation_enabled';
+  static const String _longPressLivePhotoEnabled =
+      'long_press_live_photo_enabled';
   static const String _previewOverlayOpacity = 'preview_overlay_opacity';
   static const String _previewToolbarOpacity = 'preview_toolbar_opacity';
   static const String _previewFilmstripOpacity = 'preview_filmstrip_opacity';
@@ -155,6 +159,11 @@ class PreferencesRepository {
   Future<void> saveHotFolderEnabled(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_hotFolderEnabled, enabled);
+  }
+
+  Future<void> saveLongPressLivePhotoEnabled(bool enabled) async {
+    final prefs = await _prefs;
+    await prefs.setBool(_longPressLivePhotoEnabled, enabled);
   }
 
   static const String _hideUnratedRatings = 'hide_unrated_ratings';
@@ -231,6 +240,8 @@ class PreferencesRepository {
               AppLanguage.system,
       pageSwitchAnimationEnabled:
           prefs.getBool(_pageSwitchAnimationEnabled) ?? true,
+      longPressLivePhotoEnabled:
+          prefs.getBool(_longPressLivePhotoEnabled) ?? false,
       previewOverlayOpacity: overlayOpacity,
       previewToolbarOpacity: await _loadPreviewBarOpacity(
         prefs,

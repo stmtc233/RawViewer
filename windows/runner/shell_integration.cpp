@@ -18,9 +18,9 @@ constexpr wchar_t kDirectoryVerbKey[] =
 constexpr wchar_t kDirectoryBackgroundVerbKey[] =
     L"Software\\Classes\\Directory\\Background\\shell\\RawViewOpen";
 
-constexpr std::array<const wchar_t*, 13> kFileAssociationExtensions = {{
+constexpr std::array<const wchar_t*, 15> kFileAssociationExtensions = {{
     L"arw", L"cr2", L"cr3", L"dng", L"nef", L"orf", L"raf",
-    L"rw2", L"srw", L"jpg", L"jpeg", L"png", L"webp",
+    L"rw2", L"srw", L"jpg", L"jpeg", L"png", L"webp", L"heic", L"heif",
 }};
 
 struct ContextMenuState {

@@ -17,6 +17,8 @@ const List<String> bitmapExtensions = [
   '.jpeg',
   '.png',
   '.webp',
+  '.heic',
+  '.heif',
 ];
 
 const List<String> supportedExtensions = [

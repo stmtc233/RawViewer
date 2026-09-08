@@ -205,6 +205,7 @@ class ViewerSettings {
   // Applies to discrete mouse-wheel page changes. Touch and trackpad
   // navigation remain directly controlled by the PageView.
   final bool pageSwitchAnimationEnabled;
+  final bool longPressLivePhotoEnabled;
   // Resting opacities for tools/overview, the top bar, and the filmstrip.
   final double previewOverlayOpacity;
   final double previewToolbarOpacity;
@@ -228,6 +229,7 @@ class ViewerSettings {
     this.appLanguage = AppLanguage.system,
     this.gridAspectRatio = GridAspectRatio.ratio3x2,
     this.pageSwitchAnimationEnabled = true,
+    this.longPressLivePhotoEnabled = false,
     this.previewOverlayOpacity = kDefaultPreviewOverlayOpacity,
     this.previewToolbarOpacity = kDefaultPreviewOverlayOpacity,
     this.previewFilmstripOpacity = kDefaultPreviewOverlayOpacity,
@@ -251,6 +253,7 @@ class ViewerSettings {
     AppLanguage? appLanguage,
     GridAspectRatio? gridAspectRatio,
     bool? pageSwitchAnimationEnabled,
+    bool? longPressLivePhotoEnabled,
     double? previewOverlayOpacity,
     double? previewToolbarOpacity,
     double? previewFilmstripOpacity,
@@ -275,6 +278,8 @@ class ViewerSettings {
       gridAspectRatio: gridAspectRatio ?? this.gridAspectRatio,
       pageSwitchAnimationEnabled:
           pageSwitchAnimationEnabled ?? this.pageSwitchAnimationEnabled,
+      longPressLivePhotoEnabled:
+          longPressLivePhotoEnabled ?? this.longPressLivePhotoEnabled,
       previewOverlayOpacity:
           previewOverlayOpacity ?? this.previewOverlayOpacity,
       previewToolbarOpacity:
@@ -813,6 +818,16 @@ class _SettingsPageState extends State<SettingsPage>
       DesktopSettingsSection(
         title: l10n.imagePreviewSectionTitle,
         children: _withDividers([
+          DesktopSettingsRow(
+            key: const ValueKey('long-press-live-photo'),
+            title: l10n.longPressLivePhotoTitle,
+            control: Switch(
+              value: _currentSettings.longPressLivePhotoEnabled,
+              onChanged: (value) => _updateSettings(
+                _currentSettings.copyWith(longPressLivePhotoEnabled: value),
+              ),
+            ),
+          ),
           _buildOpacityRow(
             key: 'preview-toolbar-opacity',
             title: l10n.previewToolbarOpacityTitle,

@@ -663,4 +663,22 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get imageShortLabel => 'IMG';
+
+  @override
+  String get playLivePhoto => '播放动态照片';
+
+  @override
+  String get longPressLivePhotoTitle => '长按播放动态照片';
+
+  @override
+  String get stopLivePhoto => '停止动态照片';
+
+  @override
+  String get unmuteLivePhoto => '开启动态照片声音';
+
+  @override
+  String get muteLivePhoto => '静音动态照片';
+
+  @override
+  String get livePhotoPlaybackFailed => '无法播放这张动态照片';
 }

@@ -1306,6 +1306,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'IMG'**
   String get imageShortLabel;
+
+  /// No description provided for @playLivePhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Play Live Photo'**
+  String get playLivePhoto;
+
+  /// No description provided for @longPressLivePhotoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Press and hold to play Live Photos'**
+  String get longPressLivePhotoTitle;
+
+  /// No description provided for @stopLivePhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop Live Photo'**
+  String get stopLivePhoto;
+
+  /// No description provided for @unmuteLivePhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Unmute Live Photo'**
+  String get unmuteLivePhoto;
+
+  /// No description provided for @muteLivePhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Mute Live Photo'**
+  String get muteLivePhoto;
+
+  /// No description provided for @livePhotoPlaybackFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to play this Live Photo'**
+  String get livePhotoPlaybackFailed;
 }
 
 class _AppLocalizationsDelegate extends LocalizationsDelegate<AppLocalizations> {

@@ -12,7 +12,9 @@ Raw Viewer 旨在为摄影师和摄影爱好者提供一个轻量、流畅的工
 
 - **广泛的格式支持:**
   - RAW 格式: `.arw`, `.cr2`, `.cr3`, `.dng`, `.nef`, `.orf`, `.raf`, `.rw2`, `.srw`
-  - 常规格式: `.jpg`, `.jpeg`, `.png`, `.webp`
+  - 常规格式: `.jpg`, `.jpeg`, `.png`, `.webp`, `.heic`, `.heif`
+- **HDR 照片:** 在兼容的 macOS、iOS 和 Android 屏幕上使用原生 HDR 预览，Windows 和 Linux 使用 SDR 显示。[格式与平台支持详情](docs/hdr-live-photos.md)。
+- **动态照片:** 支持播放导出的苹果照片/MOV 配对及安卓 JPEG 动态照片，可控制声音。
 - **极速解码:** 结合原生 C++ `LibRaw` 与 Dart Isolate（多线程），将图像解码过程转移至后台，确保 UI 流畅无卡顿。
 - **内嵌预览:** 优先提取 RAW 文件中内嵌的缩略图和预览图，实现极速翻页浏览，并支持一键切换至完整的 RAW 原图解码。
 - **智能缓存:** 内置 LRU 缓存机制，动态管理内存，兼顾浏览速度与内存占用。

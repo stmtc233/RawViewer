@@ -675,4 +675,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get imageShortLabel => 'IMG';
+
+  @override
+  String get playLivePhoto => 'Play Live Photo';
+
+  @override
+  String get longPressLivePhotoTitle => 'Press and hold to play Live Photos';
+
+  @override
+  String get stopLivePhoto => 'Stop Live Photo';
+
+  @override
+  String get unmuteLivePhoto => 'Unmute Live Photo';
+
+  @override
+  String get muteLivePhoto => 'Mute Live Photo';
+
+  @override
+  String get livePhotoPlaybackFailed => 'Unable to play this Live Photo';
 }

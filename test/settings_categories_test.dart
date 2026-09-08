@@ -15,6 +15,7 @@ Widget _page({
   Future<FileAssociationSettings> Function(Set<String>)? onAssociationsChanged,
   AppInfoLoader? appInfoLoader,
   Future<String> Function()? latestTagFetcher,
+  ValueChanged<ViewerSettings>? onSettingsChanged,
 }) {
   return MaterialApp(
     locale: const Locale('en'),
@@ -28,7 +29,7 @@ Widget _page({
     home: SettingsPage(
       settings: settings,
       onClose: () {},
-      onSettingsChanged: (_) {},
+      onSettingsChanged: onSettingsChanged ?? (_) {},
       onFileAssociationsChanged: onAssociationsChanged,
       appInfoLoader: appInfoLoader ?? () async => _appInfo,
       latestTagFetcher: latestTagFetcher ?? () async => 'v1.2.0',
@@ -51,6 +52,25 @@ Future<void> _open(WidgetTester tester, SettingsCategory category) async {
 }
 
 void main() {
+  testWidgets('long-press Live playback can be enabled in preview settings',
+      (tester) async {
+    ViewerSettings? changed;
+    await tester
+        .pumpWidget(_page(onSettingsChanged: (value) => changed = value));
+    await tester.pumpAndSettle();
+    await _open(tester, SettingsCategory.appearance);
+    final toggle = find.descendant(
+        of: find.byKey(const ValueKey('long-press-live-photo')),
+        matching: find.byType(Switch));
+    await tester.ensureVisible(toggle);
+    await tester.pumpAndSettle();
+    expect(tester.widget<Switch>(toggle).value, isFalse);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(changed!.longPressLivePhotoEnabled, isTrue);
+    expect(tester.widget<Switch>(toggle).value, isTrue);
+  });
+
   group('category navigation', () {
     testWidgets('a wide viewport shows the rail, not the tab bar',
         (tester) async {

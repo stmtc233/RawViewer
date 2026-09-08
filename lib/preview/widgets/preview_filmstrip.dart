@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import '../../core/bitmap_image_provider.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 
 import '../../image_store.dart';
@@ -465,7 +465,7 @@ class _PreviewFilmstripThumbnailState
     } else {
       image = Image(
         image: ResizeImage(
-          FileImage(File(_filePath)),
+          bitmapImageProvider(_filePath),
           width: widget.decodeWidth,
         ),
         fit: BoxFit.cover,

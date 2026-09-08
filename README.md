@@ -12,7 +12,9 @@ Raw Viewer allows photographers and enthusiasts to seamlessly view, browse, and 
 
 - **Extensive Format Support:**
   - RAW formats: `.arw`, `.cr2`, `.cr3`, `.dng`, `.nef`, `.orf`, `.raf`, `.rw2`, `.srw`
-  - Standard formats: `.jpg`, `.jpeg`, `.png`, `.webp`
+  - Standard formats: `.jpg`, `.jpeg`, `.png`, `.webp`, `.heic`, `.heif`
+- **HDR Photos:** Native HDR previews on compatible macOS, iOS, and Android displays, with SDR fallback on Windows and Linux. [Format and platform details](docs/hdr-live-photos.md).
+- **Live Photos:** Play exported Apple photo/MOV pairs and Android JPEG Motion Photos, with sound controls.
 - **Blazing Fast Decoding:** Uses native C++ `LibRaw` with Dart isolates to decode images off the main UI thread.
 - **Embedded Previews:** Extracts embedded thumbnails and previews for lightning-fast browsing before falling back to full RAW decoding.
 - **Smart Caching:** Built-in LRU cache to manage memory efficiency while keeping viewed images ready.

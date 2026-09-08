@@ -60,6 +60,24 @@ add_subdirectory("runner")
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# heic_native bundles x64 libraries. Windows ARM64 uses matching vcpkg builds.
+if(CMAKE_GENERATOR_PLATFORM STREQUAL "ARM64")
+  set(RAWVIEWER_VCPKG_ROOT "$ENV{VCPKG_INSTALLATION_ROOT}")
+  if(NOT RAWVIEWER_VCPKG_ROOT)
+    set(RAWVIEWER_VCPKG_ROOT "$ENV{VCPKG_ROOT}")
+  endif()
+  set(RAWVIEWER_HEIC_PREFIX "${RAWVIEWER_VCPKG_ROOT}/installed/arm64-windows")
+  list(PREPEND CMAKE_PREFIX_PATH "${RAWVIEWER_HEIC_PREFIX}")
+  find_package(libheif CONFIG REQUIRED)
+  find_package(PNG REQUIRED)
+  set_property(TARGET heic_native_plugin PROPERTY INCLUDE_DIRECTORIES "")
+  set_property(TARGET heic_native_plugin PROPERTY LINK_LIBRARIES
+    "flutter;flutter_wrapper_plugin;comctl32;heif;PNG::PNG")
+  list(FILTER PLUGIN_BUNDLED_LIBRARIES EXCLUDE REGEX "heic_native.*/third_party/")
+  file(GLOB RAWVIEWER_HEIC_DLLS "${RAWVIEWER_HEIC_PREFIX}/bin/*.dll")
+  list(APPEND PLUGIN_BUNDLED_LIBRARIES ${RAWVIEWER_HEIC_DLLS})
+endif()
+
 # permission_handler_windows currently uses the Microsoft /await extension.
 # MSVC 14.51 turns its deprecation diagnostic into an error unless this
 # vendor-provided transition definition is present.

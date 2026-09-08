@@ -139,7 +139,11 @@ jobs:
         run: flutter pub get
 
       - name: Build Windows ARM64
-        run: flutter build windows --release
+        shell: pwsh
+        run: |
+          & "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install "libheif[core]:arm64-windows" "libpng:arm64-windows"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter build windows --release
 
       - name: Prepare Windows package directory
         shell: pwsh
@@ -303,7 +307,7 @@ jobs:
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libheif-dev libpng-dev libmpv-dev libepoxy-dev
 
       - name: Stamp version into pubspec
         run: |
@@ -343,7 +347,7 @@ jobs:
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libheif-dev libpng-dev libmpv-dev libepoxy-dev
 
       - name: Stamp version into pubspec
         run: |

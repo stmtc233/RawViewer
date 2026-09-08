@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import '../core/bitmap_image_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
 
@@ -516,7 +517,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
       if (mounted) {
         precacheImage(
           ResizeImage(
-            FileImage(File(filePath)),
+            bitmapImageProvider(filePath),
             width: targetWidth,
           ),
           context,

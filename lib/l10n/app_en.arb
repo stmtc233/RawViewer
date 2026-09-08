@@ -324,5 +324,11 @@
   "pairedJpegModeLabel": "JPG",
   "rawShortLabel": "RAW",
   "rawJpegShortLabel": "R&J",
-  "imageShortLabel": "IMG"
+  "imageShortLabel": "IMG",
+  "playLivePhoto": "Play Live Photo",
+  "longPressLivePhotoTitle": "Press and hold to play Live Photos",
+  "stopLivePhoto": "Stop Live Photo",
+  "unmuteLivePhoto": "Unmute Live Photo",
+  "muteLivePhoto": "Mute Live Photo",
+  "livePhotoPlaybackFailed": "Unable to play this Live Photo"
 }

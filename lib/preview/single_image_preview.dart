@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../core/decode_target.dart';
+import '../core/bitmap_image_provider.dart';
 import '../core/pointer_modifiers.dart';
 import '../core/raw_view_mode.dart';
 import '../image_store.dart';
@@ -17,6 +17,8 @@ import '../viewer_image.dart';
 import '../worker_service.dart';
 import 'preview_geometry.dart';
 import 'widgets/preview_hover_reveal.dart';
+import 'widgets/live_photo_preview.dart';
+import 'widgets/hdr_image.dart';
 import 'widgets/preview_overview_map.dart';
 
 class SingleImagePreview extends StatefulWidget {
@@ -643,7 +645,7 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final viewportSize = constraints.biggest;
-        return Stack(
+        final preview = Stack(
           clipBehavior: Clip.none,
           children: [
             Listener(
@@ -708,6 +710,25 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
               ),
           ],
         );
+        final bitmapPath = _isShowingPairedJpeg
+            ? widget.mediaGroup.pairedJpeg!.path
+            : widget.isRaw
+                ? null
+                : widget.filePath;
+        if (bitmapPath == null) return preview;
+        return ValueListenableBuilder<bool>(
+          valueListenable: widget.isFastScrolling,
+          builder: (context, fastScrolling, _) => LivePhotoPreview(
+            filePath: bitmapPath,
+            active: widget.isActive && !fastScrolling,
+            longPressPlaybackEnabled: widget.settings.longPressLivePhotoEnabled,
+            quarterTurns: widget.rotationQuarterTurns,
+            bottomInset: widget.overviewBottomInset +
+                MediaQuery.paddingOf(context).bottom +
+                previewImageControlsHeight,
+            child: preview,
+          ),
+        );
       },
     );
   }
@@ -747,7 +768,7 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
   Widget _buildOverviewBitmap(String filePath) {
     return Image(
       image: ResizeImage(
-        FileImage(File(filePath)),
+        bitmapImageProvider(filePath),
         width:
             (kPreviewOverviewMapWidth * MediaQuery.devicePixelRatioOf(context))
                 .round(),
@@ -804,7 +825,7 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
   }
 
   Widget _buildBitmapPreview(String filePath) {
-    final file = File(filePath);
+    final provider = bitmapImageProvider(filePath);
 
     // Bound the initial decode, then add detail in settled zoom tiers.
     // ResizeImagePolicy.fit stops at the source resolution without upscaling.
@@ -829,7 +850,7 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
           children: [
             Image(
               image: ResizeImage(
-                FileImage(file),
+                provider,
                 width: widget.thumbnailResizeWidth,
               ),
               fit: BoxFit.contain,
@@ -841,7 +862,7 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
             if (widget.isActive && !isFastScrolling)
               Image(
                 image: ResizeImage(
-                  FileImage(file),
+                  provider,
                   width: fullDecodeWidth,
                   policy: ResizeImagePolicy.fit,
                 ),
@@ -849,6 +870,14 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
                 gaplessPlayback: true,
                 errorBuilder: (context, error, stackTrace) => const Center(
                   child: Icon(Icons.broken_image, color: Colors.white),
+                ),
+              ),
+            if (widget.isActive && !isFastScrolling)
+              Positioned.fill(
+                child: HdrImage(
+                  key: ValueKey('hdr:$filePath:$fullDecodeWidth'),
+                  filePath: filePath,
+                  decodeWidth: fullDecodeWidth,
                 ),
               ),
           ],

@@ -17,6 +17,8 @@ final class FileAssociations {
     "jpeg": "public.jpeg",
     "png": "public.png",
     "webp": "org.webmproject.webp",
+    "heic": "public.heic",
+    "heif": "public.heif",
   ]
 
   private let bundleIdentifier: String
