@@ -128,13 +128,16 @@ set_target_properties(${BINARY_NAME}
 )
 
 
+# heic_native ships x86-64 binaries; system libraries also support ARM64.
+# Define these imported targets before adding the plugin subdirectory: its
+# CMakeLists links against them while CMake processes generated_plugins.cmake.
+pkg_check_modules(RAWVIEWER_HEIF REQUIRED IMPORTED_TARGET libheif)
+pkg_check_modules(RAWVIEWER_PNG REQUIRED IMPORTED_TARGET libpng>=1.6.32)
+
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
-# heic_native ships x86-64 binaries; system libraries also support ARM64.
-pkg_check_modules(RAWVIEWER_HEIF REQUIRED IMPORTED_TARGET libheif)
-pkg_check_modules(RAWVIEWER_PNG REQUIRED IMPORTED_TARGET libpng>=1.6.32)
 set_property(TARGET heic_native_plugin PROPERTY INCLUDE_DIRECTORIES "")
 set_property(TARGET heic_native_plugin PROPERTY LINK_LIBRARIES
   "flutter;PkgConfig::RAWVIEWER_HEIF;PkgConfig::RAWVIEWER_PNG")
