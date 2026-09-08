@@ -56,11 +56,13 @@ class _LoadedDirectory {
 class HomePage extends StatefulWidget {
   final ValueChanged<AppLanguage> onAppLanguageChanged;
   final Future<void>? desktopWindowReady;
+  final Future<List<String>> Function()? initialPathsLoader;
 
   const HomePage({
     super.key,
     required this.onAppLanguageChanged,
     this.desktopWindowReady,
+    this.initialPathsLoader,
   });
 
   @override
@@ -819,17 +821,9 @@ class _HomePageState extends State<HomePage> {
       final windowReady = widget.desktopWindowReady;
       if (windowReady != null) await windowReady;
       if (!mounted) return;
-      if (Platform.isLinux) {
-        final initialPaths = Platform.executableArguments;
-        if (initialPaths.isNotEmpty) {
-          await _handleIncomingPaths(initialPaths);
-        }
-        return;
-      }
-
-      final initialPaths =
-          await desktopOpenChannel.invokeListMethod<String>('getInitialPaths');
-      if (initialPaths != null && initialPaths.isNotEmpty) {
+      final initialPaths = await (widget.initialPathsLoader?.call() ??
+          _loadInitialDesktopPaths());
+      if (initialPaths.isNotEmpty) {
         await _handleIncomingPaths(initialPaths);
       }
     } on MissingPluginException {
@@ -837,6 +831,16 @@ class _HomePageState extends State<HomePage> {
     } on PlatformException {
       // Ignore malformed payloads from the host platform.
     }
+  }
+
+  Future<List<String>> _loadInitialDesktopPaths() async {
+    if (Platform.isLinux) {
+      return Platform.executableArguments;
+    }
+    return await desktopOpenChannel.invokeListMethod<String>(
+          'getInitialPaths',
+        ) ??
+        const [];
   }
 
   Future<void> _handleIncomingPaths(List<String> incomingPaths) async {

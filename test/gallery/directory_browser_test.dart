@@ -149,15 +149,13 @@ void main() {
           'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII='));
       SharedPreferences.setMockInitialValues({});
       await const PreferencesRepository().saveHotFolderEnabled(true);
-      final messenger = tester.binding.defaultBinaryMessenger;
-      messenger.setMockMethodCallHandler(
-          desktopOpenChannel, (_) async => [root.path]);
-      addTearDown(
-          () => messenger.setMockMethodCallHandler(desktopOpenChannel, null));
       await tester.pumpWidget(MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: HomePage(onAppLanguageChanged: (_) {}),
+        home: HomePage(
+          onAppLanguageChanged: (_) {},
+          initialPathsLoader: () async => [root.path],
+        ),
       ));
 
       Future<void> waitForMediaTiles(int count) async {
