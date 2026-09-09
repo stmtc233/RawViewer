@@ -135,25 +135,18 @@ jobs:
           Set-Content pubspec.yaml $content -NoNewline
           Select-String -Path pubspec.yaml -Pattern '^version:'
 
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Disable unsupported media kit plugins on ARM64
+      - name: Configure ARM64 dependencies
         shell: pwsh
         run: |
-          $cmake = "windows/flutter/generated_plugins.cmake"
-          $content = Get-Content $cmake -Raw
-          $content = $content -replace '(?m)^  media_kit_libs_windows_video\r?\n', ''
-          $content = $content -replace '(?m)^  media_kit_video\r?\n', ''
-          Set-Content $cmake $content -NoNewline
-
-          $registrant = "windows/flutter/generated_plugin_registrant.cc"
-          $content = Get-Content $registrant -Raw
-          $content = $content -replace '(?m)^#include <media_kit_libs_windows_video/[^\r\n]+\r?\n', ''
-          $content = $content -replace '(?m)^#include <media_kit_video/[^\r\n]+\r?\n', ''
-          $content = $content -replace '(?m)^  MediaKitLibsWindowsVideoPluginCApiRegisterWithRegistrar\(\r?\n    registry->GetRegistrarForPlugin\("MediaKitLibsWindowsVideoPluginCApi"\)\);\r?\n', ''
-          $content = $content -replace '(?m)^  MediaKitVideoPluginCApiRegisterWithRegistrar\(\r?\n    registry->GetRegistrarForPlugin\("MediaKitVideoPluginCApi"\)\);\r?\n', ''
-          Set-Content $registrant $content -NoNewline
+          $pubspec = Get-Content pubspec.yaml -Raw
+          $pubspec = $pubspec -replace '(?m)^  video_player_media_kit:.*\r?\n', ''
+          $pubspec = $pubspec -replace '(?m)^  media_kit_libs_windows_video:.*\r?\n', ''
+          Set-Content pubspec.yaml $pubspec -NoNewline
+          $main = Get-Content lib/main.dart -Raw
+          $main = $main -replace '(?m)^import ''package:video_player_media_kit/video_player_media_kit.dart'';\r?\n', ''
+          $main = $main -replace '(?m)^  if \(Platform\.isLinux\) VideoPlayerMediaKit\.ensureInitialized\(linux: true\);\r?\n', ''
+          Set-Content lib/main.dart $main -NoNewline
+          flutter pub get
 
       - name: Build Windows ARM64
         shell: pwsh

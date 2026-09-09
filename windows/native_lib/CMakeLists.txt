@@ -42,7 +42,7 @@ if(WIN32)
     target_compile_definitions(native_lib PRIVATE LIBRAW_NODLL)
     target_compile_definitions(native_lib PRIVATE _CRT_SECURE_NO_WARNINGS)
     if(MSVC)
-        target_compile_options(native_lib PRIVATE /wd4018 /wd4244 /wd4996 /wd4005 /wd4146 /wd4819)
+        target_compile_options(native_lib PRIVATE /wd4018 /wd4244 /wd4996 /wd4005 /wd4146 /wd4819 /wd4101 /wd4305)
     endif()
     # 或者如果不定义 LIBRAW_NODLL，则需要处理导出符号
 endif()
