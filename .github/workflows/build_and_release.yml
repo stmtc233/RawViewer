@@ -138,6 +138,23 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Disable unsupported media kit plugins on ARM64
+        shell: pwsh
+        run: |
+          $cmake = "windows/flutter/generated_plugins.cmake"
+          $content = Get-Content $cmake -Raw
+          $content = $content -replace '(?m)^  media_kit_libs_windows_video\r?\n', ''
+          $content = $content -replace '(?m)^  media_kit_video\r?\n', ''
+          Set-Content $cmake $content -NoNewline
+
+          $registrant = "windows/flutter/generated_plugin_registrant.cc"
+          $content = Get-Content $registrant -Raw
+          $content = $content -replace '(?m)^#include <media_kit_libs_windows_video/[^\r\n]+\r?\n', ''
+          $content = $content -replace '(?m)^#include <media_kit_video/[^\r\n]+\r?\n', ''
+          $content = $content -replace '(?m)^  MediaKitLibsWindowsVideoPluginCApiRegisterWithRegistrar\(\r?\n    registry->GetRegistrarForPlugin\("MediaKitLibsWindowsVideoPluginCApi"\)\);\r?\n', ''
+          $content = $content -replace '(?m)^  MediaKitVideoPluginCApiRegisterWithRegistrar\(\r?\n    registry->GetRegistrarForPlugin\("MediaKitVideoPluginCApi"\)\);\r?\n', ''
+          Set-Content $registrant $content -NoNewline
+
       - name: Build Windows ARM64
         shell: pwsh
         run: |
