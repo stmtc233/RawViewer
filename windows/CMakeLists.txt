@@ -1,5 +1,18 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
+
+# The ARM64 release workflow installs HEIF/PNG through vcpkg. The toolchain
+# must be selected before project() so CMake can create imported targets such
+# as PNG::PNG during plugin configuration.
+if(DEFINED ENV{VCPKG_INSTALLATION_ROOT})
+  set(RAWVIEWER_VCPKG_TOOLCHAIN
+    "$ENV{VCPKG_INSTALLATION_ROOT}/scripts/buildsystems/vcpkg.cmake")
+  if(EXISTS "${RAWVIEWER_VCPKG_TOOLCHAIN}")
+    set(CMAKE_TOOLCHAIN_FILE "${RAWVIEWER_VCPKG_TOOLCHAIN}" CACHE FILEPATH
+      "vcpkg toolchain file" FORCE)
+  endif()
+endif()
+
 project(rawviewer LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
