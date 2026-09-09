@@ -83,6 +83,12 @@ if(CMAKE_GENERATOR_PLATFORM STREQUAL "ARM64")
   list(PREPEND CMAKE_PREFIX_PATH "${RAWVIEWER_HEIC_PREFIX}")
   find_package(libheif CONFIG REQUIRED)
   find_package(PNG REQUIRED)
+  if(NOT TARGET PNG::PNG)
+    add_library(PNG::PNG UNKNOWN IMPORTED)
+    set_target_properties(PNG::PNG PROPERTIES
+      IMPORTED_LOCATION "${RAWVIEWER_HEIC_PREFIX}/lib/libpng16.lib"
+      INTERFACE_INCLUDE_DIRECTORIES "${RAWVIEWER_HEIC_PREFIX}/include")
+  endif()
   set_property(TARGET heic_native_plugin PROPERTY INCLUDE_DIRECTORIES "")
   set_property(TARGET heic_native_plugin PROPERTY LINK_LIBRARIES
     "flutter;flutter_wrapper_plugin;comctl32;heif;PNG::PNG")
