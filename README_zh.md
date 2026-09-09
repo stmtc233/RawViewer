@@ -5,6 +5,11 @@
 Raw Viewer 的首个功能完整预览版本，重点提升 RAW 浏览速度、照片整理能力和全屏预览体验。
 
 ![Flutter](https://img.shields.io/badge/Flutter-%2302569B.svg?style=for-the-badge&logo=Flutter&logoColor=white)
+![Windows](https://img.shields.io/badge/Windows-0078D6.svg?style=for-the-badge&logo=windows&logoColor=white)
+![macOS](https://img.shields.io/badge/macOS-000000.svg?style=for-the-badge&logo=apple&logoColor=white)
+![Linux](https://img.shields.io/badge/Linux-FCC624.svg?style=for-the-badge&logo=linux&logoColor=black)
+![Android](https://img.shields.io/badge/Android-3DDC84.svg?style=for-the-badge&logo=android&logoColor=white)
+![iOS](https://img.shields.io/badge/iOS-000000.svg?style=for-the-badge&logo=ios&logoColor=white)
 
 *[Read this in English](README.md)*
 
@@ -34,12 +39,6 @@ Raw Viewer 旨在为摄影师和摄影爱好者提供一个轻量、流畅的工
 - **EXIF 工作区:** 支持可折叠 EXIF 分组、元数据搜索、拍摄时间显示，以及 EXIF 侧栏中的 RGB 直方图。
 - **RAW 显示模式:** 在 RAW 文件包含内嵌预览时，可在内嵌 JPEG 与解码 RAW 之间切换。
 - **设置与系统集成:** 提供中英文设置、最近打开记录、启动与窗口恢复、更新检查、Windows 资源管理器集成和文件关联控制。
-
-## 界面截图
-
-![Raw Viewer 空图库首页](docs/screenshots/home-empty.png)
-
-截图展示了应用的空图库首页。预览界面还包含 EXIF 侧栏、RGB 直方图、胶片条、RAW 来源切换和图像控制等功能。
 
 ## 快速开始
 

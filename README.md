@@ -5,6 +5,11 @@
 The first feature-complete preview release of Raw Viewer. This release focuses on fast RAW browsing, practical photo organization, and a richer full-screen preview workflow.
 
 ![Flutter](https://img.shields.io/badge/Flutter-%2302569B.svg?style=for-the-badge&logo=Flutter&logoColor=white)
+![Windows](https://img.shields.io/badge/Windows-0078D6.svg?style=for-the-badge&logo=windows&logoColor=white)
+![macOS](https://img.shields.io/badge/macOS-000000.svg?style=for-the-badge&logo=apple&logoColor=white)
+![Linux](https://img.shields.io/badge/Linux-FCC624.svg?style=for-the-badge&logo=linux&logoColor=black)
+![Android](https://img.shields.io/badge/Android-3DDC84.svg?style=for-the-badge&logo=android&logoColor=white)
+![iOS](https://img.shields.io/badge/iOS-000000.svg?style=for-the-badge&logo=ios&logoColor=white)
 
 *[Read this in Chinese / 中文文档](README_zh.md)*
 
@@ -34,12 +39,6 @@ Raw Viewer allows photographers and enthusiasts to seamlessly view, browse, and 
 - **EXIF workspace:** Expandable EXIF sections, metadata search, capture-time display, and an RGB histogram in the EXIF sidebar.
 - **RAW display modes:** Switch between embedded JPEG and decoded RAW views when the source provides an embedded preview.
 - **Settings and integration:** Localized English/Chinese settings, recent files and folders, startup/window restoration, update checking, Windows Explorer integration, and file-association controls.
-
-## Screenshots
-
-![Raw Viewer empty gallery](docs/screenshots/home-empty.png)
-
-The screenshot uses the app's clean-start view. The preview interface also includes the EXIF sidebar, RGB histogram, filmstrip, RAW source switcher, and image controls described above.
 
 ## Getting Started
 
