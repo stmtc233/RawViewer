@@ -23,6 +23,8 @@ import 'widgets/preview_hover_reveal.dart';
 import 'widgets/live_photo_preview.dart';
 import 'widgets/hdr_image.dart';
 import 'widgets/preview_overview_map.dart';
+import 'image_histogram.dart';
+import 'widgets/histogram_image_observer.dart';
 
 class SingleImagePreview extends StatefulWidget {
   final MediaGroup mediaGroup;
@@ -47,6 +49,7 @@ class SingleImagePreview extends StatefulWidget {
   /// Reports whether this RAW turned out to carry an embedded JPEG, so the
   /// preview's mode switch can grey out that option.
   final ValueChanged<bool>? onEmbeddedJpegAvailability;
+  final ValueChanged<HistogramSnapshot>? onHistogramChanged;
 
   /// Reports that the active bitmap was successfully rendered through the
   /// native HDR surface.
@@ -81,6 +84,7 @@ class SingleImagePreview extends StatefulWidget {
     required this.isFastScrolling,
     this.onScaleStateChanged,
     this.onEmbeddedJpegAvailability,
+    this.onHistogramChanged,
     this.onHdrDetected,
     this.hasHdr = false,
     this.showHdr = true,
@@ -927,6 +931,17 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
     return Stack(
       fit: StackFit.expand,
       children: [
+        if (widget.isActive && widget.onHistogramChanged != null)
+          ValueListenableBuilder<bool>(
+            valueListenable: widget.isFastScrolling,
+            builder: (context, fastScrolling, _) => fastScrolling
+                ? const SizedBox.shrink()
+                : HistogramImageObserver(
+                    key: ValueKey((widget.filePath, widget.viewMode)),
+                    image: displayed?.image,
+                    onChanged: widget.onHistogramChanged!,
+                  ),
+          ),
         if (displayed != null)
           RawImageWidget(
             image: displayed,
@@ -979,6 +994,18 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
         return Stack(
           fit: StackFit.expand,
           children: [
+            if (widget.isActive &&
+                !isFastScrolling &&
+                widget.onHistogramChanged != null)
+              HistogramImageObserver(
+                provider: resizedBitmapImageProvider(
+                  filePath,
+                  frameIndex: _bitmapFrameIndex,
+                  width: fullDecodeWidth,
+                  policy: ResizeImagePolicy.fit,
+                ),
+                onChanged: widget.onHistogramChanged!,
+              ),
             Image(
               image: resizedBitmapImageProvider(
                 filePath,

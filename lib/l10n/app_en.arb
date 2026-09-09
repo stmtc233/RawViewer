@@ -26,6 +26,8 @@
   "exifEquivalentShort": "35 mm equiv.",
   "exifDimensions": "Dimensions",
   "exifTitle": "EXIF information",
+  "exifHistogram": "Histogram (SDR)",
+  "exifHistogramUnavailable": "Histogram unavailable",
   "showExifTooltip": "Show EXIF information",
   "hideExifTooltip": "Hide EXIF information",
   "exifCopyAll": "Copy all metadata",

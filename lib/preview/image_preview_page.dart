@@ -31,6 +31,7 @@ import 'preview_geometry.dart';
 import 'preview_models.dart';
 import 'single_image_preview.dart';
 import 'widgets/preview_exif_sidebar.dart';
+import 'image_histogram.dart';
 import 'widgets/preview_filmstrip.dart';
 import 'widgets/preview_hover_reveal.dart';
 
@@ -124,6 +125,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   final Map<String, int> _rotationQuarterTurns = <String, int>{};
   final Map<String, GlobalKey<SingleImagePreviewState>> _previewKeys =
       <String, GlobalKey<SingleImagePreviewState>>{};
+  (String, RawViewMode)? _histogramSource;
+  HistogramSnapshot _histogram = const HistogramSnapshot.loading();
 
   /// The app-wide view mode, held here as well as in the settings.
   ///
@@ -1035,6 +1038,22 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                       onEmbeddedJpegAvailability: (hasEmbeddedJpeg) =>
                           _recordEmbeddedJpegAvailability(
                               filePath, hasEmbeddedJpeg),
+                      onHistogramChanged: _exifSidebar.visible &&
+                              index == _currentIndex
+                          ? (histogram) {
+                              if (!mounted || !_exifSidebar.visible) return;
+                              final group = _mediaGroups[_currentIndex];
+                              if (group.primary.path != filePath ||
+                                  _effectiveViewModeFor(group) !=
+                                      currentViewMode) {
+                                return;
+                              }
+                              setState(() {
+                                _histogramSource = (filePath, currentViewMode);
+                                _histogram = histogram;
+                              });
+                            }
+                          : null,
                       onHdrDetected: () => _recordHdrDetected(filePath),
                       hasHdr: _hdrImagePaths.contains(filePath),
                       showHdr: !_hdrDisabledPaths.contains(filePath),
@@ -1175,6 +1194,10 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
               child: PreviewExifSidebar(
                 filePath: exifFilePath,
                 repository: _exifRepository,
+                histogram:
+                    _histogramSource == (currentFilePath, currentViewMode)
+                        ? _histogram
+                        : const HistogramSnapshot.loading(),
                 expandedSections: _exifSidebar.expandedSections,
                 onExpandedSectionsChanged: (sections) => _updateExifSidebar(
                   _exifSidebar.copyWith(expandedSections: sections),

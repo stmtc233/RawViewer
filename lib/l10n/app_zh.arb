@@ -26,6 +26,8 @@
   "exifEquivalentShort": "等效焦距",
   "exifDimensions": "图像尺寸",
   "exifTitle": "EXIF 信息",
+  "exifHistogram": "直方图（SDR）",
+  "exifHistogramUnavailable": "无法生成直方图",
   "showExifTooltip": "显示 EXIF 信息",
   "hideExifTooltip": "关闭 EXIF 信息",
   "exifCopyAll": "复制全部元数据",

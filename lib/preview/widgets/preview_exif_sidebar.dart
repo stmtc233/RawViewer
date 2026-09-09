@@ -11,6 +11,8 @@ import '../../ui/app_theme.dart';
 import '../../ui/desktop_controls.dart';
 import '../../core/exif_repository.dart';
 import '../../core/xmp_sidecar.dart';
+import 'preview_histogram.dart';
+import '../image_histogram.dart';
 
 class PreviewExifSidebar extends StatefulWidget {
   final String filePath;
@@ -18,6 +20,7 @@ class PreviewExifSidebar extends StatefulWidget {
   final VoidCallback onClose;
   final Set<ExifSection> expandedSections;
   final ValueChanged<Set<ExifSection>>? onExpandedSectionsChanged;
+  final HistogramSnapshot histogram;
 
   const PreviewExifSidebar({
     super.key,
@@ -26,6 +29,7 @@ class PreviewExifSidebar extends StatefulWidget {
     required this.onClose,
     this.expandedSections = const {},
     this.onExpandedSectionsChanged,
+    this.histogram = const HistogramSnapshot.ready(null),
   });
 
   @override
@@ -623,6 +627,7 @@ class _PreviewExifSidebarState extends State<PreviewExifSidebar> {
                   ),
                 ]),
               ),
+              if (query.isEmpty) PreviewHistogram(snapshot: widget.histogram),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: TextField(

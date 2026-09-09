@@ -86,6 +86,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get exifTitle => 'EXIF 信息';
 
   @override
+  String get exifHistogram => '直方图（SDR）';
+
+  @override
+  String get exifHistogramUnavailable => '无法生成直方图';
+
+  @override
   String get showExifTooltip => '显示 EXIF 信息';
 
   @override

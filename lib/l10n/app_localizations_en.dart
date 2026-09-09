@@ -92,6 +92,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exifTitle => 'EXIF information';
 
   @override
+  String get exifHistogram => 'Histogram (SDR)';
+
+  @override
+  String get exifHistogramUnavailable => 'Histogram unavailable';
+
+  @override
   String get showExifTooltip => 'Show EXIF information';
 
   @override

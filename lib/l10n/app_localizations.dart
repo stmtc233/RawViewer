@@ -245,6 +245,18 @@ abstract class AppLocalizations {
   /// **'EXIF information'**
   String get exifTitle;
 
+  /// No description provided for @exifHistogram.
+  ///
+  /// In en, this message translates to:
+  /// **'Histogram (SDR)'**
+  String get exifHistogram;
+
+  /// No description provided for @exifHistogramUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Histogram unavailable'**
+  String get exifHistogramUnavailable;
+
   /// No description provided for @showExifTooltip.
   ///
   /// In en, this message translates to:

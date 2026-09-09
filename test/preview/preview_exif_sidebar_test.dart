@@ -8,6 +8,7 @@ import 'package:rawviewer/l10n/app_localizations.dart';
 import 'package:rawviewer/core/exif_sidebar_settings.dart';
 import 'package:rawviewer/core/exif_repository.dart';
 import 'package:rawviewer/preview/widgets/preview_exif_sidebar.dart';
+import 'package:rawviewer/preview/image_histogram.dart';
 import 'package:rawviewer/ui/app_theme.dart';
 
 class _Repository extends ExifRepository {
@@ -38,6 +39,7 @@ Widget _app(
   Locale? locale,
   Set<ExifSection> expandedSections = const {},
   ValueChanged<Set<ExifSection>>? onExpandedSectionsChanged,
+  HistogramSnapshot histogram = const HistogramSnapshot.ready(null),
 }) {
   return MaterialApp(
     theme: rawViewerTheme,
@@ -52,6 +54,7 @@ Widget _app(
           child: PreviewExifSidebar(
             filePath: filePath,
             repository: repository,
+            histogram: histogram,
             onClose: () {},
             expandedSections: expandedSections,
             onExpandedSectionsChanged: onExpandedSectionsChanged,
@@ -63,6 +66,29 @@ Widget _app(
 }
 
 void main() {
+  testWidgets(
+      'histogram remains available without EXIF and hides during search',
+      (tester) async {
+    final repository = _Repository();
+    addTearDown(repository.dispose);
+    final data = histogramFromRgba(Uint8List.fromList([255, 0, 0, 255]));
+    await tester.pumpWidget(_app(repository, '/photo.jpg',
+        histogram: HistogramSnapshot.ready(data)));
+    await tester.pump(const Duration(milliseconds: 160));
+    repository.requests['/photo.jpg']!.complete(const ExifMetadata());
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('exif-histogram')), findsOneWidget);
+    expect(find.text('Histogram (SDR)'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'camera');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('exif-histogram')), findsNothing);
+    await tester.enterText(find.byType(TextField), '');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('exif-histogram')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets(
       'rating changes are drafts until saved, can be cleared and retried',
       (tester) async {
@@ -362,7 +388,8 @@ void main() {
                     : l10n.exifRatingInvalid;
         expect(find.text(status), findsOneWidget);
         expect(tester.getSemantics(row).label, '${l10n.exifRating}: $status');
-        expect(tester.getRect(row).bottom, lessThan(180));
+        expect(find.byKey(const ValueKey('exif-rating-1')).hitTestable(),
+            findsOneWidget);
         expect(tester.takeException(), isNull);
       }
       await tester.enterText(find.byType(TextField),
@@ -372,7 +399,7 @@ void main() {
     });
 
     testWidgets(
-        'shows key settings together before collapsed details in $locale',
+        'keeps key settings reachable before collapsed details in $locale',
         (tester) async {
       tester.view.physicalSize = const Size(360, 540);
       tester.view.devicePixelRatio = 1;
@@ -426,7 +453,9 @@ void main() {
       ]) {
         final finder = find.text(value);
         expect(finder, findsOneWidget);
-        expect(tester.getRect(finder).bottom, lessThan(540), reason: value);
+        await tester.ensureVisible(finder);
+        await tester.pumpAndSettle();
+        expect(finder.hitTestable(), findsOneWidget, reason: value);
       }
       final shutterRect = tester.getRect(find.text('1/250 s'));
       expect(
