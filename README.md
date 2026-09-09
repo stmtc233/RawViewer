@@ -9,7 +9,6 @@ The first feature-complete preview release of Raw Viewer. This release focuses o
 ![macOS](https://img.shields.io/badge/macOS-000000.svg?style=for-the-badge&logo=apple&logoColor=white)
 ![Linux](https://img.shields.io/badge/Linux-FCC624.svg?style=for-the-badge&logo=linux&logoColor=black)
 ![Android](https://img.shields.io/badge/Android-3DDC84.svg?style=for-the-badge&logo=android&logoColor=white)
-![iOS](https://img.shields.io/badge/iOS-000000.svg?style=for-the-badge&logo=ios&logoColor=white)
 
 *[Read this in Chinese / 中文文档](README_zh.md)*
 
@@ -32,7 +31,8 @@ Raw Viewer allows photographers and enthusiasts to seamlessly view, browse, and 
 - **Windows Context Menu:** Lets you install an “Open in RawView” Explorer entry for the current user, supporting files, multi-file selection, folders, and folder background opening.
 - **Default File Associations:** Registers supported image formats on Windows and macOS. Windows uses the system Default Apps settings and displays effective associations; macOS provides per-format switches.
 - **Single-File Open:** Opening one image jumps directly to its preview; neighboring files are loaded only when requested from the preview toolbar or when returning to the gallery.
-- **Cross-Platform:** Built for desktop (Windows, macOS) and mobile (Android) natively.
+- **Supported Platforms:** Windows, macOS, Linux, and Android.
+- **iOS Status:** The project retains iOS adaptation capability, but iOS support is not currently planned as a priority.
 - **Photo organization:** Browse directories, monitor a hot folder, sort by capture time or rating, filter unrated images, and rate images from the gallery or preview.
 - **Preview workspace:** Resizable filmstrip, overview map, configurable overlay opacity, zoom and rotation controls, and quick navigation between frames.
 - **Multi-frame media:** Navigate animated PNG frames with cached frame loading.

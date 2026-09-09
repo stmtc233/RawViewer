@@ -9,7 +9,6 @@ Raw Viewer 的首个功能完整预览版本，重点提升 RAW 浏览速度、�
 ![macOS](https://img.shields.io/badge/macOS-000000.svg?style=for-the-badge&logo=apple&logoColor=white)
 ![Linux](https://img.shields.io/badge/Linux-FCC624.svg?style=for-the-badge&logo=linux&logoColor=black)
 ![Android](https://img.shields.io/badge/Android-3DDC84.svg?style=for-the-badge&logo=android&logoColor=white)
-![iOS](https://img.shields.io/badge/iOS-000000.svg?style=for-the-badge&logo=ios&logoColor=white)
 
 *[Read this in English](README.md)*
 
@@ -32,7 +31,8 @@ Raw Viewer 旨在为摄影师和摄影爱好者提供一个轻量、流畅的工
 - **Windows 右键菜单:** 可在设置页一键将“在RawView中打开”安装到当前用户的资源管理器右键菜单，支持文件、多个文件、文件夹，以及文件夹空白处右键打开当前目录。
 - **默认打开格式:** Windows 通过系统默认应用设置选择关联，并显示实际生效的状态；macOS 在设置页提供按格式切换的开关。
 - **单图打开:** 直接打开单张图片时立即进入预览；相邻文件只会在预览顶栏主动加载目录或返回图库时加载。
-- **跨平台支持:** 原生支持桌面端 (Windows, macOS) 与移动端 (Android)。
+- **当前支持系统:** Windows、macOS、Linux 和 Android。
+- **iOS 状态:** 项目保留 iOS 适配能力，但当前暂不考虑将 iOS 作为支持目标，后续也暂不优先投入。
 - **照片整理:** 支持目录浏览、热文件夹监控、按拍摄时间或评分排序、筛选未评分图片，并可在图库或预览页进行评分。
 - **预览工作区:** 提供可调整高度的胶片条、概览地图、覆盖层透明度、缩放与旋转控制，以及快速帧导航。
 - **多帧媒体:** 支持多帧 PNG 逐帧浏览，并对帧数据进行缓存。

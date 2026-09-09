@@ -12,7 +12,7 @@
 - 新增可调整胶片条、概览地图、缩放/旋转、双击复位和更细致的预览加载策略。
 - 完善 RAW 内嵌 JPEG、解码 RAW 与配对 JPEG 的显示模式切换。
 - 新增中英文设置、窗口状态恢复、更新检查、Windows 右键菜单和文件关联支持。
-- 完善 Windows x64/ARM64、macOS Universal、Linux、Android 和 iOS 的构建与发布流程。
+- 完善 Windows x64/ARM64、macOS Universal、Linux 和 Android 的构建与发布流程；项目保留 iOS 适配能力，但当前暂不考虑对 iOS 提供正式支持。
 
 ### Known limitations
 
