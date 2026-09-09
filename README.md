@@ -1,5 +1,9 @@
 # Raw Viewer
 
+## 0.1.0
+
+The first feature-complete preview release of Raw Viewer. This release focuses on fast RAW browsing, practical photo organization, and a richer full-screen preview workflow.
+
 ![Flutter](https://img.shields.io/badge/Flutter-%2302569B.svg?style=for-the-badge&logo=Flutter&logoColor=white)
 
 *[Read this in Chinese / 中文文档](README_zh.md)*
@@ -24,10 +28,18 @@ Raw Viewer allows photographers and enthusiasts to seamlessly view, browse, and 
 - **Default File Associations:** Registers supported image formats on Windows and macOS. Windows uses the system Default Apps settings and displays effective associations; macOS provides per-format switches.
 - **Single-File Open:** Opening one image jumps directly to its preview; neighboring files are loaded only when requested from the preview toolbar or when returning to the gallery.
 - **Cross-Platform:** Built for desktop (Windows, macOS) and mobile (Android) natively.
+- **Photo organization:** Browse directories, monitor a hot folder, sort by capture time or rating, filter unrated images, and rate images from the gallery or preview.
+- **Preview workspace:** Resizable filmstrip, overview map, configurable overlay opacity, zoom and rotation controls, and quick navigation between frames.
+- **Multi-frame media:** Navigate animated PNG frames with cached frame loading.
+- **EXIF workspace:** Expandable EXIF sections, metadata search, capture-time display, and an RGB histogram in the EXIF sidebar.
+- **RAW display modes:** Switch between embedded JPEG and decoded RAW views when the source provides an embedded preview.
+- **Settings and integration:** Localized English/Chinese settings, recent files and folders, startup/window restoration, update checking, Windows Explorer integration, and file-association controls.
 
 ## Screenshots
 
-*(Add screenshots here)*
+![Raw Viewer empty gallery](docs/screenshots/home-empty.png)
+
+The screenshot uses the app's clean-start view. The preview interface also includes the EXIF sidebar, RGB histogram, filmstrip, RAW source switcher, and image controls described above.
 
 ## Getting Started
 
