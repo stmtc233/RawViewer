@@ -49,7 +49,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -102,13 +102,13 @@ jobs:
             /DMyOutputBaseFilename=rawviewer-windows-${{ needs.resolve-version.outputs.tag }}-setup
 
       - name: Upload Windows Build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: windows-build
           path: rawviewer-windows-${{ needs.resolve-version.outputs.tag }}.zip
 
       - name: Upload Windows Setup
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: windows-setup
           path: rawviewer-windows-${{ needs.resolve-version.outputs.tag }}-setup.exe
@@ -119,7 +119,7 @@ jobs:
     runs-on: windows-11-arm
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -176,13 +176,13 @@ jobs:
             /DMyOutputBaseFilename=rawviewer-windows-arm64-${{ needs.resolve-version.outputs.tag }}-setup
 
       - name: Upload Windows ARM64 Build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: windows-arm64-build
           path: rawviewer-windows-arm64-${{ needs.resolve-version.outputs.tag }}.zip
 
       - name: Upload Windows ARM64 Setup
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: windows-arm64-setup
           path: rawviewer-windows-arm64-${{ needs.resolve-version.outputs.tag }}-setup.exe
@@ -193,7 +193,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -247,7 +247,7 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_PATH"
 
       - name: Upload macOS Build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: macos-build
           path: rawviewer-macos-${{ needs.resolve-version.outputs.tag }}.zip
@@ -258,7 +258,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -286,7 +286,7 @@ jobs:
         run: mv build/app/outputs/flutter-apk/app-release.apk rawviewer-android-${{ needs.resolve-version.outputs.tag }}.apk
 
       - name: Upload Android Build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: android-build
           path: rawviewer-android-${{ needs.resolve-version.outputs.tag }}.apk
@@ -297,7 +297,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -326,7 +326,7 @@ jobs:
           zip -r ../../../../../rawviewer-linux-${{ needs.resolve-version.outputs.tag }}.zip .
 
       - name: Upload Linux Build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: linux-build
           path: rawviewer-linux-${{ needs.resolve-version.outputs.tag }}.zip
@@ -337,7 +337,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Flutter (Linux ARM64 Workaround)
         run: |
@@ -366,7 +366,7 @@ jobs:
           zip -r ../../../../../rawviewer-linux-arm64-${{ needs.resolve-version.outputs.tag }}.zip .
 
       - name: Upload Linux ARM64 Build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: linux-arm64-build
           path: rawviewer-linux-arm64-${{ needs.resolve-version.outputs.tag }}.zip
@@ -377,42 +377,42 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download Windows Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: windows-build
 
       - name: Download Windows Setup
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: windows-setup
 
       - name: Download Windows ARM64 Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: windows-arm64-build
 
       - name: Download Windows ARM64 Setup
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: windows-arm64-setup
 
       - name: Download macOS Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: macos-build
 
       - name: Download Android Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: android-build
 
       - name: Download Linux Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: linux-build
 
       - name: Download Linux ARM64 Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: linux-arm64-build
 

@@ -7,6 +7,7 @@
 #include "generated_plugin_registrant.h"
 
 #include <heic_native/heic_native_plugin_c_api.h>
+#include <media_kit_libs_windows_video/media_kit_libs_windows_video_plugin_c_api.h>
 #include <media_kit_video/media_kit_video_plugin_c_api.h>
 #include <permission_handler_windows/permission_handler_windows_plugin.h>
 #include <screen_retriever_windows/screen_retriever_windows_plugin_c_api.h>
@@ -16,6 +17,8 @@
 void RegisterPlugins(flutter::PluginRegistry* registry) {
   HeicNativePluginCApiRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("HeicNativePluginCApi"));
+  MediaKitLibsWindowsVideoPluginCApiRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("MediaKitLibsWindowsVideoPluginCApi"));
   MediaKitVideoPluginCApiRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("MediaKitVideoPluginCApi"));
   PermissionHandlerWindowsPluginRegisterWithRegistrar(

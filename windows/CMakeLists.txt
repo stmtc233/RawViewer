@@ -69,10 +69,6 @@ add_subdirectory("native_lib")
 add_subdirectory("runner")
 
 
-# Generated plugin build rules, which manage building the plugins and adding
-# them to the application.
-include(flutter/generated_plugins.cmake)
-
 # heic_native bundles x64 libraries. Windows ARM64 uses matching vcpkg builds.
 if(CMAKE_GENERATOR_PLATFORM STREQUAL "ARM64")
   set(RAWVIEWER_VCPKG_ROOT "$ENV{VCPKG_INSTALLATION_ROOT}")
@@ -89,6 +85,14 @@ if(CMAKE_GENERATOR_PLATFORM STREQUAL "ARM64")
       IMPORTED_LOCATION "${RAWVIEWER_HEIC_PREFIX}/lib/libpng16.lib"
       INTERFACE_INCLUDE_DIRECTORIES "${RAWVIEWER_HEIC_PREFIX}/include")
   endif()
+endif()
+
+# Generated plugin build rules, which manage building the plugins and adding
+# them to the application. ARM64 dependency targets above must exist before
+# this include adds heic_native_plugin.
+include(flutter/generated_plugins.cmake)
+
+if(CMAKE_GENERATOR_PLATFORM STREQUAL "ARM64")
   set_property(TARGET heic_native_plugin PROPERTY INCLUDE_DIRECTORIES "")
   set_property(TARGET heic_native_plugin PROPERTY LINK_LIBRARIES
     "flutter;flutter_wrapper_plugin;comctl32;heif;PNG::PNG")
