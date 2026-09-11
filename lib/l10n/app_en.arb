@@ -80,6 +80,21 @@
   "settingsCategoryAbout": "About",
   "gridAspectRatioSectionTitle": "Grid Cell Ratio",
   "gridAspectRatioAdaptive": "Adaptive",
+  "gridAppearanceSectionTitle": "Grid Appearance",
+  "gridLabelOverlayTitle": "Overlay on image",
+  "gridLabelOverlaySubtitle": "Draw the file name and time over the bottom of the thumbnail.",
+  "gridLabelBelowTitle": "Below image",
+  "gridLabelBelowSubtitle": "Place the file name and time under the thumbnail, outside the image.",
+  "gridCornerRadiusTitle": "Corner Radius",
+  "gridSpacingTitle": "Cell Spacing",
+  "gridPixelValue": "{pixels} px",
+  "@gridPixelValue": {
+    "placeholders": {
+      "pixels": {
+        "type": "int"
+      }
+    }
+  },
   "navigationSectionTitle": "Navigation",
   "pageSwitchAnimationTitle": "Page Switch Animation",
   "pageSwitchAnimationSubtitle": "Animate mouse-wheel page changes. Touch and trackpad swipes remain direct and follow the finger.",

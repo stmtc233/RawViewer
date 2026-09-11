@@ -110,6 +110,25 @@ extension GridAspectRatioValue on GridAspectRatio {
   }
 }
 
+/// Where a grid tile draws the file name and time.
+enum GridLabelPlacement {
+  /// Drawn over the bottom of the thumbnail.
+  overlay,
+
+  /// Drawn under the thumbnail, outside the image.
+  below,
+}
+
+/// Default corner radius of a grid tile, matching the card corners elsewhere.
+const double kDefaultGridCornerRadius = 5;
+const double kMinGridCornerRadius = 0;
+const double kMaxGridCornerRadius = 24;
+
+/// Default gap between two grid cells, in logical pixels.
+const double kDefaultGridSpacing = 10;
+const double kMinGridSpacing = 0;
+const double kMaxGridSpacing = 32;
+
 class WindowsContextMenuSettings {
   final bool supported;
   final bool enabled;
@@ -202,6 +221,10 @@ class ViewerSettings {
   final TimeDisplaySource timeDisplaySource;
   final AppLanguage appLanguage;
   final GridAspectRatio gridAspectRatio;
+  // Where the file name and time are drawn on a grid tile.
+  final GridLabelPlacement gridLabelPlacement;
+  final double gridCornerRadius;
+  final double gridSpacing;
   // Applies to discrete mouse-wheel page changes. Touch and trackpad
   // navigation remain directly controlled by the PageView.
   final bool pageSwitchAnimationEnabled;
@@ -228,6 +251,9 @@ class ViewerSettings {
     this.timeDisplaySource = TimeDisplaySource.capturedAt,
     this.appLanguage = AppLanguage.system,
     this.gridAspectRatio = GridAspectRatio.ratio3x2,
+    this.gridLabelPlacement = GridLabelPlacement.overlay,
+    this.gridCornerRadius = kDefaultGridCornerRadius,
+    this.gridSpacing = kDefaultGridSpacing,
     this.pageSwitchAnimationEnabled = true,
     this.longPressLivePhotoEnabled = false,
     this.previewOverlayOpacity = kDefaultPreviewOverlayOpacity,
@@ -252,6 +278,9 @@ class ViewerSettings {
     TimeDisplaySource? timeDisplaySource,
     AppLanguage? appLanguage,
     GridAspectRatio? gridAspectRatio,
+    GridLabelPlacement? gridLabelPlacement,
+    double? gridCornerRadius,
+    double? gridSpacing,
     bool? pageSwitchAnimationEnabled,
     bool? longPressLivePhotoEnabled,
     double? previewOverlayOpacity,
@@ -276,6 +305,9 @@ class ViewerSettings {
       timeDisplaySource: timeDisplaySource ?? this.timeDisplaySource,
       appLanguage: appLanguage ?? this.appLanguage,
       gridAspectRatio: gridAspectRatio ?? this.gridAspectRatio,
+      gridLabelPlacement: gridLabelPlacement ?? this.gridLabelPlacement,
+      gridCornerRadius: gridCornerRadius ?? this.gridCornerRadius,
+      gridSpacing: gridSpacing ?? this.gridSpacing,
       pageSwitchAnimationEnabled:
           pageSwitchAnimationEnabled ?? this.pageSwitchAnimationEnabled,
       longPressLivePhotoEnabled:
@@ -440,15 +472,17 @@ class _SettingsPageState extends State<SettingsPage>
     ];
   }
 
-  Widget _buildOpacityRow({
+  Widget _buildSliderRow({
     required String key,
     required String title,
     String? subtitle,
+    required String label,
     required double value,
+    required double min,
+    required double max,
+    required int divisions,
     required ValueChanged<double> onChanged,
   }) {
-    final l10n = AppLocalizations.of(context)!;
-    final percent = l10n.previewOverlayOpacityPercent((value * 100).round());
     return DesktopSettingsRow(
       key: ValueKey(key),
       title: title,
@@ -460,17 +494,17 @@ class _SettingsPageState extends State<SettingsPage>
             Expanded(
               child: Slider(
                 value: value,
-                min: kMinPreviewOverlayOpacity,
-                max: kMaxPreviewOverlayOpacity,
-                divisions: kPreviewOverlayOpacityDivisions,
-                label: percent,
+                min: min,
+                max: max,
+                divisions: divisions,
+                label: label,
                 onChanged: onChanged,
               ),
             ),
             SizedBox(
               width: 42,
               child: Text(
-                percent,
+                label,
                 textAlign: TextAlign.right,
                 style: const TextStyle(
                   color: RawViewerColors.text,
@@ -481,6 +515,27 @@ class _SettingsPageState extends State<SettingsPage>
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildOpacityRow({
+    required String key,
+    required String title,
+    String? subtitle,
+    required double value,
+    required ValueChanged<double> onChanged,
+  }) {
+    final l10n = AppLocalizations.of(context)!;
+    return _buildSliderRow(
+      key: key,
+      title: title,
+      subtitle: subtitle,
+      label: l10n.previewOverlayOpacityPercent((value * 100).round()),
+      value: value,
+      min: kMinPreviewOverlayOpacity,
+      max: kMaxPreviewOverlayOpacity,
+      divisions: kPreviewOverlayOpacityDivisions,
+      onChanged: onChanged,
     );
   }
 
@@ -813,6 +868,60 @@ class _SettingsPageState extends State<SettingsPage>
               )
               .toList(),
         ),
+      ),
+      DesktopSettingsSection(
+        title: l10n.gridAppearanceSectionTitle,
+        children: _withDividers([
+          DesktopSettingsOption(
+            key: const ValueKey('grid-label-overlay'),
+            title: l10n.gridLabelOverlayTitle,
+            subtitle: l10n.gridLabelOverlaySubtitle,
+            selected: _currentSettings.gridLabelPlacement ==
+                GridLabelPlacement.overlay,
+            onTap: () => _updateSettings(
+              _currentSettings.copyWith(
+                gridLabelPlacement: GridLabelPlacement.overlay,
+              ),
+            ),
+          ),
+          DesktopSettingsOption(
+            key: const ValueKey('grid-label-below'),
+            title: l10n.gridLabelBelowTitle,
+            subtitle: l10n.gridLabelBelowSubtitle,
+            selected:
+                _currentSettings.gridLabelPlacement == GridLabelPlacement.below,
+            onTap: () => _updateSettings(
+              _currentSettings.copyWith(
+                gridLabelPlacement: GridLabelPlacement.below,
+              ),
+            ),
+          ),
+          _buildSliderRow(
+            key: 'grid-corner-radius',
+            title: l10n.gridCornerRadiusTitle,
+            label:
+                l10n.gridPixelValue(_currentSettings.gridCornerRadius.round()),
+            value: _currentSettings.gridCornerRadius,
+            min: kMinGridCornerRadius,
+            max: kMaxGridCornerRadius,
+            divisions: (kMaxGridCornerRadius - kMinGridCornerRadius).round(),
+            onChanged: (value) => _updateSettings(
+              _currentSettings.copyWith(gridCornerRadius: value),
+            ),
+          ),
+          _buildSliderRow(
+            key: 'grid-spacing',
+            title: l10n.gridSpacingTitle,
+            label: l10n.gridPixelValue(_currentSettings.gridSpacing.round()),
+            value: _currentSettings.gridSpacing,
+            min: kMinGridSpacing,
+            max: kMaxGridSpacing,
+            divisions: (kMaxGridSpacing - kMinGridSpacing).round(),
+            onChanged: (value) => _updateSettings(
+              _currentSettings.copyWith(gridSpacing: value),
+            ),
+          ),
+        ]),
       ),
       DesktopSettingsSection(
         title: l10n.navigationSectionTitle,

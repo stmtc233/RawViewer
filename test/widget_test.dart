@@ -745,7 +745,7 @@ void main() {
           find.byKey(const ValueKey('page-switch-animation'));
       await tester.scrollUntilVisible(
         pageSwitchAnimation,
-        -300,
+        300,
         scrollable: settingsList,
       );
       await tester.pumpAndSettle();

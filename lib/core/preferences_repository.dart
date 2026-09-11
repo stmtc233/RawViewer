@@ -73,6 +73,9 @@ class StoredViewPreferences {
   final bool hotFolderEnabled;
   final int crossAxisCount;
   final GridAspectRatio? gridAspectRatio;
+  final GridLabelPlacement gridLabelPlacement;
+  final double gridCornerRadius;
+  final double gridSpacing;
   final bool useHalfSizeRawDecode;
   final int maxCacheSize;
   final TimeDisplaySource timeDisplaySource;
@@ -96,6 +99,9 @@ class StoredViewPreferences {
     this.hotFolderEnabled = false,
     required this.crossAxisCount,
     required this.gridAspectRatio,
+    required this.gridLabelPlacement,
+    required this.gridCornerRadius,
+    required this.gridSpacing,
     required this.useHalfSizeRawDecode,
     required this.maxCacheSize,
     required this.timeDisplaySource,
@@ -134,6 +140,9 @@ class PreferencesRepository {
   // View preferences.
   static const String _gridCrossAxisCount = 'grid_cross_axis_count';
   static const String _gridAspectRatio = 'grid_aspect_ratio';
+  static const String _gridLabelPlacement = 'grid_label_placement';
+  static const String _gridCornerRadius = 'grid_corner_radius';
+  static const String _gridSpacing = 'grid_spacing';
   static const String _useHalfSizeRawDecode = 'use_half_size_raw_decode';
   static const String _maxCacheSize = 'max_cache_size';
   static const String _timeDisplaySource = 'time_display_source';
@@ -230,6 +239,16 @@ class PreferencesRepository {
           prefs.getInt(_gridCrossAxisCount) ?? kDefaultGridCrossAxisCount,
       gridAspectRatio:
           GridAspectRatio.values.asNameMap()[prefs.getString(_gridAspectRatio)],
+      gridLabelPlacement: GridLabelPlacement.values
+              .asNameMap()[prefs.getString(_gridLabelPlacement)] ??
+          GridLabelPlacement.overlay,
+      gridCornerRadius:
+          (prefs.getDouble(_gridCornerRadius) ?? kDefaultGridCornerRadius)
+              .clamp(kMinGridCornerRadius, kMaxGridCornerRadius)
+              .toDouble(),
+      gridSpacing: (prefs.getDouble(_gridSpacing) ?? kDefaultGridSpacing)
+          .clamp(kMinGridSpacing, kMaxGridSpacing)
+          .toDouble(),
       useHalfSizeRawDecode: prefs.getBool(_useHalfSizeRawDecode) ?? true,
       maxCacheSize: prefs.getInt(_maxCacheSize) ?? 512,
       timeDisplaySource: TimeDisplaySource.values
@@ -325,6 +344,27 @@ class PreferencesRepository {
   Future<void> saveGridAspectRatio(GridAspectRatio ratio) async {
     final prefs = await _prefs;
     await prefs.setString(_gridAspectRatio, ratio.name);
+  }
+
+  Future<void> saveGridLabelPlacement(GridLabelPlacement placement) async {
+    final prefs = await _prefs;
+    await prefs.setString(_gridLabelPlacement, placement.name);
+  }
+
+  Future<void> saveGridCornerRadius(double radius) async {
+    final prefs = await _prefs;
+    await prefs.setDouble(
+      _gridCornerRadius,
+      radius.clamp(kMinGridCornerRadius, kMaxGridCornerRadius).toDouble(),
+    );
+  }
+
+  Future<void> saveGridSpacing(double spacing) async {
+    final prefs = await _prefs;
+    await prefs.setDouble(
+      _gridSpacing,
+      spacing.clamp(kMinGridSpacing, kMaxGridSpacing).toDouble(),
+    );
   }
 
   Future<void> saveUseHalfSizeRawDecode(bool enabled) async {

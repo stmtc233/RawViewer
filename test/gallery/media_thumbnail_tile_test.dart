@@ -112,4 +112,53 @@ void main() {
     expect(find.byIcon(Icons.star_border), findsNWidgets(2));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('grid label placement decides whether the name sits on the image',
+      (tester) async {
+    final cache = LruCache<String, ViewerImage>(1024,
+        onEvict: (_, image) => image.dispose());
+    addTearDown(cache.clear);
+
+    Future<void> show(GridLabelPlacement placement) async {
+      await tester.pumpWidget(MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Center(
+          child: SizedBox(
+            width: 160,
+            height: 140,
+            child: MediaThumbnailTile(
+              mediaFile:
+                  const MediaFile(path: '/missing.jpg', kind: MediaKind.bitmap),
+              hasPairedJpeg: false,
+              settings: ViewerSettings(
+                gridLabelPlacement: placement,
+                showThumbnailRatings: false,
+              ),
+              timestampRepository: TimestampRepository(),
+              resizeWidth: 128,
+              imageStore: ImageStore(cache),
+              onTap: () {},
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    await show(GridLabelPlacement.overlay);
+    final overlayImage = tester.getRect(find.byType(ClipRRect).first);
+    final overlayLabel = tester.getRect(find.text('missing.jpg'));
+    expect(overlayLabel.top, greaterThanOrEqualTo(overlayImage.top));
+    expect(overlayLabel.bottom, lessThanOrEqualTo(overlayImage.bottom));
+
+    await show(GridLabelPlacement.below);
+    final belowImage = tester.getRect(find.byType(ClipRRect).first);
+    final belowLabel = tester.getRect(find.text('missing.jpg'));
+    // Outside means strictly under the image, which therefore no longer fills
+    // the whole cell.
+    expect(belowLabel.top, greaterThanOrEqualTo(belowImage.bottom));
+    expect(belowImage.height, lessThan(140));
+    expect(tester.takeException(), isNull);
+  });
 }

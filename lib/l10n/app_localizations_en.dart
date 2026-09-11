@@ -254,6 +254,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String get gridAspectRatioAdaptive => 'Adaptive';
 
   @override
+  String get gridAppearanceSectionTitle => 'Grid Appearance';
+
+  @override
+  String get gridLabelOverlayTitle => 'Overlay on image';
+
+  @override
+  String get gridLabelOverlaySubtitle => 'Draw the file name and time over the bottom of the thumbnail.';
+
+  @override
+  String get gridLabelBelowTitle => 'Below image';
+
+  @override
+  String get gridLabelBelowSubtitle => 'Place the file name and time under the thumbnail, outside the image.';
+
+  @override
+  String get gridCornerRadiusTitle => 'Corner Radius';
+
+  @override
+  String get gridSpacingTitle => 'Cell Spacing';
+
+  @override
+  String gridPixelValue(int pixels) {
+    return '$pixels px';
+  }
+
+  @override
   String get navigationSectionTitle => 'Navigation';
 
   @override

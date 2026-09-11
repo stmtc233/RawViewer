@@ -6,10 +6,12 @@ class DirectoryThumbnailTile extends StatelessWidget {
     super.key,
     required this.directoryPath,
     required this.onOpen,
+    this.cornerRadius = 5,
   });
 
   final String directoryPath;
   final VoidCallback onOpen;
+  final double cornerRadius;
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +19,7 @@ class DirectoryThumbnailTile extends StatelessWidget {
       message: directoryPath,
       child: Material(
         color: Theme.of(context).colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(cornerRadius),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onOpen,

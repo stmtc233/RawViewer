@@ -141,6 +141,9 @@ class _HomePageState extends State<HomePage> {
       _settings = _settings.copyWith(
         useHalfSizeRawDecode: stored.useHalfSizeRawDecode,
         maxCacheSize: stored.maxCacheSize,
+        gridLabelPlacement: stored.gridLabelPlacement,
+        gridCornerRadius: stored.gridCornerRadius,
+        gridSpacing: stored.gridSpacing,
         timeDisplaySource: stored.timeDisplaySource,
         appLanguage: stored.appLanguage,
         pageSwitchAnimationEnabled: stored.pageSwitchAnimationEnabled,
@@ -255,6 +258,15 @@ class _HomePageState extends State<HomePage> {
   Future<void> _persistGridAspectRatio(GridAspectRatio ratio) =>
       const PreferencesRepository().saveGridAspectRatio(ratio);
 
+  Future<void> _persistGridLabelPlacement(GridLabelPlacement placement) =>
+      const PreferencesRepository().saveGridLabelPlacement(placement);
+
+  Future<void> _persistGridCornerRadius(double radius) =>
+      const PreferencesRepository().saveGridCornerRadius(radius);
+
+  Future<void> _persistGridSpacing(double spacing) =>
+      const PreferencesRepository().saveGridSpacing(spacing);
+
   Future<void> _persistPageSwitchAnimationEnabled(bool enabled) =>
       const PreferencesRepository().savePageSwitchAnimationEnabled(enabled);
 
@@ -299,6 +311,11 @@ class _HomePageState extends State<HomePage> {
     final appLanguageChanged = _settings.appLanguage != settings.appLanguage;
     final gridAspectRatioChanged =
         _settings.gridAspectRatio != settings.gridAspectRatio;
+    final gridLabelPlacementChanged =
+        _settings.gridLabelPlacement != settings.gridLabelPlacement;
+    final gridCornerRadiusChanged =
+        _settings.gridCornerRadius != settings.gridCornerRadius;
+    final gridSpacingChanged = _settings.gridSpacing != settings.gridSpacing;
     final pageSwitchAnimationChanged = _settings.pageSwitchAnimationEnabled !=
         settings.pageSwitchAnimationEnabled;
     final longPressLivePhotoChanged = _settings.longPressLivePhotoEnabled !=
@@ -362,6 +379,15 @@ class _HomePageState extends State<HomePage> {
     if (gridAspectRatioChanged) {
       _hasUserConfiguredGridAspectRatio = true;
       unawaited(_persistGridAspectRatio(settings.gridAspectRatio));
+    }
+    if (gridLabelPlacementChanged) {
+      unawaited(_persistGridLabelPlacement(settings.gridLabelPlacement));
+    }
+    if (gridCornerRadiusChanged) {
+      unawaited(_persistGridCornerRadius(settings.gridCornerRadius));
+    }
+    if (gridSpacingChanged) {
+      unawaited(_persistGridSpacing(settings.gridSpacing));
     }
     if (pageSwitchAnimationChanged) {
       unawaited(
@@ -1269,6 +1295,7 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildDirectoryTile(String directory) => DirectoryThumbnailTile(
         directoryPath: directory,
+        cornerRadius: _settings.gridCornerRadius,
         onOpen: () => _handleIncomingPaths([directory]),
       );
 
@@ -1319,7 +1346,13 @@ class _HomePageState extends State<HomePage> {
     List<String> directories,
   ) {
     const gridPadding = EdgeInsets.fromLTRB(12, 12, 12, 88);
-    const gridSpacing = 10.0;
+    final gridSpacing = _settings.gridSpacing;
+    // The justified layout only knows about image heights, so a label drawn
+    // under the image needs its own space reserved on top of the row height.
+    final tileLabelHeight =
+        _settings.gridLabelPlacement == GridLabelPlacement.below
+            ? kGridLabelOutsideHeight
+            : 0.0;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1355,7 +1388,7 @@ class _HomePageState extends State<HomePage> {
                       bottom: rowIndex == rows.length - 1 ? 0 : gridSpacing,
                     ),
                     child: SizedBox(
-                      height: row.height,
+                      height: row.height + tileLabelHeight,
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: List<Widget>.generate(
@@ -1399,25 +1432,46 @@ class _HomePageState extends State<HomePage> {
   ) {
     final grid = _settings.gridAspectRatio.isAdaptive
         ? _buildAdaptiveGrid(mediaGroups, thumbnailResizeWidth, directories)
-        : GridView.builder(
-            addAutomaticKeepAlives: false,
-            scrollCacheExtent: const ScrollCacheExtent.pixels(200),
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: _crossAxisCount,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: _settings.gridAspectRatio.aspectRatio,
-            ),
-            itemCount: directories.length + mediaGroups.length,
-            itemBuilder: (context, index) {
-              if (index < directories.length) {
-                return _buildDirectoryTile(directories[index]);
-              }
-              return _buildThumbnailTile(
-                mediaGroups,
-                index - directories.length,
-                thumbnailResizeWidth,
+        : LayoutBuilder(
+            builder: (context, constraints) {
+              final spacing = _settings.gridSpacing;
+              const padding = EdgeInsets.fromLTRB(12, 12, 12, 88);
+              final labelHeight =
+                  _settings.gridLabelPlacement == GridLabelPlacement.below
+                      ? kGridLabelOutsideHeight
+                      : 0.0;
+              // A fixed-ratio cell would otherwise shrink the image by the
+              // label block, cropping it away from the chosen ratio.
+              final cellWidth = (constraints.maxWidth -
+                      padding.horizontal -
+                      spacing * (_crossAxisCount - 1)) /
+                  _crossAxisCount;
+              final cellHeight =
+                  cellWidth / _settings.gridAspectRatio.aspectRatio +
+                      labelHeight;
+              return GridView.builder(
+                addAutomaticKeepAlives: false,
+                scrollCacheExtent: const ScrollCacheExtent.pixels(200),
+                padding: padding,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: _crossAxisCount,
+                  crossAxisSpacing: spacing,
+                  mainAxisSpacing: spacing,
+                  childAspectRatio: cellWidth > 0 && cellHeight > 0
+                      ? cellWidth / cellHeight
+                      : _settings.gridAspectRatio.aspectRatio,
+                ),
+                itemCount: directories.length + mediaGroups.length,
+                itemBuilder: (context, index) {
+                  if (index < directories.length) {
+                    return _buildDirectoryTile(directories[index]);
+                  }
+                  return _buildThumbnailTile(
+                    mediaGroups,
+                    index - directories.length,
+                    thumbnailResizeWidth,
+                  );
+                },
               );
             },
           );

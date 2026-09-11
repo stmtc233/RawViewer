@@ -80,6 +80,21 @@
   "settingsCategoryAbout": "关于",
   "gridAspectRatioSectionTitle": "预览网格比例",
   "gridAspectRatioAdaptive": "自适应",
+  "gridAppearanceSectionTitle": "网格外观",
+  "gridLabelOverlayTitle": "叠加在图片内",
+  "gridLabelOverlaySubtitle": "将文件名和时间显示在缩略图底部。",
+  "gridLabelBelowTitle": "显示在图片下方",
+  "gridLabelBelowSubtitle": "将文件名和时间放在缩略图下方，不覆盖图片。",
+  "gridCornerRadiusTitle": "圆角大小",
+  "gridSpacingTitle": "网格间隔",
+  "gridPixelValue": "{pixels} px",
+  "@gridPixelValue": {
+    "placeholders": {
+      "pixels": {
+        "type": "int"
+      }
+    }
+  },
   "navigationSectionTitle": "切换",
   "pageSwitchAnimationTitle": "切换动画",
   "pageSwitchAnimationSubtitle": "控制鼠标滚轮触发的切换动画；触控和触控板滑动始终保持跟手。",

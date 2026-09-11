@@ -11,8 +11,24 @@ import '../../image_store.dart';
 import '../../l10n/app_localizations.dart';
 import '../../media_group.dart';
 import '../../settings_page.dart';
+import '../../ui/app_theme.dart';
 import '../../ui/raw_image_widget.dart';
 import '../../viewer_image.dart';
+
+/// Height a label block occupies when the file name and time are drawn below
+/// the thumbnail. The justified grid layout reserves the same amount so its
+/// rows stay aligned with the tiles.
+const double kGridLabelOutsideHeight = 34;
+
+/// Smallest image height that still leaves room for a label block below it.
+/// Below this the tile keeps the label over the image instead of overflowing.
+const double _kMinImageHeightWithOutsideLabel = 24;
+
+/// Keeps the overlaid file name legible without the dark scrim it used to sit
+/// on, whatever the thumbnail's own brightness happens to be.
+const List<Shadow> _kOverlayLabelShadows = [
+  Shadow(color: Color(0xB3000000), blurRadius: 4),
+];
 
 class MediaThumbnailTile extends StatefulWidget {
   final MediaFile mediaFile;
@@ -190,6 +206,11 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
 
   @override
   Widget build(BuildContext context) {
+    final borderRadius =
+        BorderRadius.circular(widget.settings.gridCornerRadius);
+    final labelOverlay =
+        widget.settings.gridLabelPlacement == GridLabelPlacement.overlay;
+
     return Semantics(
       label: path.basename(widget.filePath),
       button: true,
@@ -197,110 +218,164 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
       child: ExcludeSemantics(
         child: GestureDetector(
           onTap: widget.onTap,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(5),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                _buildContent(),
-                const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Colors.transparent, Color(0xCC000000)],
-                      stops: [0.55, 1],
-                    ),
-                  ),
-                ),
-                if (widget.settings.showThumbnailRatings &&
-                    widget.ratingRepository != null)
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    right: widget.mediaFile.isRaw ? 44 : 8,
-                    child: Align(
-                      alignment: Alignment.topLeft,
-                      child: RatingBadge(
-                        filePath: widget.filePath,
-                        repository: widget.ratingRepository!,
-                        hideUnratedRatings: widget.settings.hideUnratedRatings,
-                      ),
-                    ),
-                  ),
-                Positioned(
-                  left: 8,
-                  right: 8,
-                  bottom: 7,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        path.basename(widget.filePath),
-                        style: const TextStyle(
-                          fontSize: 11,
-                          height: 1.1,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
+          child: labelOverlay
+              ? _buildTile(borderRadius, labelInside: true)
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    // The label block needs space of its own below the image.
+                    // A cell too short for both falls back to the overlay so
+                    // the tile never overflows its cell.
+                    if (constraints.maxHeight <
+                        kGridLabelOutsideHeight +
+                            _kMinImageHeightWithOutsideLabel) {
+                      return _buildTile(borderRadius, labelInside: true);
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _buildTile(borderRadius, labelInside: false),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      FutureBuilder<MediaTimestampInfo>(
-                        future: _timestampFuture,
-                        builder: (context, snapshot) {
-                          final text = snapshot.hasData
-                              ? snapshot.data!
-                                  .format(widget.settings.timeDisplaySource)
-                              : '---- -- -- --:--:--';
-                          return Text(
-                            text,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              height: 1,
-                              color: Color(0xFFD2D9DD),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+                        _buildOutsideLabel(),
+                      ],
+                    );
+                  },
                 ),
-                if (widget.mediaFile.isRaw)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      width: 30,
-                      height: 20,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: const Color(0xE6171A1E),
-                        border: Border.all(color: const Color(0xFF525A62)),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                      child: Text(
-                        widget.hasPairedJpeg
-                            ? AppLocalizations.of(context)!.rawJpegShortLabel
-                            : AppLocalizations.of(context)!.rawShortLabel,
-                        style: const TextStyle(
-                          color: Color(0xFFE5E9EC),
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+        ),
+      ),
+    );
+  }
+
+  /// The image, its badges, and — for the overlay placement — the label.
+  ///
+  /// Clipping lives here rather than around the whole tile so a label drawn
+  /// below the image is not rounded or clipped by the image's own corners.
+  Widget _buildTile(BorderRadius borderRadius, {required bool labelInside}) {
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _buildContent(),
+          if (widget.settings.showThumbnailRatings &&
+              widget.ratingRepository != null)
+            Positioned(
+              top: 8,
+              left: 8,
+              right: widget.mediaFile.isRaw ? 44 : 8,
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: RatingBadge(
+                  filePath: widget.filePath,
+                  repository: widget.ratingRepository!,
+                  hideUnratedRatings: widget.settings.hideUnratedRatings,
+                ),
+              ),
             ),
+          if (widget.mediaFile.isRaw)
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                width: 30,
+                height: 20,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xE6171A1E),
+                  border: Border.all(color: const Color(0xFF525A62)),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: Text(
+                  widget.hasPairedJpeg
+                      ? AppLocalizations.of(context)!.rawJpegShortLabel
+                      : AppLocalizations.of(context)!.rawShortLabel,
+                  style: const TextStyle(
+                    color: Color(0xFFE5E9EC),
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+            ),
+          if (labelInside)
+            Positioned(
+              left: 8,
+              right: 8,
+              bottom: 7,
+              child: _buildLabel(
+                nameStyle: const TextStyle(
+                  fontSize: 11,
+                  height: 1.1,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                  shadows: _kOverlayLabelShadows,
+                ),
+                timeStyle: const TextStyle(
+                  fontSize: 10,
+                  height: 1,
+                  color: Color(0xFFD2D9DD),
+                  shadows: _kOverlayLabelShadows,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOutsideLabel() {
+    return SizedBox(
+      height: kGridLabelOutsideHeight,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 5),
+        child: _buildLabel(
+          nameStyle: const TextStyle(
+            fontSize: 11,
+            height: 1.1,
+            color: RawViewerColors.text,
+            fontWeight: FontWeight.w500,
+          ),
+          timeStyle: const TextStyle(
+            fontSize: 10,
+            height: 1.1,
+            color: RawViewerColors.mutedText,
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLabel({
+    required TextStyle nameStyle,
+    required TextStyle timeStyle,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          path.basename(widget.filePath),
+          style: nameStyle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 2),
+        FutureBuilder<MediaTimestampInfo>(
+          future: _timestampFuture,
+          builder: (context, snapshot) {
+            final text = snapshot.hasData
+                ? snapshot.data!.format(widget.settings.timeDisplaySource)
+                : '---- -- -- --:--:--';
+            return Text(
+              text,
+              style: timeStyle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            );
+          },
+        ),
+      ],
     );
   }
 

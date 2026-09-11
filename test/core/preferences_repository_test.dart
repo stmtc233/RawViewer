@@ -203,6 +203,9 @@ void main() {
       expect(stored.showPreviewFilmstrip, isTrue);
       expect(stored.showPreviewOverview, isTrue);
       expect(stored.mediaSortOrder, defaultMediaSortOrder);
+      expect(stored.gridLabelPlacement, GridLabelPlacement.overlay);
+      expect(stored.gridCornerRadius, kDefaultGridCornerRadius);
+      expect(stored.gridSpacing, kDefaultGridSpacing);
     });
 
     test('round-trips additional settings and preview display controls',
@@ -242,6 +245,40 @@ void main() {
       await repo.saveGridAspectRatio(GridAspectRatio.ratio4x3);
       final stored = await repo.loadViewPreferences();
       expect(stored.gridAspectRatio, GridAspectRatio.ratio4x3);
+    });
+
+    test('round-trips grid label placement, corner radius and spacing',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = const PreferencesRepository();
+
+      await repo.saveGridLabelPlacement(GridLabelPlacement.below);
+      await repo.saveGridCornerRadius(12);
+      await repo.saveGridSpacing(4);
+
+      final stored = await repo.loadViewPreferences();
+      expect(stored.gridLabelPlacement, GridLabelPlacement.below);
+      expect(stored.gridCornerRadius, 12);
+      expect(stored.gridSpacing, 4);
+    });
+
+    test('clamps out-of-range grid corner radius and spacing', () async {
+      SharedPreferences.setMockInitialValues({
+        'grid_corner_radius': 999.0,
+        'grid_spacing': -5.0,
+      });
+      final stored = await const PreferencesRepository().loadViewPreferences();
+      expect(stored.gridCornerRadius, kMaxGridCornerRadius);
+      expect(stored.gridSpacing, kMinGridSpacing);
+    });
+
+    test('falls back to the overlay label for an unknown stored placement',
+        () async {
+      SharedPreferences.setMockInitialValues({
+        'grid_label_placement': 'somewhere-else',
+      });
+      final stored = await const PreferencesRepository().loadViewPreferences();
+      expect(stored.gridLabelPlacement, GridLabelPlacement.overlay);
     });
 
     test('round-trips page switch animation setting', () async {

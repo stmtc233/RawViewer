@@ -569,6 +569,54 @@ abstract class AppLocalizations {
   /// **'Adaptive'**
   String get gridAspectRatioAdaptive;
 
+  /// No description provided for @gridAppearanceSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Grid Appearance'**
+  String get gridAppearanceSectionTitle;
+
+  /// No description provided for @gridLabelOverlayTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Overlay on image'**
+  String get gridLabelOverlayTitle;
+
+  /// No description provided for @gridLabelOverlaySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Draw the file name and time over the bottom of the thumbnail.'**
+  String get gridLabelOverlaySubtitle;
+
+  /// No description provided for @gridLabelBelowTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Below image'**
+  String get gridLabelBelowTitle;
+
+  /// No description provided for @gridLabelBelowSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Place the file name and time under the thumbnail, outside the image.'**
+  String get gridLabelBelowSubtitle;
+
+  /// No description provided for @gridCornerRadiusTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Corner Radius'**
+  String get gridCornerRadiusTitle;
+
+  /// No description provided for @gridSpacingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cell Spacing'**
+  String get gridSpacingTitle;
+
+  /// No description provided for @gridPixelValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{pixels} px'**
+  String gridPixelValue(int pixels);
+
   /// No description provided for @navigationSectionTitle.
   ///
   /// In en, this message translates to:

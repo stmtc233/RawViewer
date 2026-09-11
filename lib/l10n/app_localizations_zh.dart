@@ -248,6 +248,32 @@ class AppLocalizationsZh extends AppLocalizations {
   String get gridAspectRatioAdaptive => '自适应';
 
   @override
+  String get gridAppearanceSectionTitle => '网格外观';
+
+  @override
+  String get gridLabelOverlayTitle => '叠加在图片内';
+
+  @override
+  String get gridLabelOverlaySubtitle => '将文件名和时间显示在缩略图底部。';
+
+  @override
+  String get gridLabelBelowTitle => '显示在图片下方';
+
+  @override
+  String get gridLabelBelowSubtitle => '将文件名和时间放在缩略图下方，不覆盖图片。';
+
+  @override
+  String get gridCornerRadiusTitle => '圆角大小';
+
+  @override
+  String get gridSpacingTitle => '网格间隔';
+
+  @override
+  String gridPixelValue(int pixels) {
+    return '$pixels px';
+  }
+
+  @override
   String get navigationSectionTitle => '切换';
 
   @override

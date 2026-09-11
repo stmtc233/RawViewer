@@ -43,6 +43,12 @@ Finder _tile(SettingsCategory category) =>
 Finder _tab(SettingsCategory category) =>
     find.byKey(ValueKey('settings-category-tab-${category.name}'));
 
+Finder _categoryList(SettingsCategory category) => find.descendant(
+      of: find
+          .byKey(PageStorageKey<String>('settings-category-${category.name}')),
+      matching: find.byType(Scrollable),
+    );
+
 Future<void> _open(WidgetTester tester, SettingsCategory category) async {
   final target = tester.any(_tile(category)) ? _tile(category) : _tab(category);
   await tester.ensureVisible(target);
@@ -120,19 +126,29 @@ void main() {
 
       // General opens first and owns language + time display.
       expect(find.byKey(const ValueKey('grid-aspect-adaptive')), findsNothing);
+      expect(find.byKey(const ValueKey('grid-label-below')), findsNothing);
       expect(find.byKey(const ValueKey('hot-folder-enabled')), findsOneWidget);
 
       await _open(tester, SettingsCategory.appearance);
-      expect(
-          find.byKey(const ValueKey('grid-aspect-adaptive')), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('page-switch-animation')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const ValueKey('preview-toolbar-opacity')),
-        findsOneWidget,
-      );
+      // Appearance owns the grid sections and the preview display controls.
+      // Every one of them is reachable by scrolling the category's own list.
+      for (final key in const [
+        'grid-aspect-adaptive',
+        'grid-label-below',
+        'grid-corner-radius',
+        'grid-spacing',
+        'page-switch-animation',
+        'preview-toolbar-opacity',
+      ]) {
+        final target = find.byKey(ValueKey(key));
+        await tester.scrollUntilVisible(
+          target,
+          200,
+          scrollable: _categoryList(SettingsCategory.appearance),
+        );
+        await tester.pumpAndSettle();
+        expect(target, findsOneWidget);
+      }
 
       await _open(tester, SettingsCategory.about);
       expect(find.byKey(const ValueKey('about-version')), findsOneWidget);
