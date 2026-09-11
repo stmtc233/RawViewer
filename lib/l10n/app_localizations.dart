@@ -1349,6 +1349,18 @@ abstract class AppLocalizations {
   /// **'Next frame'**
   String get nextImageFrame;
 
+  /// No description provided for @previousImageTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous image'**
+  String get previousImageTooltip;
+
+  /// No description provided for @nextImageTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Next image'**
+  String get nextImageTooltip;
+
   /// No description provided for @longPressLivePhotoTitle.
   ///
   /// In en, this message translates to:

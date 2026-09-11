@@ -332,6 +332,8 @@
   "playLivePhoto": "Play Live Photo",
   "previousImageFrame": "Previous frame",
   "nextImageFrame": "Next frame",
+  "previousImageTooltip": "Previous image",
+  "nextImageTooltip": "Next image",
   "longPressLivePhotoTitle": "Press and hold to play Live Photos",
   "stopLivePhoto": "Stop Live Photo",
   "unmuteLivePhoto": "Unmute Live Photo",

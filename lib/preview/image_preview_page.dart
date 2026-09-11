@@ -35,6 +35,13 @@ import 'image_histogram.dart';
 import 'widgets/preview_filmstrip.dart';
 import 'widgets/preview_hover_reveal.dart';
 
+/// Hit target of a preview navigation arrow. Deliberately much taller than the
+/// glyph: the arrow has no visible button around it, so the target has to be
+/// generous to be easy to reach and click.
+const double _previewNavigationArrowHitWidth = 76;
+const double _previewNavigationArrowHitHeight = 200;
+const double _previewNavigationArrowIconSize = 36;
+
 class ImagePreviewPage extends StatefulWidget {
   final List<MediaGroup> mediaGroups;
   final int initialIndex;
@@ -616,6 +623,55 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     );
   }
 
+  /// A bare chevron that switches to the previous or next image.
+  ///
+  /// There is no button chrome around it: only the glyph is painted, over
+  /// whatever the image happens to be. It rests fully transparent and fades in
+  /// only while the pointer is on its hit target, which is deliberately tall so
+  /// it is easy to hit without aiming.
+  Widget _buildPreviewNavigationArrow({
+    required bool leading,
+    required String tooltip,
+    required VoidCallback? onPressed,
+  }) {
+    final enabled = onPressed != null;
+    return PreviewHoverReveal(
+      restingOpacity: 0,
+      hitTestBehavior: HitTestBehavior.opaque,
+      child: MouseRegion(
+        cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+        child: GestureDetector(
+          key: ValueKey(
+            leading ? 'preview-navigation-previous' : 'preview-navigation-next',
+          ),
+          behavior: HitTestBehavior.opaque,
+          onTap: onPressed,
+          child: SizedBox(
+            width: _previewNavigationArrowHitWidth,
+            height: _previewNavigationArrowHitHeight,
+            child: Center(
+              child: Tooltip(
+                message: tooltip,
+                child: Icon(
+                  leading ? Icons.chevron_left : Icons.chevron_right,
+                  size: _previewNavigationArrowIconSize,
+                  color: enabled
+                      ? RawViewerColors.text
+                      : RawViewerColors.mutedBorder,
+                  // The glyph sits directly on the photo, so it carries its own
+                  // shadow instead of a background plate.
+                  shadows: const [
+                    Shadow(color: Color(0xB3000000), blurRadius: 12),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildDirectoryLoadPanel(AppLocalizations l10n) {
     final bottomPadding = MediaQuery.paddingOf(context).bottom;
     return PreviewHoverReveal(
@@ -967,6 +1023,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
             ? exifWidth
             : 0.0;
     final bottomSafePadding = MediaQuery.paddingOf(context).bottom;
+    final topSafePadding = MediaQuery.paddingOf(context).top;
     final previewFilmstripHeight = _clampedPreviewFilmstripHeight(context);
     final previewFilmstripTotalHeight =
         previewFilmstripHeight + bottomSafePadding;
@@ -1082,6 +1139,41 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
               ),
             ),
           ),
+          // Previous/next image arrows. They span the image viewport only, so
+          // hovering the toolbar, filmstrip, or EXIF sidebar never reveals
+          // them, and they stay out of the way of the controls at the corners.
+          if (_mediaGroups.length > 1) ...[
+            Positioned(
+              left: 0,
+              right: exifInset,
+              top: topSafePadding + kImagePreviewToolbarHeight,
+              bottom: previewBottomInset,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _buildPreviewNavigationArrow(
+                  leading: true,
+                  tooltip: l10n.previousImageTooltip,
+                  onPressed: _currentIndex > 0 ? () => _switchPage(-1) : null,
+                ),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: exifInset,
+              top: topSafePadding + kImagePreviewToolbarHeight,
+              bottom: previewBottomInset,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: _buildPreviewNavigationArrow(
+                  leading: false,
+                  tooltip: l10n.nextImageTooltip,
+                  onPressed: _currentIndex + 1 < _mediaGroups.length
+                      ? () => _switchPage(1)
+                      : null,
+                ),
+              ),
+            ),
+          ],
           Positioned(
             right: 12 + exifInset,
             bottom: controlsBottomInset,

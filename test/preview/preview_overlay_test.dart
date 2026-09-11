@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -224,4 +225,112 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
   }
+
+  const navigationGroups = [
+    MediaGroup(
+      primary: MediaFile(path: '/fixture-1.jpg', kind: MediaKind.bitmap),
+    ),
+    MediaGroup(
+      primary: MediaFile(path: '/fixture-2.jpg', kind: MediaKind.bitmap),
+    ),
+    MediaGroup(
+      primary: MediaFile(path: '/fixture-3.jpg', kind: MediaKind.bitmap),
+    ),
+  ];
+
+  Future<void> pumpPreview(
+    WidgetTester tester, {
+    required List<MediaGroup> mediaGroups,
+  }) async {
+    final cache = LruCache<String, ViewerImage>(1024,
+        onEvict: (_, image) => image.dispose());
+    addTearDown(cache.clear);
+    await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: ImagePreviewPage(
+        mediaGroups: mediaGroups,
+        initialIndex: 0,
+        thumbnailResizeWidth: 256,
+        imageStore: ImageStore(cache),
+        timestampRepository: TimestampRepository(),
+        initialSettings: const ViewerSettings(),
+        onClose: () {},
+        onRawViewModeChanged: (_) {},
+        onPreviewFilmstripHeightChanged: (_) {},
+      ),
+    ));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('side arrows switch images and stay hidden until hovered',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await pumpPreview(tester, mediaGroups: navigationGroups);
+
+    final previous = find.byKey(const ValueKey('preview-navigation-previous'));
+    final next = find.byKey(const ValueKey('preview-navigation-next'));
+    expect(previous, findsOneWidget);
+    expect(next, findsOneWidget);
+    expect(find.text('fixture-1.jpg'), findsOneWidget);
+
+    double arrowOpacity(Finder arrow) => tester
+        .widget<AnimatedOpacity>(
+          find
+              .ancestor(of: arrow, matching: find.byType(AnimatedOpacity))
+              .first,
+        )
+        .opacity;
+
+    expect(arrowOpacity(previous), 0);
+    expect(arrowOpacity(next), 0);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(tester.getCenter(next));
+    await tester.pumpAndSettle();
+    expect(arrowOpacity(next), 1);
+    expect(arrowOpacity(previous), 0);
+
+    await mouse.moveTo(const Offset(400, 300));
+    await tester.pumpAndSettle();
+    expect(arrowOpacity(next), 0);
+
+    // The first image has nowhere to go back to.
+    expect(tester.widget<GestureDetector>(previous).onTap, isNull);
+    expect(tester.widget<GestureDetector>(next).onTap, isNotNull);
+
+    // The click target reaches well above the glyph itself.
+    final nextRect = tester.getRect(next);
+    await tester.tapAt(Offset(nextRect.center.dx, nextRect.top + 24));
+    await tester.pumpAndSettle();
+    expect(find.text('fixture-2.jpg'), findsOneWidget);
+
+    await tester.tap(next);
+    await tester.pumpAndSettle();
+    expect(find.text('fixture-3.jpg'), findsOneWidget);
+    expect(tester.widget<GestureDetector>(next).onTap, isNull);
+
+    await tester.tap(previous);
+    await tester.pumpAndSettle();
+    expect(find.text('fixture-2.jpg'), findsOneWidget);
+  });
+
+  testWidgets('side arrows are absent for a single image', (tester) async {
+    tester.view.physicalSize = const Size(800, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await pumpPreview(tester, mediaGroups: navigationGroups.take(1).toList());
+
+    expect(find.byKey(const ValueKey('preview-navigation-previous')),
+        findsNothing);
+    expect(find.byKey(const ValueKey('preview-navigation-next')), findsNothing);
+  });
 }

@@ -686,6 +686,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get nextImageFrame => '下一帧';
 
   @override
+  String get previousImageTooltip => '上一张';
+
+  @override
+  String get nextImageTooltip => '下一张';
+
+  @override
   String get longPressLivePhotoTitle => '长按播放动态照片';
 
   @override

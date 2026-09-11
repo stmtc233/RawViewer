@@ -332,6 +332,8 @@
   "playLivePhoto": "播放动态照片",
   "previousImageFrame": "上一帧",
   "nextImageFrame": "下一帧",
+  "previousImageTooltip": "上一张",
+  "nextImageTooltip": "下一张",
   "longPressLivePhotoTitle": "长按播放动态照片",
   "stopLivePhoto": "停止动态照片",
   "unmuteLivePhoto": "开启动态照片声音",

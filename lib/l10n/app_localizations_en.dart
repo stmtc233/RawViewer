@@ -698,6 +698,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nextImageFrame => 'Next frame';
 
   @override
+  String get previousImageTooltip => 'Previous image';
+
+  @override
+  String get nextImageTooltip => 'Next image';
+
+  @override
   String get longPressLivePhotoTitle => 'Press and hold to play Live Photos';
 
   @override
