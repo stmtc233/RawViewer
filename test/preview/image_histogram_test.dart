@@ -10,6 +10,7 @@ import 'package:rawviewer/l10n/app_localizations.dart';
 import 'package:rawviewer/lru_cache.dart';
 import 'package:rawviewer/media_group.dart';
 import 'package:rawviewer/preview/image_histogram.dart';
+import 'package:rawviewer/preview/scroll_gesture_coalescer.dart';
 import 'package:rawviewer/preview/single_image_preview.dart';
 import 'package:rawviewer/preview/widgets/histogram_image_observer.dart';
 import 'package:rawviewer/settings_page.dart';
@@ -183,6 +184,7 @@ void main() {
             viewMode: mode,
             onResetRotationRequested: () {},
             onSwitchRequest: (_) {},
+            scrollGesture: ScrollGestureCoalescer(),
             onTrackpadPanStart: (_) {},
             onTrackpadPanUpdate: (_) {},
             onTrackpadPanEnd: (_) {},

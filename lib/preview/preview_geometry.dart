@@ -55,6 +55,21 @@ const double previewTrackpadScaleSlop = 0.015;
 const double trackpadPageDragSensitivity = 2.5;
 const double trackpadFlingMinVelocity = 350;
 
+/// Scroll signals closer together than this belong to one continuous gesture.
+///
+/// A mouse-wheel notch arrives on its own, so it keeps its own step, while the
+/// flood of small signals a trackpad emits for a single swipe is coalesced.
+const Duration previewScrollGestureGap = Duration(milliseconds: 60);
+
+/// Further scroll travel, in logical pixels, that earns one more step inside a
+/// single gesture.
+///
+/// It is roughly one notch of a Windows mouse wheel with the default
+/// three-lines-per-scroll setting, which is also the unit a Windows touchpad
+/// driver reports a swipe in, so a long swipe keeps advancing proportionally
+/// instead of stopping after one image.
+const double previewScrollGestureStepDistance = 100;
+
 /// Keeps the resizable filmstrip from obscuring the preview image entirely.
 double clampPreviewFilmstripHeight({
   required double height,

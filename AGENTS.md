@@ -36,10 +36,11 @@ lib/
       media_thumbnail_tile.dart  MediaThumbnailTile
 
   preview/
-    image_preview_page.dart     ImagePreviewPage — full-screen preview shell
-    preview_geometry.dart       Pure functions + constants (scale, navigation, timing)
-    preview_models.dart         PreviewAction, PreviewDisplayControl
-    single_image_preview.dart   SingleImagePreview — zoomed single image
+    image_preview_page.dart        ImagePreviewPage — full-screen preview shell
+    preview_geometry.dart          Pure functions + constants (scale, navigation, timing)
+    preview_models.dart            PreviewAction, PreviewDisplayControl
+    scroll_gesture_coalescer.dart  ScrollGestureCoalescer — scroll signals → steps
+    single_image_preview.dart      SingleImagePreview — zoomed single image
     widgets/
       preview_filmstrip.dart     PreviewFilmstrip, PreviewFilmstripThumbnail
       preview_hover_reveal.dart  PreviewHoverReveal
@@ -390,6 +391,15 @@ cancellable. See **Loading Flows**.
 **All SharedPreferences keys live in `PreferencesRepository`** — the keys are
 private constants there. Never add a `SharedPreferences.getInstance()` call
 outside that class; a mistyped key silently drops the setting.
+
+**One scroll signal is not one image** — a trackpad that cannot report pan/zoom
+gestures (a Windows driver that cannot feed DirectManipulation, and the web)
+delivers a single swipe as a flood of small `PointerScrollEvent`s. Never step
+the preview once per signal: `ScrollGestureCoalescer`, shared by every page of
+the preview's PageView so a gesture survives the switch it causes, gives a
+gesture one step for its first signal plus one step per
+`previewScrollGestureStepDistance` of further travel, which leaves mouse-wheel
+notches at one step each. See `lib/preview/scroll_gesture_coalescer.dart`.
 
 **A pushed route's settings are a snapshot** — `ImagePreviewPage` is opened with
 `Navigator.push`, and a `PageRouteBuilder`'s `pageBuilder` runs once. Its

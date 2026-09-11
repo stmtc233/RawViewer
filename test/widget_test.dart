@@ -16,6 +16,7 @@ import 'package:rawviewer/core/media_timestamps.dart';
 import 'package:rawviewer/core/raw_view_mode.dart';
 import 'package:rawviewer/preview/preview_geometry.dart';
 import 'package:rawviewer/preview/image_preview_page.dart';
+import 'package:rawviewer/preview/scroll_gesture_coalescer.dart';
 import 'package:rawviewer/preview/single_image_preview.dart';
 import 'package:rawviewer/preview/widgets/preview_filmstrip.dart';
 import 'package:rawviewer/ui/fast_page_scroll_physics.dart';
@@ -182,6 +183,7 @@ void main() {
               viewMode: RawViewMode.decodedRaw,
               onResetRotationRequested: () {},
               onSwitchRequest: (_) {},
+              scrollGesture: ScrollGestureCoalescer(),
               onTrackpadPanStart: (_) {},
               onTrackpadPanUpdate: (_) {},
               onTrackpadPanEnd: (_) {},

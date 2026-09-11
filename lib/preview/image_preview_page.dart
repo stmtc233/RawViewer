@@ -29,6 +29,7 @@ import '../ui/fast_page_scroll_physics.dart';
 import '../core/exif_repository.dart';
 import 'preview_geometry.dart';
 import 'preview_models.dart';
+import 'scroll_gesture_coalescer.dart';
 import 'single_image_preview.dart';
 import 'widgets/preview_exif_sidebar.dart';
 import 'image_histogram.dart';
@@ -163,6 +164,10 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   Offset _lastTrackpadPan = Offset.zero;
   Duration? _lastTrackpadPanTimestamp;
   double _trackpadFlingVelocity = 0;
+
+  /// Shared by every page so a scroll gesture keeps its identity across the
+  /// page switch it causes.
+  final ScrollGestureCoalescer _scrollGesture = ScrollGestureCoalescer();
   int _lastScrollPrefetchIndex = -1;
   // A notifier rather than setState: flipping this must not rebuild the whole
   // PageView (and every page in it) on each scroll burst.
@@ -1118,6 +1123,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                       onResetRotationRequested: () =>
                           _resetImageRotation(filePath),
                       onSwitchRequest: _switchPage,
+                      scrollGesture: _scrollGesture,
                       onTrackpadPanStart: _startTrackpadPageDrag,
                       onTrackpadPanUpdate: _updateTrackpadPageDrag,
                       onTrackpadPanEnd: _endTrackpadPageDrag,

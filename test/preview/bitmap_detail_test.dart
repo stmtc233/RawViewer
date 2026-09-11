@@ -11,6 +11,7 @@ import 'package:rawviewer/image_store.dart';
 import 'package:rawviewer/lru_cache.dart';
 import 'package:rawviewer/media_group.dart';
 import 'package:rawviewer/preview/preview_geometry.dart';
+import 'package:rawviewer/preview/scroll_gesture_coalescer.dart';
 import 'package:rawviewer/preview/single_image_preview.dart';
 import 'package:rawviewer/settings_page.dart';
 import 'package:rawviewer/ui/desktop_controls.dart';
@@ -71,6 +72,7 @@ void main() {
             viewMode: RawViewMode.decodedRaw,
             onResetRotationRequested: () {},
             onSwitchRequest: (_) {},
+            scrollGesture: ScrollGestureCoalescer(),
             onTrackpadPanStart: (_) {},
             onTrackpadPanUpdate: (_) {},
             onTrackpadPanEnd: (_) {},
@@ -162,6 +164,7 @@ void main() {
                   paired ? RawViewMode.pairedJpeg : RawViewMode.decodedRaw,
               onResetRotationRequested: () {},
               onSwitchRequest: (_) {},
+              scrollGesture: ScrollGestureCoalescer(),
               onTrackpadPanStart: (_) {},
               onTrackpadPanUpdate: (_) {},
               onTrackpadPanEnd: (_) {},

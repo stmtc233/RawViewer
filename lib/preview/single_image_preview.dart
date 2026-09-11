@@ -19,6 +19,7 @@ import '../ui/raw_image_widget.dart';
 import '../viewer_image.dart';
 import '../worker_service.dart';
 import 'preview_geometry.dart';
+import 'scroll_gesture_coalescer.dart';
 import 'widgets/preview_hover_reveal.dart';
 import 'widgets/live_photo_preview.dart';
 import 'widgets/hdr_image.dart';
@@ -36,6 +37,10 @@ class SingleImagePreview extends StatefulWidget {
   final RawViewMode viewMode;
   final VoidCallback onResetRotationRequested;
   final ValueChanged<int> onSwitchRequest;
+
+  /// Shared with every page of the PageView so one physical scroll gesture
+  /// keeps stepping the same gesture across a page switch.
+  final ScrollGestureCoalescer scrollGesture;
   final ValueChanged<PointerPanZoomStartEvent> onTrackpadPanStart;
   final ValueChanged<PointerPanZoomUpdateEvent> onTrackpadPanUpdate;
   final ValueChanged<PointerPanZoomEndEvent> onTrackpadPanEnd;
@@ -74,6 +79,7 @@ class SingleImagePreview extends StatefulWidget {
     required this.viewMode,
     required this.onResetRotationRequested,
     required this.onSwitchRequest,
+    required this.scrollGesture,
     required this.onTrackpadPanStart,
     required this.onTrackpadPanUpdate,
     required this.onTrackpadPanEnd,
@@ -587,24 +593,54 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
       return;
     }
 
+    // A trackpad pan drag already moves the PageView directly. Acting on a
+    // scroll signal in the middle of one would move the page a second time.
+    if (_isTrackpadPageDrag) {
+      _consumeScrollSignal(event);
+      return;
+    }
+
     final shouldZoom = isZoomModifierPressed();
     if (event.kind == PointerDeviceKind.trackpad && !shouldZoom) {
       // Let PageView consume trackpad scroll signals directly. On platforms
       // that emit these instead of pan/zoom events, this preserves follow.
       return;
     }
+
+    // A trackpad reports one swipe as many small mouse-wheel signals on the
+    // platforms that cannot send pan/zoom events, so only the travel this
+    // gesture has not already paid for may step the preview.
+    final steps = widget.scrollGesture.addSignal(event.timeStamp, primaryDelta);
+    if (steps == 0) {
+      // Consume the rest of the gesture: the PageView must not nudge itself
+      // underneath it on top of the step the gesture already took.
+      _consumeScrollSignal(event);
+      return;
+    }
     GestureBinding.instance.pointerSignalResolver.register(event, (event) {
       final scrollEvent = event as PointerScrollEvent;
       scrollEvent.respond(allowPlatformDefault: false);
       if (shouldZoom) {
+        // One wheel notch keeps the historical 1.1/0.9 zoom step; a coalesced
+        // gesture of several steps applies that factor once per step.
+        final factor = steps < 0
+            ? math.pow(1.1, -steps).toDouble()
+            : math.pow(0.9, steps).toDouble();
         _applyScale(
-          primaryDelta < 0 ? 1.1 : 0.9,
+          factor,
           scrollEvent.localPosition,
           lockAtFitScale: true,
         );
       } else {
-        widget.onSwitchRequest(primaryDelta > 0 ? 1 : -1);
+        widget.onSwitchRequest(steps);
       }
+    });
+  }
+
+  /// Accepts a scroll signal without changing the preview.
+  void _consumeScrollSignal(PointerScrollEvent event) {
+    GestureBinding.instance.pointerSignalResolver.register(event, (event) {
+      (event as PointerScrollEvent).respond(allowPlatformDefault: false);
     });
   }
 
