@@ -33,15 +33,31 @@
 			<string>Alternate</string>
 			<key>LSItemContentTypes</key>
 			<array>
+				<string>com.hasselblad.3fr-raw-image</string>
 				<string>com.sony.arw-raw-image</string>
 				<string>com.canon.cr2-raw-image</string>
 				<string>com.canon.cr3-raw-image</string>
+				<string>com.canon.crw-raw-image</string>
+				<string>com.kodak.raw-image</string>
 				<string>com.adobe.raw-image</string>
+				<string>com.epson.raw-image</string>
+				<string>com.hasselblad.fff-raw-image</string>
+				<string>com.phaseone.raw-image</string>
+				<string>com.leafamerica.raw-image</string>
+				<string>com.konicaminolta.raw-image</string>
 				<string>com.nikon.raw-image</string>
+				<string>com.nikon.nrw-raw-image</string>
 				<string>com.olympus.raw-image</string>
+				<string>com.pentax.raw-image</string>
 				<string>com.fuji.raw-image</string>
+				<string>com.panasonic.raw-image</string>
 				<string>com.panasonic.rw2-raw-image</string>
+				<string>com.leica.rwl-raw-image</string>
+				<string>com.sony.sr2-raw-image</string>
+				<string>com.sony.raw-image</string>
 				<string>com.samsung.raw-image</string>
+				<string>com.microsoft.bmp</string>
+				<string>com.compuserve.gif</string>
 				<string>org.webmproject.webp</string>
 				<string>public.jpeg</string>
 				<string>public.png</string>
@@ -52,6 +68,14 @@
 	</array>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.hasselblad.3fr-raw-image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.camera-raw-image</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>3fr</string></array></dict>
+		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
 			<string>com.sony.arw-raw-image</string>
@@ -78,11 +102,67 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>com.canon.crw-raw-image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.camera-raw-image</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>crw</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.kodak.raw-image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.camera-raw-image</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>dcr</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>com.adobe.raw-image</string>
 			<key>UTTypeConformsTo</key>
 			<array><string>public.camera-raw-image</string></array>
 			<key>UTTypeTagSpecification</key>
 			<dict><key>public.filename-extension</key><array><string>dng</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.epson.raw-image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.camera-raw-image</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>erf</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.hasselblad.fff-raw-image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.camera-raw-image</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>fff</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.phaseone.raw-image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.camera-raw-image</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>iiq</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.leafamerica.raw-image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.camera-raw-image</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>mos</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.konicaminolta.raw-image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.camera-raw-image</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>mrw</string></array></dict>
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
@@ -94,11 +174,27 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>com.nikon.nrw-raw-image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.camera-raw-image</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>nrw</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>com.olympus.raw-image</string>
 			<key>UTTypeConformsTo</key>
 			<array><string>public.camera-raw-image</string></array>
 			<key>UTTypeTagSpecification</key>
 			<dict><key>public.filename-extension</key><array><string>orf</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.pentax.raw-image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.camera-raw-image</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>pef</string></array></dict>
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
@@ -110,11 +206,43 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>com.panasonic.raw-image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.camera-raw-image</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>raw</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>com.panasonic.rw2-raw-image</string>
 			<key>UTTypeConformsTo</key>
 			<array><string>public.camera-raw-image</string></array>
 			<key>UTTypeTagSpecification</key>
 			<dict><key>public.filename-extension</key><array><string>rw2</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.leica.rwl-raw-image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.camera-raw-image</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>rwl</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.sony.sr2-raw-image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.camera-raw-image</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>sr2</string></array></dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.sony.raw-image</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.camera-raw-image</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict><key>public.filename-extension</key><array><string>srf</string></array></dict>
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>

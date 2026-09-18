@@ -143,7 +143,13 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
   double _bitmapDetailScale = 1;
   int _bitmapFrameIndex = 0;
   int _bitmapFrameCount = 1;
+  // A multi-frame image plays its own timeline by default; stepping a frame
+  // pauses it. Off-screen pages never play, so a PageView does not keep several
+  // timelines running at once.
+  bool _isPlayingBitmapFrames = false;
   int _frameProbeGeneration = 0;
+
+  bool get _isPlayingFrames => _isPlayingBitmapFrames && widget.isActive;
 
   String? get _bitmapPath => _isShowingPairedJpeg
       ? widget.mediaGroup.pairedJpeg?.path
@@ -158,11 +164,26 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
     try {
       final count = await bitmapFrameCount(filePath);
       if (mounted && generation == _frameProbeGeneration) {
-        setState(() => _bitmapFrameCount = count);
+        setState(() {
+          _bitmapFrameCount = count;
+          _isPlayingBitmapFrames = count > 1;
+        });
       }
     } catch (_) {
       // The image widget reports unreadable files through its error builder.
     }
+  }
+
+  /// Stepping a frame is an explicit "show me this one" action, so it also
+  /// stops playback: the selected frame is what the static provider paints.
+  void _stepBitmapFrame(int delta) {
+    final next = (_bitmapFrameIndex + delta)
+        .clamp(0, _bitmapFrameCount > 1 ? _bitmapFrameCount - 1 : 0);
+    if (next == _bitmapFrameIndex && !_isPlayingBitmapFrames) return;
+    setState(() {
+      _isPlayingBitmapFrames = false;
+      _bitmapFrameIndex = next;
+    });
   }
 
   double? _pendingBitmapDetailScale;
@@ -217,6 +238,7 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
         oldWidget.viewMode != widget.viewMode) {
       _bitmapFrameIndex = 0;
       _bitmapFrameCount = 1;
+      _isPlayingBitmapFrames = false;
       unawaited(_loadBitmapFrameCount());
     }
 
@@ -847,7 +869,7 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
                           tooltip:
                               AppLocalizations.of(context)!.previousImageFrame,
                           onPressed: _bitmapFrameIndex > 0
-                              ? () => setState(() => _bitmapFrameIndex--)
+                              ? () => _stepBitmapFrame(-1)
                               : null,
                         ),
                         const SizedBox(width: 2),
@@ -856,14 +878,24 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
                               24 + _bitmapFrameCount.toString().length * 24.0,
                           height: desktopControlSize,
                           child: Center(
-                            child: Text(
-                              '${_bitmapFrameIndex + 1} / $_bitmapFrameCount',
-                              style: const TextStyle(
-                                color: RawViewerColors.text,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                            child: _isPlayingFrames
+                                // While the image runs its own timeline the
+                                // selected index means nothing, so it is not
+                                // shown: playing is a state, not a frame.
+                                ? const Icon(
+                                    Icons.play_arrow,
+                                    size: 16,
+                                    color: RawViewerColors.mutedText,
+                                  )
+                                : Text(
+                                    '${_bitmapFrameIndex + 1} / '
+                                    '$_bitmapFrameCount',
+                                    style: const TextStyle(
+                                      color: RawViewerColors.text,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                           ),
                         ),
                         const SizedBox(width: 2),
@@ -871,8 +903,20 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
                           icon: Icons.chevron_right,
                           tooltip: AppLocalizations.of(context)!.nextImageFrame,
                           onPressed: _bitmapFrameIndex + 1 < _bitmapFrameCount
-                              ? () => setState(() => _bitmapFrameIndex++)
+                              ? () => _stepBitmapFrame(1)
                               : null,
+                        ),
+                        const SizedBox(width: 2),
+                        DesktopIconButton(
+                          icon: _isPlayingBitmapFrames
+                              ? Icons.pause
+                              : Icons.play_arrow,
+                          tooltip: _isPlayingBitmapFrames
+                              ? AppLocalizations.of(context)!.pauseImageFrames
+                              : AppLocalizations.of(context)!.playImageFrames,
+                          onPressed: () => setState(() {
+                            _isPlayingBitmapFrames = !_isPlayingBitmapFrames;
+                          }),
                         ),
                       ]),
                     ),
@@ -1023,6 +1067,11 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
       initialDecodeWidth.toDouble(),
       _bitmapDetailScale > 1 ? viewportWidth * _bitmapDetailScale : 0.0,
     ));
+    // Playing is a property of the active page, so it is read once here rather
+    // than inside the builder. The histogram keeps watching the selected still
+    // frame: rebuilding it per animation frame would cost far more than it
+    // shows.
+    final animated = _isPlayingFrames;
 
     Widget image = ValueListenableBuilder<bool>(
       valueListenable: widget.isFastScrolling,
@@ -1047,6 +1096,7 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
                 filePath,
                 frameIndex: _bitmapFrameIndex,
                 width: widget.thumbnailResizeWidth,
+                animated: animated,
               ),
               fit: BoxFit.contain,
               gaplessPlayback: true,
@@ -1060,6 +1110,7 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
                   filePath,
                   frameIndex: _bitmapFrameIndex,
                   width: fullDecodeWidth,
+                  animated: animated,
                   policy: ResizeImagePolicy.fit,
                 ),
                 fit: BoxFit.contain,

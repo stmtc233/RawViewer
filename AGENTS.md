@@ -241,6 +241,18 @@ zoom headroom. Loaded detail is retained when zooming out; leaving the active
 page or switching away from the bitmap resets the detail tier. Fast scrolling
 suppresses detail loading until navigation settles.
 
+`frameIndex` is the other axis of the same provider: a multi-frame file (APNG or
+GIF) is requested as `animated: true` only while the *active* page is playing,
+which hands it to Flutter's own frame scheduler, and as a still frame otherwise.
+`bitmapFrameCount` decides whether the frame controls appear at all; playing is
+the default once a file reports more than one frame, and stepping or tapping
+pause switches to the static provider. Everything that is not the active preview
+page — grid tiles, filmstrip entries, the overview map, off-screen pages — keeps
+the default still frame, so a directory of GIFs costs one decode per tile
+instead of running every timeline at once. The histogram observer also stays on
+the still frame: repainting it per animation frame would cost far more than it
+shows.
+
 ### Filmstrip and preload
 
 `PreviewFilmstripThumbnail`: RAW → `load(thumbnail, targetWidth: decodeWidth,

@@ -347,6 +347,8 @@
   "playLivePhoto": "播放动态照片",
   "previousImageFrame": "上一帧",
   "nextImageFrame": "下一帧",
+  "playImageFrames": "播放动画",
+  "pauseImageFrames": "暂停动画",
   "previousImageTooltip": "上一张",
   "nextImageTooltip": "下一张",
   "longPressLivePhotoTitle": "长按播放动态照片",

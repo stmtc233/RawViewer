@@ -1397,6 +1397,18 @@ abstract class AppLocalizations {
   /// **'Next frame'**
   String get nextImageFrame;
 
+  /// No description provided for @playImageFrames.
+  ///
+  /// In en, this message translates to:
+  /// **'Play animation'**
+  String get playImageFrames;
+
+  /// No description provided for @pauseImageFrames.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause animation'**
+  String get pauseImageFrames;
+
   /// No description provided for @previousImageTooltip.
   ///
   /// In en, this message translates to:

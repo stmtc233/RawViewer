@@ -712,6 +712,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get nextImageFrame => '下一帧';
 
   @override
+  String get playImageFrames => '播放动画';
+
+  @override
+  String get pauseImageFrames => '暂停动画';
+
+  @override
   String get previousImageTooltip => '上一张';
 
   @override

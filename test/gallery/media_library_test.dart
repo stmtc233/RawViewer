@@ -1,34 +1,36 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rawviewer/core/media_types.dart';
 import 'package:rawviewer/gallery/media_library.dart';
 import 'package:rawviewer/media_group.dart';
 
 void main() {
   group('mediaFileFromPath', () {
-    test('recognises RAW extensions as raw', () {
-      for (final ext in [
-        '.arw',
-        '.cr2',
-        '.cr3',
-        '.dng',
-        '.nef',
-        '.orf',
-        '.raf',
-        '.rw2',
-        '.srw'
-      ]) {
+    test('recognises every supported RAW extension as raw', () {
+      for (final ext in rawExtensions) {
         final result = mediaFileFromPath('/photos/shot$ext');
         expect(result, isNotNull, reason: 'expected $ext to be recognised');
         expect(result!.isRaw, isTrue, reason: '$ext should be raw');
       }
     });
 
-    test('recognises bitmap extensions as bitmap', () {
-      for (final ext in ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif']) {
+    test('recognises every supported bitmap extension as bitmap', () {
+      for (final ext in bitmapExtensions) {
         final result = mediaFileFromPath('/photos/shot$ext');
         expect(result, isNotNull, reason: 'expected $ext to be recognised');
         expect(result!.isRaw, isFalse, reason: '$ext should be bitmap');
+      }
+    });
+
+    test('recognises the formats added beyond the original set', () {
+      for (final ext in ['.crw', '.nrw', '.pef', '.rwl', '.3fr', '.iiq']) {
+        expect(mediaFileFromPath('/photos/shot$ext')?.isRaw, isTrue,
+            reason: '$ext should be raw');
+      }
+      for (final ext in ['.gif', '.bmp']) {
+        expect(mediaFileFromPath('/photos/shot$ext')?.isRaw, isFalse,
+            reason: '$ext should be bitmap');
       }
     });
 
@@ -36,6 +38,10 @@ void main() {
       expect(mediaFileFromPath('/photos/doc.pdf'), isNull);
       expect(mediaFileFromPath('/photos/video.mp4'), isNull);
       expect(mediaFileFromPath('/photos/noext'), isNull);
+      // Host operating systems decode these, but not every supported platform
+      // does, so they stay out of the supported set.
+      expect(mediaFileFromPath('/photos/scan.tiff'), isNull);
+      expect(mediaFileFromPath('/photos/next.avif'), isNull);
     });
 
     test('is case-insensitive', () {

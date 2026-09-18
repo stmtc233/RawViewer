@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- 新增 14 种相机 RAW 扩展名（CRW、NRW、PEF、RAW、RWL、3FR、FFF、IIQ、ERF、DCR、MRW、MOS、SR2、SRF），RAW 支持从 9 种扩展到 23 种。
+- 新增 GIF 与 BMP 常规格式，并在 Windows/macOS 文件关联、文件选择器和 Windows 安装器中同步注册。
+- 多帧图片（APNG、GIF）在预览中默认播放，可暂停并逐帧查看；缩略图与胶片条始终只解码第一帧。
+- 不在支持列表内的格式（如 TIFF、AVIF）仍不提供支持：它们依赖系统解码器，并非所有支持平台都可用。
+
 ## 0.1.0 - 2026-09-09
 
 首个功能完整预览版本。

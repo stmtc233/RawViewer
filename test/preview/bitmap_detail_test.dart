@@ -46,7 +46,7 @@ DesktopIconButton _frameButton(WidgetTester tester, IconData icon) =>
 
 void main() {
   testWidgets(
-      'multi-frame PNG exposes bounded manual navigation and resets for another file',
+      'multi-frame PNG plays by default, steps when paused, and resets for another file',
       (tester) async {
     final directory = Directory.systemTemp.createTempSync('preview-frames-');
     addTearDown(() => directory.deleteSync(recursive: true));
@@ -88,8 +88,24 @@ void main() {
       await _loadFramesReady(tester);
     });
     await tester.pump();
+    // Playing is the default, and the selected frame is not shown while the
+    // image runs its own timeline.
+    expect(find.byTooltip('Pause animation'), findsOneWidget);
+    expect(find.text('1 / 3'), findsNothing);
+    expect(
+        _detailProvider(tester).imageProvider,
+        bitmapImageProvider(file.path,
+            decodeWidth: _detailProvider(tester).width, animated: true));
+
+    await tester.tap(find.byTooltip('Pause animation'));
+    await tester.pump();
     expect(find.text('1 / 3'), findsOneWidget);
+    expect(find.byTooltip('Play animation'), findsOneWidget);
     expect(_frameButton(tester, Icons.chevron_left).onPressed, isNull);
+    expect(
+        _detailProvider(tester).imageProvider,
+        bitmapImageProvider(file.path,
+            frameIndex: 0, decodeWidth: _detailProvider(tester).width));
     await tester.tap(find.byTooltip('Next frame'));
     await tester.pump();
     expect(find.text('2 / 3'), findsOneWidget);
@@ -104,16 +120,25 @@ void main() {
     await tester.tap(find.byTooltip('Previous frame'));
     await tester.pump();
     expect(find.text('2 / 3'), findsOneWidget);
+    await tester.tap(find.byTooltip('Play animation'));
+    await tester.pump();
+    expect(find.byTooltip('Pause animation'), findsOneWidget);
+    expect(find.text('2 / 3'), findsNothing);
     await tester.runAsync(() async {
       await tester.pumpWidget(preview(second.path));
       await _loadFramesReady(tester);
     });
     await tester.pump();
+    // Another page starts playing from the beginning again.
+    expect(find.byTooltip('Pause animation'), findsOneWidget);
+    expect(find.text('1 / 3'), findsNothing);
+    await tester.tap(find.byTooltip('Pause animation'));
+    await tester.pump();
     expect(find.text('1 / 3'), findsOneWidget);
     expect(
         _detailProvider(tester).imageProvider,
         bitmapImageProvider(second.path,
-            decodeWidth: _detailProvider(tester).width));
+            frameIndex: 0, decodeWidth: _detailProvider(tester).width));
     await tester.pumpWidget(const SizedBox());
     await tester.runAsync(() async {});
     expect(tester.takeException(), isNull);
@@ -240,7 +265,9 @@ void main() {
 }
 
 Future<void> _loadFramesReady(WidgetTester tester) async {
-  for (var i = 0; i < 100 && find.text('1 / 3').evaluate().isEmpty; i++) {
+  for (var i = 0;
+      i < 100 && find.byTooltip('Pause animation').evaluate().isEmpty;
+      i++) {
     await Future<void>.delayed(const Duration(milliseconds: 10));
     await tester.pump();
   }

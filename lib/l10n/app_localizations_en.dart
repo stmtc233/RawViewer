@@ -724,6 +724,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nextImageFrame => 'Next frame';
 
   @override
+  String get playImageFrames => 'Play animation';
+
+  @override
+  String get pauseImageFrames => 'Pause animation';
+
+  @override
   String get previousImageTooltip => 'Previous image';
 
   @override

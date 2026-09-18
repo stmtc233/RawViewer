@@ -347,6 +347,8 @@
   "playLivePhoto": "Play Live Photo",
   "previousImageFrame": "Previous frame",
   "nextImageFrame": "Next frame",
+  "playImageFrames": "Play animation",
+  "pauseImageFrames": "Pause animation",
   "previousImageTooltip": "Previous image",
   "nextImageTooltip": "Next image",
   "longPressLivePhotoTitle": "Press and hold to play Live Photos",

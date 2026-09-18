@@ -3,22 +3,42 @@ import Foundation
 
 final class FileAssociations {
   // JPG and JPEG are two extensions of the same Launch Services type.
+  //
+  // Every extension here must resolve to its type on a stock system, which is
+  // what `tool/macos_file_association_check.swift` verifies. The extension list
+  // in `lib/core/media_types.dart` is the source of truth for this one.
   static let contentTypes = [
+    "3fr": "com.hasselblad.3fr-raw-image",
     "arw": "com.sony.arw-raw-image",
     "cr2": "com.canon.cr2-raw-image",
     "cr3": "com.canon.cr3-raw-image",
+    "crw": "com.canon.crw-raw-image",
+    "dcr": "com.kodak.raw-image",
     "dng": "com.adobe.raw-image",
+    "erf": "com.epson.raw-image",
+    "fff": "com.hasselblad.fff-raw-image",
+    "iiq": "com.phaseone.raw-image",
+    "mos": "com.leafamerica.raw-image",
+    "mrw": "com.konicaminolta.raw-image",
     "nef": "com.nikon.raw-image",
+    "nrw": "com.nikon.nrw-raw-image",
     "orf": "com.olympus.raw-image",
+    "pef": "com.pentax.raw-image",
     "raf": "com.fuji.raw-image",
+    "raw": "com.panasonic.raw-image",
     "rw2": "com.panasonic.rw2-raw-image",
+    "rwl": "com.leica.rwl-raw-image",
+    "sr2": "com.sony.sr2-raw-image",
+    "srf": "com.sony.raw-image",
     "srw": "com.samsung.raw-image",
-    "jpg": "public.jpeg",
-    "jpeg": "public.jpeg",
-    "png": "public.png",
-    "webp": "org.webmproject.webp",
+    "bmp": "com.microsoft.bmp",
+    "gif": "com.compuserve.gif",
     "heic": "public.heic",
     "heif": "public.heif",
+    "jpeg": "public.jpeg",
+    "jpg": "public.jpeg",
+    "png": "public.png",
+    "webp": "org.webmproject.webp",
   ]
 
   private let bundleIdentifier: String

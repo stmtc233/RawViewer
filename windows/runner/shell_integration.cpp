@@ -18,9 +18,14 @@ constexpr wchar_t kDirectoryVerbKey[] =
 constexpr wchar_t kDirectoryBackgroundVerbKey[] =
     L"Software\\Classes\\Directory\\Background\\shell\\RawViewOpen";
 
-constexpr std::array<const wchar_t*, 15> kFileAssociationExtensions = {{
-    L"arw", L"cr2", L"cr3", L"dng", L"nef", L"orf", L"raf",
-    L"rw2", L"srw", L"jpg", L"jpeg", L"png", L"webp", L"heic", L"heif",
+// Kept in sync with `supportedExtensions` in lib/core/media_types.dart and with
+// the registry entries in innosetup/rawviewer.iss. The size is part of the
+// declaration, so both have to change together.
+constexpr std::array<const wchar_t*, 31> kFileAssociationExtensions = {{
+    L"3fr", L"arw", L"cr2", L"cr3", L"crw", L"dcr", L"dng", L"erf",
+    L"fff", L"iiq", L"mos", L"mrw", L"nef", L"nrw", L"orf", L"pef",
+    L"raf", L"raw", L"rw2", L"rwl", L"sr2", L"srf", L"srw", L"bmp",
+    L"gif", L"heic", L"heif", L"jpeg", L"jpg", L"png", L"webp",
 }};
 
 struct ContextMenuState {

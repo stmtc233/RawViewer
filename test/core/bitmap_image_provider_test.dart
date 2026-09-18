@@ -6,6 +6,7 @@ import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rawviewer/core/bitmap_image_provider.dart';
+import '../fixtures/animated_gif.dart';
 import '../fixtures/animated_png.dart';
 
 Future<int> _load(ImageProvider provider) async {
@@ -13,6 +14,28 @@ Future<int> _load(ImageProvider provider) async {
   final stream = provider.resolve(ImageConfiguration.empty);
   final listener = ImageStreamListener((info, _) {
     if (!result.isCompleted) result.complete(info.image.width);
+    info.dispose();
+  }, onError: (Object error, StackTrace? stack) {
+    if (!result.isCompleted) result.completeError(error, stack);
+  });
+  stream.addListener(listener);
+  try {
+    return await result.future;
+  } finally {
+    stream.removeListener(listener);
+  }
+}
+
+/// Resolves [provider] and returns the first pixel of the image it paints.
+Future<List<int>> _firstPixel(ImageProvider provider) async {
+  final result = Completer<List<int>>();
+  final stream = provider.resolve(ImageConfiguration.empty);
+  final listener = ImageStreamListener((info, _) {
+    info.image.toByteData().then((data) {
+      if (!result.isCompleted) {
+        result.complete(data!.buffer.asUint8List().sublist(0, 4));
+      }
+    });
     info.dispose();
   }, onError: (Object error, StackTrace? stack) {
     if (!result.isCompleted) result.completeError(error, stack);
@@ -125,6 +148,45 @@ void main() {
         bitmapImageProvider('/image.HEIC'), bitmapImageProvider('/image.HEIC'));
     expect(bitmapImageProvider('/image.HEIC'),
         isNot(FileImage(File('/image.HEIC'))));
+  });
+
+  testWidgets('GIF frames are addressable and animation is opt-in',
+      (tester) async {
+    await tester.runAsync(() async {
+      final directory = await Directory.systemTemp.createTemp('gif-frames-');
+      addTearDown(() => directory.delete(recursive: true));
+      final file =
+          await File('${directory.path}/two.gif').writeAsBytes(twoFrameGif());
+
+      expect(await bitmapFrameCount(file.path), 2);
+      expect(await _firstPixel(bitmapImageProvider(file.path, frameIndex: 0)),
+          [255, 0, 0, 255]);
+      expect(await _firstPixel(bitmapImageProvider(file.path, frameIndex: 1)),
+          [0, 255, 0, 255]);
+      expect(
+          await _firstPixel(resizedBitmapImageProvider(file.path,
+              frameIndex: 1, width: 64, policy: ResizeImagePolicy.fit)),
+          [0, 255, 0, 255]);
+
+      // Playing hands the file to Flutter's own frame scheduler; the default
+      // stays a single cached frame so a grid of GIFs does not animate.
+      expect(bitmapImageProvider(file.path, animated: true),
+          FileImage(File(file.path)));
+      expect(bitmapImageProvider(file.path, animated: true),
+          isNot(bitmapImageProvider(file.path)));
+      expect(bitmapImageProvider(file.path, frameIndex: 1, animated: true),
+          bitmapImageProvider(file.path, animated: true));
+    });
+  });
+
+  test('frames are only probed for formats the app steps', () {
+    expect(bitmapFrameCount('/image.bmp'), completion(1));
+    expect(bitmapFrameCount('/image.jpg'), completion(1));
+    expect(bitmapFrameCount('/image.heic'), completion(1));
+    // Animated WebP keeps the engine's own pipeline: no control steps its
+    // frames, so it is never probed for a count that would go unused.
+    expect(bitmapFrameCount('/image.webp'), completion(1));
+    expect(bitmapImageProvider('/image.webp'), FileImage(File('/image.webp')));
   });
 
   testWidgets('different thumbnail sizes share an in-flight HEIC conversion',

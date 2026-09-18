@@ -19,8 +19,8 @@ Raw Viewer allows photographers and enthusiasts to seamlessly view, browse, and 
 ## Features
 
 - **Extensive Format Support:**
-  - RAW formats: `.arw`, `.cr2`, `.cr3`, `.dng`, `.nef`, `.orf`, `.raf`, `.rw2`, `.srw`
-  - Standard formats: `.jpg`, `.jpeg`, `.png`, `.webp`, `.heic`, `.heif`
+  - RAW formats: `.3fr`, `.arw`, `.cr2`, `.cr3`, `.crw`, `.dcr`, `.dng`, `.erf`, `.fff`, `.iiq`, `.mos`, `.mrw`, `.nef`, `.nrw`, `.orf`, `.pef`, `.raf`, `.raw`, `.rw2`, `.rwl`, `.sr2`, `.srf`, `.srw`
+  - Standard formats: `.bmp`, `.gif`, `.heic`, `.heif`, `.jpeg`, `.jpg`, `.png`, `.webp`
 - **HDR Photos:** Native HDR previews on compatible macOS, iOS, and Android displays, with SDR fallback on Windows and Linux. [Format and platform details](docs/hdr-live-photos.md).
 - **Live Photos:** Play exported Apple photo/MOV pairs and Android JPEG Motion Photos, with sound controls.
 - **Blazing Fast Decoding:** Uses native C++ `LibRaw` with Dart isolates to decode images off the main UI thread.
@@ -35,7 +35,7 @@ Raw Viewer allows photographers and enthusiasts to seamlessly view, browse, and 
 - **iOS Status:** The project retains iOS adaptation capability, but iOS support is not currently planned as a priority.
 - **Photo organization:** Browse directories, monitor a hot folder, sort by capture time or rating, filter unrated images, and rate images from the gallery or preview.
 - **Preview workspace:** Resizable filmstrip, overview map, configurable overlay opacity, zoom and rotation controls, and quick navigation between frames.
-- **Multi-frame media:** Navigate animated PNG frames with cached frame loading.
+- **Multi-frame media:** APNG and GIF play in the preview with pause and frame stepping; thumbnails only ever decode the first frame.
 - **EXIF workspace:** Expandable EXIF sections, metadata search, capture-time display, and an RGB histogram in the EXIF sidebar.
 - **RAW display modes:** Switch between embedded JPEG and decoded RAW views when the source provides an embedded preview.
 - **Settings and integration:** Localized English/Chinese settings, recent files and folders, startup/window restoration, update checking, Windows Explorer integration, and file-association controls.

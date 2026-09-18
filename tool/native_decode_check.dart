@@ -12,11 +12,8 @@
 // token actually aborts a decode instead of running to completion.
 import 'dart:io';
 
+import 'package:rawviewer/core/media_types.dart';
 import 'package:rawviewer/native_lib.dart';
-
-const _rawExtensions = {
-  '.arw', '.cr2', '.cr3', '.dng', '.nef', '.orf', '.raf', '.rw2', '.srw',
-};
 
 void main(List<String> args) {
   if (args.isEmpty) {
@@ -29,8 +26,8 @@ void main(List<String> args) {
   final files = Directory(args[0])
       .listSync()
       .whereType<File>()
-      .where((f) => _rawExtensions.contains(
-          f.path.substring(f.path.lastIndexOf('.')).toLowerCase()))
+      .where((f) => rawExtensions
+          .contains(f.path.substring(f.path.lastIndexOf('.')).toLowerCase()))
       .take(limit)
       .toList();
 
@@ -117,8 +114,8 @@ void main(List<String> args) {
     // rather than spending the full decode time.
     final token = RawCancelToken()..cancel();
     final cancelWatch = Stopwatch()..start();
-    final cancelled = getDecodedRawPreviewSync(file.path,
-        halfSize: 0, cancelToken: token);
+    final cancelled =
+        getDecodedRawPreviewSync(file.path, halfSize: 0, cancelToken: token);
     cancelWatch.stop();
     token.dispose();
 

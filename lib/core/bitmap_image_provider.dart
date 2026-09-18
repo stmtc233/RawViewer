@@ -6,12 +6,32 @@ import 'package:flutter/painting.dart';
 import 'package:heic_native/heic_native.dart';
 import 'package:path/path.dart' as path;
 
+/// Formats whose frames the app addresses itself.
+///
+/// Their files may hold more than one frame, so they are the only ones probed
+/// for a frame count and the only ones the preview can pause and step. A still
+/// frame is what every thumbnail, filmstrip entry, and non-playing preview
+/// wants, so [animated] is opt-in and defaults to off.
+///
+/// Animated WebP is not listed: it already plays through the plain [FileImage]
+/// pipeline the engine gives it, and nothing steps its frames, so it is left
+/// alone rather than probed for a count the app would not use.
+const _frameSequenceExtensions = {'.png', '.gif'};
+
 /// HEIC conversion is an SDR fallback. HDR previews read the original file.
+///
+/// [animated] selects the plain [FileImage] pipeline, which lets the engine run
+/// a multi-frame image's own timeline. It is ignored for formats that cannot
+/// animate.
 ImageProvider bitmapImageProvider(String filePath,
-    {int frameIndex = 0, int? decodeWidth}) {
+    {int frameIndex = 0, int? decodeWidth, bool animated = false}) {
   final extension = path.extension(filePath).toLowerCase();
   final file = File(filePath);
-  if (extension == '.png') return _PngFrameImage(file, frameIndex, decodeWidth);
+  if (_frameSequenceExtensions.contains(extension)) {
+    return animated
+        ? FileImage(file)
+        : _StillFrameImage(file, frameIndex, decodeWidth);
+  }
   return extension == '.heic' || extension == '.heif'
       ? _HeicFileImage(file)
       : FileImage(file);
@@ -21,17 +41,22 @@ ResizeImage resizedBitmapImageProvider(
   String filePath, {
   required int width,
   int frameIndex = 0,
+  bool animated = false,
   ResizeImagePolicy policy = ResizeImagePolicy.exact,
 }) =>
     ResizeImage(
         bitmapImageProvider(filePath,
-            frameIndex: frameIndex, decodeWidth: width),
+            frameIndex: frameIndex, decodeWidth: width, animated: animated),
         width: width,
         policy: policy);
 
-/// Counts PNG frames without decoding full-resolution pixels.
+/// Counts the frames of a possibly animated file without decoding
+/// full-resolution pixels. Formats that never animate report one frame.
 Future<int> bitmapFrameCount(String filePath) async {
-  if (path.extension(filePath).toLowerCase() != '.png') return 1;
+  if (!_frameSequenceExtensions
+      .contains(path.extension(filePath).toLowerCase())) {
+    return 1;
+  }
   final buffer = await ui.ImmutableBuffer.fromFilePath(filePath);
   try {
     final descriptor = await ui.ImageDescriptor.encoded(buffer);
@@ -51,12 +76,17 @@ Future<int> bitmapFrameCount(String filePath) async {
   }
 }
 
-/// APNGs are browsed as still frames; thumbnails always request frame zero.
-class _PngFrameImage extends FileImage {
+/// Paints one selected frame of a multi-frame file.
+///
+/// Every caller that is not playing the image's own timeline uses this: grid
+/// tiles, filmstrips, the overview map, and a paused preview all want a single
+/// frame they can cache, so a wall of animated files costs one decode each
+/// instead of running every timeline at once.
+class _StillFrameImage extends FileImage {
   final int frameIndex;
   final int? decodeWidth;
 
-  const _PngFrameImage(super.file, this.frameIndex, this.decodeWidth);
+  const _StillFrameImage(super.file, this.frameIndex, this.decodeWidth);
 
   @override
   ImageStreamCompleter loadImage(FileImage key, ImageDecoderCallback decode) =>
@@ -70,15 +100,16 @@ class _PngFrameImage extends FileImage {
         throw RangeError.range(
             frameIndex, 0, codec.frameCount - 1, 'frameIndex');
       }
-      // The codec handles APNG frame blending and disposal semantics.
+      // The codec applies the container's frame blending and disposal rules,
+      // so stepped frames match what playback would have shown.
       for (var index = 0; index < frameIndex; index++) {
         (await codec.getNextFrame()).image.dispose();
       }
       final frame = await codec.getNextFrame();
       final width = decodeWidth;
       if (width != null && width > 0 && frame.image.width > width) {
-        // Flutter's animated PNG codec can ignore targetWidth. Keep only the
-        // selected, downscaled frame in the image cache.
+        // An animated codec can ignore targetWidth. Keep only the selected,
+        // downscaled frame in the image cache.
         final image = frame.image;
         final height =
             (image.height * width / image.width).round().clamp(1, image.height);
@@ -108,7 +139,7 @@ class _PngFrameImage extends FileImage {
 
   @override
   bool operator ==(Object other) =>
-      other is _PngFrameImage &&
+      other is _StillFrameImage &&
       other.file.path == file.path &&
       other.scale == scale &&
       other.frameIndex == frameIndex &&
