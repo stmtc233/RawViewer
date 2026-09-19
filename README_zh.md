@@ -1,8 +1,10 @@
 # Raw Viewer
 
-## 0.1.0
+## 0.1.1
 
-Raw Viewer 的首个功能完整预览版本，重点提升 RAW 浏览速度、照片整理能力和全屏预览体验。
+新增 14 种相机 RAW 格式与 GIF、BMP 支持，改进网格与预览交互，修复 Windows ARM64 构建，并将 Windows 包体积减少约 20 MB。
+
+完整发布历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ![Flutter](https://img.shields.io/badge/Flutter-%2302569B.svg?style=for-the-badge&logo=Flutter&logoColor=white)
 ![Windows](https://img.shields.io/badge/Windows-0078D6.svg?style=for-the-badge&logo=windows&logoColor=white)

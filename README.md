@@ -1,8 +1,10 @@
 # Raw Viewer
 
-## 0.1.0
+## 0.1.1
 
-The first feature-complete preview release of Raw Viewer. This release focuses on fast RAW browsing, practical photo organization, and a richer full-screen preview workflow.
+Adds 14 more camera RAW formats plus GIF and BMP support, refines gallery and preview interaction, fixes the Windows ARM64 build, and trims roughly 20 MB from the Windows packages.
+
+See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
 ![Flutter](https://img.shields.io/badge/Flutter-%2302569B.svg?style=for-the-badge&logo=Flutter&logoColor=white)
 ![Windows](https://img.shields.io/badge/Windows-0078D6.svg?style=for-the-badge&logo=windows&logoColor=white)
