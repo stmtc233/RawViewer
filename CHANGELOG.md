@@ -16,7 +16,7 @@
 ### 修复
 
 - 修复 Windows ARM64 构建：补齐 vcpkg 工具链与 libpng 目标回退，发布构建不再依赖 x64 视频库。
-- 缩小 Windows 包体积约 20 MB：不再打包从未被加载的 libmpv 与 ANGLE 二进制（压缩包约 47.5 MB → 约 26.9 MB，安装包约 35.2 MB → 约 20.5 MB）。
+- 缩小 Windows 包体积约 20 MB：不再打包从未被加载的 libmpv 与 ANGLE 二进制（压缩包 47.6 MB → 26.9 MB，安装包 35.2 MB → 21.0 MB）。
 
 ### 说明
 
