@@ -138,9 +138,11 @@ jobs:
       - name: Configure ARM64 dependencies
         shell: pwsh
         run: |
+          # media_kit has no ARM64 Windows libmpv build, so drop it here and let
+          # video_player_win (Media Foundation) serve ARM64. x64 keeps the same
+          # split for a different reason: media_kit is only initialized on Linux.
           $pubspec = Get-Content pubspec.yaml -Raw
           $pubspec = $pubspec -replace '(?m)^  video_player_media_kit:.*\r?\n', ''
-          $pubspec = $pubspec -replace '(?m)^  media_kit_libs_windows_video:.*\r?\n', ''
           Set-Content pubspec.yaml $pubspec -NoNewline
           $main = Get-Content lib/main.dart -Raw
           $main = $main -replace '(?m)^import ''package:video_player_media_kit/video_player_media_kit.dart'';\r?\n', ''
