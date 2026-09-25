@@ -85,7 +85,9 @@ class WorkerService {
       } else if (message.error != null) {
         completer.completeError(message.error!);
       } else {
-        completer.complete(message.image);
+        // Materialize only for a caller that is still waiting; a discarded
+        // buffer is simply garbage-collected.
+        completer.complete(message.image?.materialize());
       }
     } else {
       _cancelledRequests.remove(requestId);
@@ -354,7 +356,7 @@ class _CancelRequest {
 
 class _WorkerResponse {
   final int requestId;
-  final LibRawImage? image;
+  final TransferableLibRawImage? image;
   final String? error;
 
   _WorkerResponse({
@@ -409,10 +411,13 @@ void _workerEntry(SendPort mainSendPort) {
       // container read with no demosaic, so there is nothing worth aborting.
       final result = switch (message.type) {
         _RequestType.rawThumbnail =>
-          getRawThumbnailSync(message.path, cancelToken: token),
-        _RequestType.embeddedJpeg => getEmbeddedJpegImageSync(message.path),
-        _RequestType.decodedRawPreview => getDecodedRawPreviewSync(message.path,
-            halfSize: message.halfSize, cancelToken: token),
+          getRawThumbnailTransferableSync(message.path, cancelToken: token),
+        _RequestType.embeddedJpeg =>
+          getEmbeddedJpegTransferableSync(message.path),
+        _RequestType.decodedRawPreview => getDecodedRawPreviewTransferableSync(
+            message.path,
+            halfSize: message.halfSize,
+            cancelToken: token),
       };
 
       port.send(_WorkerResponse(requestId: message.requestId, image: result));

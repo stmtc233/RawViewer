@@ -217,6 +217,29 @@ class LibRawImage {
   bool get isRgba => format == RawPixelFormat.rgba8888;
 }
 
+/// A [LibRawImage] on its way across an isolate boundary.
+///
+/// The bytes are copied out of native memory once, straight into a
+/// [TransferableTypedData]. Sending this through a [SendPort] then moves the
+/// buffer instead of copying it again, and [materialize] wraps it without a
+/// copy. For a full-size RGBA decode that is one ~100 MB copy fewer per image.
+class TransferableLibRawImage {
+  final TransferableTypedData _bytes;
+  final int width;
+  final int height;
+  final int format;
+  final int stride;
+
+  TransferableLibRawImage(TransferableTypedData bytes, this.width, this.height,
+      this.format, this.stride)
+      : _bytes = bytes;
+
+  /// Takes ownership of the bytes. May be called only once, on the isolate
+  /// that ends up holding this object.
+  LibRawImage materialize() => LibRawImage(
+      _bytes.materialize().asUint8List(), width, height, format, stride);
+}
+
 /// Returns the RAW thumbnail layer: the cheapest image LibRaw can produce for
 /// this file.
 ///
@@ -228,6 +251,12 @@ class LibRawImage {
 /// This layer is only ever rendered at a bounded `ImageStore` target width
 /// (grid tiles, filmstrip, the preview's first frame).
 LibRawImage? getRawThumbnailSync(String filePath,
+        {RawCancelToken? cancelToken}) =>
+    getRawThumbnailTransferableSync(filePath, cancelToken: cancelToken)
+        ?.materialize();
+
+/// [getRawThumbnailSync], packaged to be sent to another isolate.
+TransferableLibRawImage? getRawThumbnailTransferableSync(String filePath,
     {RawCancelToken? cancelToken}) {
   final token = cancelToken?.handle ?? nullptr;
   final resultPtr = calloc<ThumbnailResult>();
@@ -284,7 +313,11 @@ LibRawImage? getRawThumbnailSync(String filePath,
 /// Never call this on the main isolate — go through
 /// `WorkerService.requestEmbeddedJpeg` (display) or [extractEmbeddedJpeg]
 /// (file export).
-LibRawImage? getEmbeddedJpegImageSync(String filePath) {
+LibRawImage? getEmbeddedJpegImageSync(String filePath) =>
+    getEmbeddedJpegTransferableSync(filePath)?.materialize();
+
+/// [getEmbeddedJpegImageSync], packaged to be sent to another isolate.
+TransferableLibRawImage? getEmbeddedJpegTransferableSync(String filePath) {
   final resultPtr = calloc<ThumbnailResult>();
   try {
     if (Platform.isWindows) {
@@ -363,13 +396,13 @@ bool _withAndroidFileBuffer(
   }
 }
 
-LibRawImage? _processThumbnailResult(ThumbnailResult result) {
+TransferableLibRawImage? _processThumbnailResult(ThumbnailResult result) {
   if (result.data == nullptr || result.size <= 0) {
     return null;
   }
 
   // Copy out of native memory before handing ownership back to free_buffer.
-  final data = Uint8List.fromList(result.data.asTypedList(result.size));
+  final data = _copyToTransferable(result.data, result.size);
   final width = result.width;
   final height = result.height;
   final format = result.format;
@@ -377,7 +410,7 @@ LibRawImage? _processThumbnailResult(ThumbnailResult result) {
 
   _freeBuffer(result.data);
 
-  return LibRawImage(data, width, height, format, stride);
+  return TransferableLibRawImage(data, width, height, format, stride);
 }
 
 class DecodedRawPreviewRequest {
@@ -392,6 +425,13 @@ class DecodedRawPreviewRequest {
 // `halfSize` only affects this decoded RAW layer. The thumbnail layer is loaded
 // through [getRawThumbnailSync].
 LibRawImage? getDecodedRawPreviewSync(String filePath,
+        {int halfSize = 1, RawCancelToken? cancelToken}) =>
+    getDecodedRawPreviewTransferableSync(filePath,
+            halfSize: halfSize, cancelToken: cancelToken)
+        ?.materialize();
+
+/// [getDecodedRawPreviewSync], packaged to be sent to another isolate.
+TransferableLibRawImage? getDecodedRawPreviewTransferableSync(String filePath,
     {int halfSize = 1, RawCancelToken? cancelToken}) {
   final token = cancelToken?.handle ?? nullptr;
   final resultPtr = calloc<ImageResult>();
@@ -436,17 +476,24 @@ LibRawImage? getDecodedRawPreviewSync(String filePath,
   }
 }
 
-LibRawImage? _processPreviewResult(ImageResult result) {
+TransferableLibRawImage? _processPreviewResult(ImageResult result) {
   if (result.data == nullptr || result.size <= 0) {
     return null;
   }
 
-  final data = Uint8List.fromList(result.data.asTypedList(result.size));
+  final data = _copyToTransferable(result.data, result.size);
   final width = result.width;
   final height = result.height;
   final stride = result.stride;
 
   _freeBuffer(result.data);
 
-  return LibRawImage(data, width, height, RawPixelFormat.rgba8888, stride);
+  return TransferableLibRawImage(
+      data, width, height, RawPixelFormat.rgba8888, stride);
 }
+
+// The only copy out of native memory: TransferableTypedData.fromList copies
+// the view into a buffer of its own, which later moves between isolates and
+// materializes in place.
+TransferableTypedData _copyToTransferable(Pointer<Uint8> data, int size) =>
+    TransferableTypedData.fromList([data.asTypedList(size)]);

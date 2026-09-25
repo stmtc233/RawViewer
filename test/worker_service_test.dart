@@ -1,4 +1,8 @@
+import 'dart:isolate';
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rawviewer/native_lib.dart';
 import 'package:rawviewer/worker_service.dart';
 
 List<String> _drain(WorkerRequestQueue<String> queue) {
@@ -7,6 +11,12 @@ List<String> _drain(WorkerRequestQueue<String> queue) {
     order.add(queue.removeNext());
   }
   return order;
+}
+
+void _sendDecodedImage(SendPort reply) {
+  final pixels = Uint8List.fromList(List.generate(16, (i) => i * 7));
+  reply.send(TransferableLibRawImage(TransferableTypedData.fromList([pixels]),
+      2, 2, RawPixelFormat.rgba8888, 8));
 }
 
 void main() {
@@ -51,5 +61,21 @@ void main() {
     expect(queue.remove(2), isTrue);
     expect(queue.remove(2), isFalse);
     expect(_drain(queue), ['high']);
+  });
+
+  test('decoded images reach the main isolate intact without a second copy',
+      () async {
+    // Built on a spawned isolate and sent back through a SendPort, the way a
+    // decode worker replies.
+    final port = ReceivePort();
+    await Isolate.spawn(_sendDecodedImage, port.sendPort);
+    final received = await port.first as TransferableLibRawImage;
+
+    final image = received.materialize();
+    expect(image.data, List.generate(16, (i) => i * 7));
+    expect([image.width, image.height, image.stride, image.isRgba],
+        [2, 2, 8, true]);
+    // Materializing hands the buffer over; there is no copy left to take.
+    expect(received.materialize, throwsA(anything));
   });
 }
