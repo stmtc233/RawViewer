@@ -22,6 +22,26 @@ enum RawLayer {
   decoded,
 }
 
+/// A caller's claim on a shared decode's place in the queue.
+///
+/// Withdrawing never cancels anything: the decode still runs and lands in the
+/// cache, so other widgets sharing it are unaffected. Once every high-priority
+/// caller has withdrawn, a decode that has not started yet drops back to low
+/// priority, so work that is still wanted runs first.
+class ImageLoadInterest {
+  void Function()? _withdraw;
+  bool _isWithdrawn = false;
+
+  bool get isWithdrawn => _isWithdrawn;
+
+  void withdraw() {
+    _isWithdrawn = true;
+    final withdraw = _withdraw;
+    _withdraw = null;
+    withdraw?.call();
+  }
+}
+
 /// Owns decoding and caching of RAW previews as ready-to-paint `ui.Image`s.
 ///
 /// Ownership rule: every [ViewerImage] handed out is owned by the caller and
@@ -40,6 +60,9 @@ class ImageStore {
   /// image trigger one decode rather than N.
   final Map<String, Future<void>> _inFlight = {};
   final Map<String, WorkerTask<LibRawImage?>> _inFlightTasks = {};
+
+  /// High-priority callers still waiting on each in-flight decode.
+  final Map<String, int> _highPriorityClaims = {};
 
   /// Cache identity for one decoded image.
   ///
@@ -91,6 +114,9 @@ class ImageStore {
   /// Returns a handle owned by the caller, or null if decoding failed, the
   /// request was cancelled, or the result was too large to cache and another
   /// caller already claimed it.
+  ///
+  /// A high-priority caller that stops caring before the result arrives can
+  /// give up its place in the queue through [interest].
   Future<ViewerImage?> load(
     String filePath,
     RawLayer layer, {
@@ -98,6 +124,7 @@ class ImageStore {
     int? targetWidth,
     TaskPriority priority = TaskPriority.high,
     void Function(WorkerTask<LibRawImage?> task)? onTaskStarted,
+    ImageLoadInterest? interest,
   }) async {
     final key =
         cacheKey(filePath, layer, halfSize: halfSize, targetWidth: targetWidth);
@@ -105,6 +132,55 @@ class ImageStore {
     final cached = _cache.get(key);
     if (cached != null) return cached.clone();
 
+    if (priority != TaskPriority.high) {
+      return _loadUncached(key, filePath, layer,
+          halfSize: halfSize,
+          targetWidth: targetWidth,
+          priority: priority,
+          onTaskStarted: onTaskStarted);
+    }
+
+    _highPriorityClaims.update(key, (count) => count + 1, ifAbsent: () => 1);
+    var claimed = true;
+    void release() {
+      if (!claimed) return;
+      claimed = false;
+      _releaseHighPriority(key);
+    }
+
+    interest?._withdraw = release;
+    try {
+      return await _loadUncached(key, filePath, layer,
+          halfSize: halfSize,
+          targetWidth: targetWidth,
+          priority: priority,
+          onTaskStarted: onTaskStarted);
+    } finally {
+      release();
+    }
+  }
+
+  void _releaseHighPriority(String key) {
+    final remaining = (_highPriorityClaims[key] ?? 1) - 1;
+    if (remaining > 0) {
+      _highPriorityClaims[key] = remaining;
+      return;
+    }
+    _highPriorityClaims.remove(key);
+    // Gone once the decode has finished, so only a still-queued one moves.
+    final task = _inFlightTasks[key];
+    if (task != null) WorkerService().demoteRequest(task.requestId);
+  }
+
+  Future<ViewerImage?> _loadUncached(
+    String key,
+    String filePath,
+    RawLayer layer, {
+    required int halfSize,
+    required int? targetWidth,
+    required TaskPriority priority,
+    required void Function(WorkerTask<LibRawImage?> task)? onTaskStarted,
+  }) async {
     final existing = _inFlight[key];
     if (existing != null) {
       // A neighbour may have started this decode at low priority just before

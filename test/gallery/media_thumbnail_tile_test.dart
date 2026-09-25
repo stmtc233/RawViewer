@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rawviewer/core/exif_repository.dart';
@@ -11,6 +13,8 @@ import 'package:rawviewer/media_group.dart';
 import 'package:rawviewer/rating_badge.dart';
 import 'package:rawviewer/settings_page.dart';
 import 'package:rawviewer/viewer_image.dart';
+import 'package:rawviewer/worker_service.dart';
+import 'package:rawviewer/native_lib.dart';
 
 class _Exif extends ExifRepository {
   var reads = 0;
@@ -30,6 +34,31 @@ class _Exif extends ExifRepository {
   @override
   Future<int?> loadRating(String filePath) async =>
       parseExifRating((await load(filePath)).tags['Image Rating']);
+}
+
+class _PendingImageStore extends ImageStore {
+  _PendingImageStore()
+      : super(LruCache<String, ViewerImage>(1,
+            onEvict: (_, image) => image.dispose()));
+
+  final interests = <String, ImageLoadInterest?>{};
+  final pending = Completer<ViewerImage?>();
+
+  @override
+  ViewerImage? peek(String filePath, RawLayer layer,
+          {int halfSize = 1, int? targetWidth}) =>
+      null;
+
+  @override
+  Future<ViewerImage?> load(String filePath, RawLayer layer,
+      {int halfSize = 1,
+      int? targetWidth,
+      TaskPriority priority = TaskPriority.high,
+      void Function(WorkerTask<LibRawImage?> task)? onTaskStarted,
+      ImageLoadInterest? interest}) {
+    interests[filePath] = interest;
+    return pending.future;
+  }
 }
 
 void main() {
@@ -52,6 +81,49 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     ratings.dispose();
     exif.dispose();
+  });
+
+  testWidgets('recycled RAW tiles withdraw their pending load claim',
+      (tester) async {
+    final store = _PendingImageStore();
+    Future<void> show(String? path) => tester.pumpWidget(MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Center(
+            child: SizedBox(
+              width: 100,
+              height: 80,
+              child: path == null
+                  ? null
+                  : MediaThumbnailTile(
+                      mediaFile: MediaFile(path: path, kind: MediaKind.raw),
+                      hasPairedJpeg: false,
+                      settings:
+                          const ViewerSettings(showThumbnailRatings: false),
+                      timestampRepository: TimestampRepository(),
+                      resizeWidth: 128,
+                      imageStore: store,
+                      onTap: () {},
+                    ),
+            ),
+          ),
+        ));
+
+    await show('/a.arw');
+    final first = store.interests['/a.arw']!;
+    expect(first.isWithdrawn, isFalse);
+
+    // Reusing the tile for another file releases the old claim only.
+    await show('/b.arw');
+    expect(first.isWithdrawn, isTrue);
+    final second = store.interests['/b.arw']!;
+    expect(second.isWithdrawn, isFalse);
+
+    await show(null);
+    expect(second.isWithdrawn, isTrue);
+    store.pending.complete(null);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(

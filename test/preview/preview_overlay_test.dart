@@ -36,7 +36,8 @@ class _FixtureImageStore extends ImageStore {
           {int halfSize = 1,
           int? targetWidth,
           TaskPriority priority = TaskPriority.high,
-          void Function(WorkerTask<LibRawImage?> task)? onTaskStarted}) async =>
+          void Function(WorkerTask<LibRawImage?> task)? onTaskStarted,
+          ImageLoadInterest? interest}) async =>
       image.clone();
 }
 

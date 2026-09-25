@@ -193,7 +193,10 @@ RAW     → imageStore.peek(thumbnail, targetWidth: resizeWidth)   // sync
 px, computed in `_HomePageState.build`.
 
 The task is **not cancelled** when a tile is recycled — see the invariant below.
-Staleness is handled by comparing `_generation` instead.
+Staleness is handled by comparing `_generation` instead. The tile does withdraw
+its `ImageLoadInterest`: once no high-priority caller still wants a decode that
+has not started, `WorkerService.demoteRequest` moves it behind low-priority work,
+so tiles still on screen do not wait behind every tile a fast scroll went past.
 
 ### Full-screen preview, RAW — `SingleImagePreview`
 

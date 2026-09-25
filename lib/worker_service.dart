@@ -32,8 +32,8 @@ class WorkerService {
   /// be routed to the isolate that can actually abort it.
   final Map<int, int> _requestToWorker = {};
 
-  final Queue<_WorkerRequest> _highPriorityQueue = Queue<_WorkerRequest>();
-  final Queue<_WorkerRequest> _lowPriorityQueue = Queue<_WorkerRequest>();
+  final WorkerRequestQueue<_WorkerRequest> _queue =
+      WorkerRequestQueue<_WorkerRequest>();
 
   final Map<int, Completer<LibRawImage?>> _pendingRequests = {};
   int _nextRequestId = 0;
@@ -96,11 +96,8 @@ class WorkerService {
 
   /// Hands queued work to idle workers, highest priority first.
   void _drainQueues() {
-    while (_idleWorkers.isNotEmpty &&
-        (_highPriorityQueue.isNotEmpty || _lowPriorityQueue.isNotEmpty)) {
-      final request = _highPriorityQueue.isNotEmpty
-          ? _highPriorityQueue.removeFirst()
-          : _lowPriorityQueue.removeFirst();
+    while (_idleWorkers.isNotEmpty && _queue.isNotEmpty) {
+      final request = _queue.removeNext();
 
       if (_cancelledRequests.contains(request.requestId)) {
         _finalizeCancelled(request.requestId);
@@ -130,8 +127,7 @@ class WorkerService {
   // preview data when present, a half-size RAW decode otherwise.
   WorkerTask<LibRawImage?> requestRawThumbnail(String path,
       {TaskPriority priority = TaskPriority.high}) {
-    return WorkerTask._(
-        this, _nextRequestId++, path, _RequestType.rawThumbnail,
+    return WorkerTask._(this, _nextRequestId++, path, _RequestType.rawThumbnail,
         priority: priority);
   }
 
@@ -139,8 +135,7 @@ class WorkerService {
   // means this file carries no embedded JPEG.
   WorkerTask<LibRawImage?> requestEmbeddedJpeg(String path,
       {TaskPriority priority = TaskPriority.high}) {
-    return WorkerTask._(
-        this, _nextRequestId++, path, _RequestType.embeddedJpeg,
+    return WorkerTask._(this, _nextRequestId++, path, _RequestType.embeddedJpeg,
         priority: priority);
   }
 
@@ -189,11 +184,7 @@ class WorkerService {
       priority: priority,
     );
 
-    if (priority == TaskPriority.high) {
-      _highPriorityQueue.addLast(request);
-    } else {
-      _lowPriorityQueue.addLast(request);
-    }
+    _queue.add(requestId, request, priority);
     _drainQueues();
 
     return completer.future;
@@ -203,18 +194,18 @@ class WorkerService {
   void bumpRequest(int requestId, TaskPriority priority) {
     if (priority != TaskPriority.high) return;
     if (_requestToWorker.containsKey(requestId)) return;
+    if (_queue.promote(requestId)) _drainQueues();
+  }
 
-    final index =
-        _lowPriorityQueue.toList().indexWhere((r) => r.requestId == requestId);
-    if (index == -1) return;
-
-    final pending = _lowPriorityQueue.toList();
-    final request = pending.removeAt(index);
-    _lowPriorityQueue
-      ..clear()
-      ..addAll(pending);
-    _highPriorityQueue.addLast(request);
-    _drainQueues();
+  /// Moves a queued high-priority request to the back of the low queue.
+  ///
+  /// Unlike [cancelRequest] the decode still runs and still delivers its
+  /// result, so this is safe for requests shared through deduplication. It
+  /// lets work that is still wanted run first. Requests already executing, or
+  /// not queued yet, are left alone.
+  void demoteRequest(int requestId) {
+    if (_requestToWorker.containsKey(requestId)) return;
+    _queue.demote(requestId);
   }
 
   void cancelRequest(int requestId) {
@@ -242,13 +233,7 @@ class WorkerService {
     }
   }
 
-  bool _removeFromQueues(int requestId) {
-    final before =
-        _highPriorityQueue.length + _lowPriorityQueue.length;
-    _highPriorityQueue.removeWhere((r) => r.requestId == requestId);
-    _lowPriorityQueue.removeWhere((r) => r.requestId == requestId);
-    return _highPriorityQueue.length + _lowPriorityQueue.length != before;
-  }
+  bool _removeFromQueues(int requestId) => _queue.remove(requestId);
 
   void dispose() {
     for (final isolate in _isolates) {
@@ -258,13 +243,66 @@ class WorkerService {
     _workerSendPorts.clear();
     _idleWorkers.clear();
     _requestToWorker.clear();
-    _highPriorityQueue.clear();
-    _lowPriorityQueue.clear();
+    _queue.clear();
     _pendingRequests.clear();
     _activeRequestsByKey.clear();
     _keyByRequestId.clear();
     _cancelledRequests.clear();
     _initFuture = null;
+  }
+}
+
+/// The two-level queue behind [WorkerService]: every high-priority request
+/// runs before any low-priority one, and each level is FIFO.
+///
+/// Kept apart from the isolate plumbing so the ordering rules can be tested
+/// directly.
+class WorkerRequestQueue<T> {
+  final Queue<(int, T)> _high = Queue<(int, T)>();
+  final Queue<(int, T)> _low = Queue<(int, T)>();
+
+  bool get isEmpty => _high.isEmpty && _low.isEmpty;
+  bool get isNotEmpty => !isEmpty;
+
+  void add(int id, T request, TaskPriority priority) =>
+      (priority == TaskPriority.high ? _high : _low).addLast((id, request));
+
+  /// Removes and returns the next request to run. The queue must not be empty.
+  T removeNext() => (_high.isNotEmpty ? _high : _low).removeFirst().$2;
+
+  /// Moves a queued low-priority request to the back of the high queue.
+  bool promote(int id) => _move(id, from: _low, to: _high);
+
+  /// Moves a queued high-priority request to the back of the low queue.
+  bool demote(int id) => _move(id, from: _high, to: _low);
+
+  /// Drops a queued request. Returns whether it was queued.
+  bool remove(int id) {
+    final before = _high.length + _low.length;
+    _high.removeWhere((entry) => entry.$1 == id);
+    _low.removeWhere((entry) => entry.$1 == id);
+    return _high.length + _low.length != before;
+  }
+
+  void clear() {
+    _high.clear();
+    _low.clear();
+  }
+
+  bool _move(
+    int id, {
+    required Queue<(int, T)> from,
+    required Queue<(int, T)> to,
+  }) {
+    (int, T)? found;
+    from.removeWhere((entry) {
+      if (found != null || entry.$1 != id) return false;
+      found = entry;
+      return true;
+    });
+    if (found == null) return false;
+    to.addLast(found!);
+    return true;
   }
 }
 

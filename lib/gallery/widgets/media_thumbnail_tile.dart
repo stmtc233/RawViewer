@@ -69,6 +69,9 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
   /// Incremented whenever this tile is recycled or disposed, so a load that
   /// completes afterwards can tell that its result is no longer wanted.
   int _generation = 0;
+
+  /// The pending thumbnail load's claim on its place in the decode queue.
+  ImageLoadInterest? _loadInterest;
   late Future<MediaTimestampInfo> _timestampFuture;
 
   @override
@@ -84,6 +87,7 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
     if (widget.filePath != oldWidget.filePath ||
         widget.resizeWidth != oldWidget.resizeWidth) {
       _generation++;
+      _withdrawLoadInterest();
       _clearPreview();
       _stopBitmapAspectRatioLoad();
       _failed = false;
@@ -113,9 +117,15 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
   @override
   void dispose() {
     _generation++; // Discard any in-flight result for this tile.
+    _withdrawLoadInterest();
     _stopBitmapAspectRatioLoad();
     _clearPreview();
     super.dispose();
+  }
+
+  void _withdrawLoadInterest() {
+    _loadInterest?.withdraw();
+    _loadInterest = null;
   }
 
   void _clearPreview() {
@@ -150,12 +160,17 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
     // The task is intentionally not cancelled when this tile is recycled: the
     // worker dedupes fast previews by path, so cancelling would also resolve
     // another tile's shared request to null. Scrolling past is instead handled
-    // by ignoring a stale result via [generation].
+    // by ignoring a stale result via [generation]. Its queue claim is
+    // withdrawn, though, so tiles still on screen do not wait behind every
+    // tile a fast scroll went past.
+    final interest = _loadInterest = ImageLoadInterest();
     final image = await widget.imageStore.load(
       widget.filePath,
       RawLayer.thumbnail,
       targetWidth: widget.resizeWidth,
+      interest: interest,
     );
+    if (identical(_loadInterest, interest)) _loadInterest = null;
 
     if (!mounted || generation != _generation) {
       image?.dispose();
