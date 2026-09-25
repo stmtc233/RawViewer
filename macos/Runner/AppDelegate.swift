@@ -9,18 +9,23 @@ final class ScopedFileAccess {
 
   private init() {}
 
-  func retainAccess(to url: URL) {
-    let normalizedURL = url.standardizedFileURL
-    let path = normalizedURL.path
+  /// Returns whether the process holds access to [url] afterwards.
+  ///
+  /// Access is started on [url] itself rather than a standardized copy: a URL
+  /// resolved from a security-scoped bookmark carries its grant with it.
+  @discardableResult
+  func retainAccess(to url: URL) -> Bool {
+    let path = url.standardizedFileURL.path
     guard accessedPaths.insert(path).inserted else {
-      return
+      return true
     }
 
-    guard normalizedURL.startAccessingSecurityScopedResource() else {
+    guard url.startAccessingSecurityScopedResource() else {
       accessedPaths.remove(path)
-      return
+      return false
     }
-    accessedURLs.append(normalizedURL)
+    accessedURLs.append(url)
+    return true
   }
 }
 
@@ -116,13 +121,55 @@ final class DirectoryAccessChannel {
         result(FlutterMethodNotImplemented)
         return
       }
-      guard call.method == "selectDirectory" else {
+      switch call.method {
+      case "selectDirectory":
+        self.selectDirectory(arguments: call.arguments, result: result)
+      case "createBookmark":
+        result(self.createBookmark(arguments: call.arguments))
+      case "restoreBookmark":
+        result(self.restoreBookmark(arguments: call.arguments))
+      default:
         result(FlutterMethodNotImplemented)
-        return
       }
-
-      self.selectDirectory(arguments: call.arguments, result: result)
     }
+  }
+
+  // A sandboxed app's access to a user-chosen path ends with the process. A
+  // security-scoped bookmark is what lets a later launch reopen it.
+  private func createBookmark(arguments: Any?) -> String? {
+    guard let path = (arguments as? [String: Any])?["path"] as? String,
+          !path.isEmpty
+    else {
+      return nil
+    }
+
+    let url = URL(fileURLWithPath: path)
+    return try? url.bookmarkData(
+      options: .withSecurityScope,
+      includingResourceValuesForKeys: nil,
+      relativeTo: nil
+    ).base64EncodedString()
+  }
+
+  /// Resolves a bookmark from `createBookmark` and keeps access to it for the
+  /// rest of the process. Returns the item's current path.
+  private func restoreBookmark(arguments: Any?) -> String? {
+    guard let bookmark = (arguments as? [String: Any])?["bookmark"] as? String,
+          let data = Data(base64Encoded: bookmark)
+    else {
+      return nil
+    }
+
+    var isStale = false
+    guard let url = try? URL(
+      resolvingBookmarkData: data,
+      options: [.withSecurityScope, .withoutUI],
+      relativeTo: nil,
+      bookmarkDataIsStale: &isStale
+    ), ScopedFileAccess.shared.retainAccess(to: url) else {
+      return nil
+    }
+    return url.standardizedFileURL.path
   }
 
   private func selectDirectory(arguments: Any?, result: @escaping FlutterResult) {

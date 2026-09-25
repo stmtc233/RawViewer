@@ -23,14 +23,21 @@ class RecentOpenItem {
   final String path;
   final bool isDirectory;
 
+  /// macOS security-scoped bookmark that restores sandbox access to [path]
+  /// in a later launch. Null on other platforms and for entries saved before
+  /// bookmarks were recorded.
+  final String? bookmark;
+
   const RecentOpenItem({
     required this.path,
     required this.isDirectory,
+    this.bookmark,
   });
 
   Map<String, Object> toJson() => {
         'path': path,
         'isDirectory': isDirectory,
+        if (bookmark != null) 'bookmark': bookmark!,
       };
 
   static RecentOpenItem? fromJson(Object? value) {
@@ -44,7 +51,12 @@ class RecentOpenItem {
       return null;
     }
 
-    return RecentOpenItem(path: path, isDirectory: isDirectory);
+    final bookmark = value['bookmark'];
+    return RecentOpenItem(
+      path: path,
+      isDirectory: isDirectory,
+      bookmark: bookmark is String && bookmark.isNotEmpty ? bookmark : null,
+    );
   }
 }
 

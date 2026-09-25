@@ -1,6 +1,7 @@
-import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:rawviewer/image_store.dart';
@@ -13,6 +14,8 @@ import 'package:rawviewer/core/decode_target.dart';
 import 'package:rawviewer/core/preview_filmstrip_size.dart';
 import 'package:rawviewer/core/media_types.dart';
 import 'package:rawviewer/core/media_timestamps.dart';
+import 'package:rawviewer/core/platform_channels.dart';
+import 'package:rawviewer/core/preferences_repository.dart';
 import 'package:rawviewer/core/raw_view_mode.dart';
 import 'package:rawviewer/preview/preview_geometry.dart';
 import 'package:rawviewer/preview/image_preview_page.dart';
@@ -1305,4 +1308,57 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('/photos/IMG_0001.ARW'), findsNWidgets(2));
   });
+
+  testWidgets('recent folder reopens through its security-scoped bookmark',
+      (tester) async {
+    await tester.runAsync(() async {
+      final root = Directory.systemTemp.createTempSync('recent-bookmark-');
+      addTearDown(() => root.deleteSync(recursive: true));
+      File('${root.path}/a.jpg').writeAsStringSync('');
+      SharedPreferences.setMockInitialValues({
+        'recent_open_items': [
+          '{"path":"/moved-away","isDirectory":true,"bookmark":"old"}',
+        ],
+      });
+      final calls = <MethodCall>[];
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(macOSDirectoryAccessChannel,
+          (call) async {
+        calls.add(call);
+        return switch (call.method) {
+          'restoreBookmark' => root.path,
+          'createBookmark' => 'fresh',
+          _ => null,
+        };
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(
+          macOSDirectoryAccessChannel, null));
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(const MyApp());
+      Future<void> settle() async {
+        for (var i = 0; i < 10; i++) {
+          await tester.pump();
+          await Future<void>.delayed(const Duration(milliseconds: 30));
+        }
+        await tester.pumpAndSettle();
+      }
+
+      await settle();
+      await tester.tap(find.text('moved-away'));
+      await settle();
+
+      expect(calls.first.method, 'restoreBookmark');
+      expect(calls.first.arguments, {'bookmark': 'old'});
+      expect(
+          calls.map((call) => call.method), isNot(contains('selectDirectory')));
+      final saved = await const PreferencesRepository().loadRecentOpenItems();
+      expect(saved.map((item) => (item.path, item.bookmark)),
+          [(root.path, 'fresh')]);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }, skip: !Platform.isMacOS);
 }

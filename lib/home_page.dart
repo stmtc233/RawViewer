@@ -21,6 +21,7 @@ import 'gallery/grid_zoom_accumulator.dart';
 import 'gallery/media_library.dart';
 import 'core/platform_channels.dart';
 import 'core/pointer_modifiers.dart';
+import 'core/security_scoped_bookmarks.dart';
 import 'gallery/widgets/desktop_command_bar.dart';
 import 'gallery/widgets/gallery_chrome.dart';
 import 'gallery/widgets/media_thumbnail_tile.dart';
@@ -759,7 +760,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _openRecentItem(RecentOpenItem item) async {
-    final entityType = FileSystemEntity.typeSync(item.path, followLinks: true);
+    final bookmark = item.bookmark;
+    var openPath = (bookmark == null
+            ? null
+            : await restoreSecurityScopedAccess(bookmark)) ??
+        item.path;
+
+    final entityType = FileSystemEntity.typeSync(openPath, followLinks: true);
     final matchesStoredType = item.isDirectory
         ? entityType == FileSystemEntityType.directory
         : entityType == FileSystemEntityType.file;
@@ -768,7 +775,65 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    await _handleIncomingPaths([item.path]);
+    // An entry without a usable bookmark (saved before bookmarks existed, or
+    // one macOS no longer honours) can only regain access through the user.
+    if (item.isDirectory &&
+        Platform.isMacOS &&
+        !await _canListDirectory(openPath)) {
+      final grantedPath = await _requestMacOSDirectoryAccess(openPath);
+      if (grantedPath == null) {
+        return;
+      }
+      openPath = grantedPath;
+    }
+
+    await _handleIncomingPaths([openPath]);
+    // Opening records [openPath] with a fresh bookmark; drop the old entry
+    // when the item has moved, rather than keeping a dead duplicate.
+    if (openPath != item.path) {
+      await _removeRecentOpenItem(item);
+    }
+  }
+
+  Future<bool> _canListDirectory(String directoryPath) async {
+    try {
+      await Directory(directoryPath).list().take(1).drain<void>();
+      return true;
+    } on FileSystemException {
+      return false;
+    }
+  }
+
+  Future<String?> _requestMacOSDirectoryAccess(String directoryPath) async {
+    if (!mounted) {
+      return null;
+    }
+    final l10n = AppLocalizations.of(context);
+    final selectedDirectory = await macOSDirectoryAccessChannel
+        .invokeMethod<String>('selectDirectory', {
+      'title': l10n?.grantDirectoryAccessDialogTitle,
+      'initialDirectory': directoryPath,
+    });
+    return selectedDirectory == null
+        ? null
+        : path.normalize(path.absolute(selectedDirectory));
+  }
+
+  /// Returns [item] with a bookmark for its path, so a later launch can
+  /// regain sandbox access. Re-recording an item also refreshes a stale one.
+  Future<RecentOpenItem> _withSecurityScopedBookmark(
+    RecentOpenItem item,
+  ) async {
+    final bookmark = await createSecurityScopedBookmark(item.path) ??
+        _recentOpenItems
+            .where((existing) => existing.path == item.path)
+            .firstOrNull
+            ?.bookmark;
+    return RecentOpenItem(
+      path: item.path,
+      isDirectory: item.isDirectory,
+      bookmark: bookmark,
+    );
   }
 
   Future<void> _recordRecentOpenItems(
@@ -780,7 +845,7 @@ class _HomePageState extends State<HomePage> {
       if (nextItems.any((existing) => existing.path == item.path)) {
         continue;
       }
-      nextItems.add(item);
+      nextItems.add(await _withSecurityScopedBookmark(item));
     }
     for (final item in _recentOpenItems) {
       if (nextItems.any((existing) => existing.path == item.path)) {
@@ -1108,17 +1173,11 @@ class _HomePageState extends State<HomePage> {
         rethrow;
       }
 
-      final l10n = AppLocalizations.of(context);
-      final selectedDirectory = await macOSDirectoryAccessChannel
-          .invokeMethod<String>('selectDirectory', {
-        'title': l10n?.grantDirectoryAccessDialogTitle,
-        'initialDirectory': directoryPath,
-      });
-      if (selectedDirectory == null) {
+      final resolvedDirectory =
+          await _requestMacOSDirectoryAccess(directoryPath);
+      if (resolvedDirectory == null) {
         return null;
       }
-      final resolvedDirectory =
-          path.normalize(path.absolute(selectedDirectory));
       final files = await _listRawFilesInDirectory(resolvedDirectory);
       return files == null
           ? null

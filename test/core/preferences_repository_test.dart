@@ -471,6 +471,21 @@ void main() {
       expect(restored[1].isDirectory, isFalse);
     });
 
+    test('round-trips security-scoped bookmarks and loads entries without one',
+        () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = const PreferencesRepository();
+
+      await repo.saveRecentOpenItems(const [
+        RecentOpenItem(
+            path: '/photos', isDirectory: true, bookmark: 'Ym9vaw=='),
+        RecentOpenItem(path: '/legacy', isDirectory: true),
+      ]);
+
+      final restored = await repo.loadRecentOpenItems();
+      expect(restored.map((item) => item.bookmark), ['Ym9vaw==', null]);
+    });
+
     test('ignores corrupt recent-open entries', () async {
       SharedPreferences.setMockInitialValues({
         'recent_open_items': ['not json', '{"path":"/photos"}'],
