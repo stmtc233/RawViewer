@@ -43,6 +43,9 @@ enum _OpenedSourceKind { none, folder, files }
 
 const _hotFolderRefreshDelay = Duration(milliseconds: 300);
 
+/// Flutter's own `ImageCache` default, kept as a floor for bitmap caching.
+const _minBitmapImageCacheBytes = 100 << 20;
+
 class _LoadedDirectory {
   const _LoadedDirectory({
     required this.path,
@@ -549,6 +552,13 @@ class _HomePageState extends State<HomePage> {
       onEvict: (_, image) => image.dispose(),
     );
     _imageStore = ImageStore(_imageCache);
+
+    // Bitmaps (grid tiles, filmstrip, preview detail) live in Flutter's own
+    // ImageCache, not in ImageStore. Its 100 MB default holds only a few dozen
+    // grid thumbnails and loses most of them to a single full-screen detail
+    // decode, so give it the same budget as RAW images.
+    PaintingBinding.instance.imageCache.maximumSizeBytes =
+        math.max(maxBytes, _minBitmapImageCacheBytes);
   }
 
   void _replaceCache() {
