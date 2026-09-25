@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:path/path.dart' as path;
 
@@ -6,7 +7,14 @@ import '../core/media_types.dart';
 import '../media_group.dart';
 
 /// Scans [directoryPath] for supported media files, sorted by name.
-List<MediaFile> listMediaFilesInDirectory(String directoryPath) {
+///
+/// Runs on a helper isolate: listing a network share or a folder with tens of
+/// thousands of entries can take seconds, which would otherwise freeze the UI
+/// for that long. A [FileSystemException] still reaches the caller.
+Future<List<MediaFile>> listMediaFilesInDirectory(String directoryPath) =>
+    Isolate.run(() => _listMediaFilesInDirectorySync(directoryPath));
+
+List<MediaFile> _listMediaFilesInDirectorySync(String directoryPath) {
   return Directory(directoryPath)
       .listSync()
       .whereType<File>()

@@ -96,6 +96,10 @@ class _HomePageState extends State<HomePage> {
   MediaFilter _mediaFilter = defaultMediaFilter;
   MediaSortOrder _mediaSortOrder = defaultMediaSortOrder;
   int _mediaSortGeneration = 0;
+
+  /// Bumped by every user request to open something, so a directory scan
+  /// that finishes after a later request is discarded instead of replacing it.
+  int _openRequestGeneration = 0;
   int _crossAxisCount = 4;
   bool _hasUserConfiguredGridAspectRatio = false;
   final GridZoomAccumulator _gridZoom = GridZoomAccumulator();
@@ -522,8 +526,8 @@ class _HomePageState extends State<HomePage> {
     }
 
     try {
-      final files = _listRawFilesInDirectory(directoryPath);
-      if (!_isCurrentHotFolder(directoryPath, generation)) {
+      final files = await _listRawFilesInDirectory(directoryPath);
+      if (files == null || !_isCurrentHotFolder(directoryPath, generation)) {
         return;
       }
       await _applyOpenedFiles(
@@ -892,6 +896,7 @@ class _HomePageState extends State<HomePage> {
     if (normalizedPaths.isEmpty) {
       return;
     }
+    ++_openRequestGeneration;
 
     final directories = <String>[];
     final files = <MediaFile>[];
@@ -914,7 +919,9 @@ class _HomePageState extends State<HomePage> {
       final directoryFiles = <MediaFile>[];
       try {
         for (final directory in directories) {
-          directoryFiles.addAll(_listRawFilesInDirectory(directory));
+          final files = await _listRawFilesInDirectory(directory);
+          if (files == null) return;
+          directoryFiles.addAll(files);
         }
       } on FileSystemException catch (error) {
         _showDirectoryLoadError(error);
@@ -1092,10 +1099,10 @@ class _HomePageState extends State<HomePage> {
     String directoryPath,
   ) async {
     try {
-      return _LoadedDirectory(
-        path: directoryPath,
-        files: _listRawFilesInDirectory(directoryPath),
-      );
+      final files = await _listRawFilesInDirectory(directoryPath);
+      return files == null
+          ? null
+          : _LoadedDirectory(path: directoryPath, files: files);
     } on FileSystemException {
       if (!Platform.isMacOS || !mounted) {
         rethrow;
@@ -1112,10 +1119,10 @@ class _HomePageState extends State<HomePage> {
       }
       final resolvedDirectory =
           path.normalize(path.absolute(selectedDirectory));
-      return _LoadedDirectory(
-        path: resolvedDirectory,
-        files: _listRawFilesInDirectory(resolvedDirectory),
-      );
+      final files = await _listRawFilesInDirectory(resolvedDirectory);
+      return files == null
+          ? null
+          : _LoadedDirectory(path: resolvedDirectory, files: files);
     }
   }
 
@@ -1210,8 +1217,15 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  List<MediaFile> _listRawFilesInDirectory(String directoryPath) =>
-      listMediaFilesInDirectory(directoryPath);
+  /// Lists [directoryPath] off the main isolate. Returns null when a later
+  /// open request superseded this one while the scan ran.
+  Future<List<MediaFile>?> _listRawFilesInDirectory(
+    String directoryPath,
+  ) async {
+    final request = _openRequestGeneration;
+    final files = await listMediaFilesInDirectory(directoryPath);
+    return request == _openRequestGeneration ? files : null;
+  }
 
   List<MediaFile> _deduplicateMediaFiles(Iterable<MediaFile> files) =>
       deduplicateMediaFiles(files);

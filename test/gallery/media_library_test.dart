@@ -87,4 +87,25 @@ void main() {
       expect(result.length, 1);
     });
   });
+
+  group('listMediaFilesInDirectory', () {
+    test('lists supported files by name and reports scan failures', () async {
+      final root = Directory.systemTemp.createTempSync('media-library-');
+      addTearDown(() => root.deleteSync(recursive: true));
+      for (final name in ['b.JPG', 'a.arw', 'notes.txt']) {
+        File('${root.path}/$name').writeAsStringSync('');
+      }
+      Directory('${root.path}/nested.arw').createSync();
+
+      final files = await listMediaFilesInDirectory(root.path);
+      expect(files.map((file) => file.path.split(Platform.pathSeparator).last),
+          ['a.arw', 'b.JPG']);
+      expect(files.map((file) => file.isRaw), [true, false]);
+
+      // The scan runs on another isolate; its failure must still arrive as a
+      // FileSystemException, which the gallery reports to the user.
+      await expectLater(listMediaFilesInDirectory('${root.path}/missing'),
+          throwsA(isA<FileSystemException>()));
+    });
+  });
 }
