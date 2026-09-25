@@ -155,9 +155,14 @@ make here:
   the availability probe: the preview loads it on every RAW page and reports the
   result via `onEmbeddedJpegAvailability`, which is what greys out the mode.
 - **As one possible input to the thumbnail layer** — `process_thumbnail()` tries
-  `unpack_thumb()` first, but **falls back** to `half_size = 1` RAW processing
-  when there is nothing usable. So a thumbnail-layer image is not necessarily
-  the embedded JPEG.
+  an embedded preview first, but **falls back** to `half_size = 1` RAW
+  processing when there is nothing usable. So a thumbnail-layer image is not
+  necessarily the embedded JPEG. Nor is it always the *same* embedded JPEG:
+  when the container also holds a smaller JPEG of the same picture whose short
+  edge is at least 1024 px (Sony's 1616×1080 preview, for example),
+  `unpack_thumbnail_layer_source()` takes that one instead of the full-size
+  JPEG `unpack_thumb()` would pick, because grid tiles never request the
+  thumbnail layer wider than 896 px.
 - **As a file export** — `extractEmbeddedJpeg()` on a one-off `Isolate.run`,
   returning encoded bytes rather than a `ui.Image`. Not through `WorkerService`:
   a user-initiated export must not occupy a decode worker.

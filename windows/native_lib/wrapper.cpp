@@ -144,6 +144,73 @@ bool fill_rgba_from_processed(ImageResult& result,
   return true;
 }
 
+// Grid tiles decode the thumbnail layer at most 896 px wide (800 physical px,
+// bucketed), and the filmstrip is smaller still on desktop, so an embedded
+// preview whose short edge reaches this is sharp enough in either orientation.
+constexpr int kMinThumbnailShortEdge = 1024;
+
+// unpack_thumb() always takes the largest embedded preview, which on many
+// bodies is a full-resolution JPEG several megabytes long. Prefer the smallest
+// JPEG that is still big enough and shows the same picture — same aspect ratio
+// and orientation as the largest — and otherwise unpack exactly what
+// unpack_thumb() would.
+int unpack_thumbnail_layer_source(LibRaw& raw_processor) {
+    const libraw_thumbnail_list_t& list = raw_processor.imgdata.thumbs_list;
+    const libraw_thumbnail_t& largest = raw_processor.imgdata.thumbnail;
+    const int count = list.thumbcount < LIBRAW_THUMBNAIL_MAXCOUNT
+        ? list.thumbcount : LIBRAW_THUMBNAIL_MAXCOUNT;
+
+    int largest_index = -1;
+    for (int i = 0; i < count; ++i) {
+        const libraw_thumbnail_item_t& item = list.thumblist[i];
+        if (item.twidth == largest.twidth && item.theight == largest.theight &&
+                item.tlength == largest.tlength) {
+            largest_index = i;
+            break;
+        }
+    }
+    if (largest_index < 0 ||
+            list.thumblist[largest_index].tformat !=
+                    LIBRAW_INTERNAL_THUMBNAIL_JPEG) {
+        return raw_processor.unpack_thumb();
+    }
+
+    const libraw_thumbnail_item_t& reference = list.thumblist[largest_index];
+    const int64_t reference_area =
+            static_cast<int64_t>(reference.twidth) * reference.theight;
+    int best_index = -1;
+    for (int i = 0; i < count; ++i) {
+        const libraw_thumbnail_item_t& item = list.thumblist[i];
+        const int short_edge =
+                item.twidth < item.theight ? item.twidth : item.theight;
+        // Aspect ratios within 2%, compared without division.
+        const int64_t aspect_delta =
+                static_cast<int64_t>(item.twidth) * reference.theight -
+                static_cast<int64_t>(item.theight) * reference.twidth;
+        if (i == largest_index ||
+                item.tformat != LIBRAW_INTERNAL_THUMBNAIL_JPEG ||
+                item.tflip != reference.tflip ||
+                short_edge < kMinThumbnailShortEdge ||
+                item.tlength >= reference.tlength ||
+                (aspect_delta < 0 ? -aspect_delta : aspect_delta) * 50 >
+                        reference_area) {
+            continue;
+        }
+        if (best_index < 0 || item.tlength < list.thumblist[best_index].tlength) {
+            best_index = i;
+        }
+    }
+
+    if (best_index >= 0 &&
+            raw_processor.unpack_thumb_ex(best_index) == LIBRAW_SUCCESS) {
+        return LIBRAW_SUCCESS;
+    }
+    // unpack_thumb_ex() overwrote the thumbnail state unpack_thumb() reads, so
+    // name the largest preview explicitly rather than calling it again.
+    return best_index >= 0 ? raw_processor.unpack_thumb_ex(largest_index)
+        : raw_processor.unpack_thumb();
+}
+
 // Build the RAW thumbnail layer: the cheapest image we can produce.
 //
 // Prefer the embedded preview via unpack_thumb(). Encoded JPEG previews are
@@ -155,7 +222,7 @@ bool fill_rgba_from_processed(ImageResult& result,
 ThumbnailResult process_thumbnail(LibRaw& raw_processor, void* cancel_token) {
     ThumbnailResult result = empty_thumbnail();
 
-    if (raw_processor.unpack_thumb() == LIBRAW_SUCCESS) {
+    if (unpack_thumbnail_layer_source(raw_processor) == LIBRAW_SUCCESS) {
         int errc = 0;
         libraw_processed_image_t* thumb = raw_processor.dcraw_make_mem_thumb(&errc);
 
