@@ -61,6 +61,16 @@ class ImageStore {
     };
   }
 
+  static final RegExp _fullScreenKeySuffix =
+      RegExp(r':(embedded-jpeg:\d+|decoded-raw:\d+:\d+)$');
+
+  /// Whether [key] (from [cacheKey]) holds a full-screen layer rather than the
+  /// bounded-width thumbnail layer.
+  ///
+  /// Matched on the suffix [cacheKey] appends, so a file path containing a
+  /// layer name cannot be misread.
+  static bool isFullScreenKey(String key) => _fullScreenKeySuffix.hasMatch(key);
+
   /// Returns a cached image immediately, or null when it is not resident.
   ///
   /// The returned handle is owned by the caller.

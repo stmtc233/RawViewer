@@ -550,6 +550,11 @@ class _HomePageState extends State<HomePage> {
       // Evicted entries own a live ui.Image handle; dropping the reference is
       // not enough to release the texture.
       onEvict: (_, image) => image.dispose(),
+      // A full-screen layer of a 24 MP RAW is ~96 MB, so a few previews would
+      // otherwise evict every grid thumbnail. Keep a quarter for thumbnails;
+      // they can still use the whole budget when nothing else needs it.
+      isCapped: ImageStore.isFullScreenKey,
+      cappedMaximumSize: maxBytes * 3 ~/ 4,
     );
     _imageStore = ImageStore(_imageCache);
 

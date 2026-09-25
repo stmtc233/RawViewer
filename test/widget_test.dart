@@ -986,6 +986,40 @@ void main() {
       expect(cache.size, 60);
     });
 
+    test('capped entries evict each other but leave the reserve alone', () {
+      final evicted = <String>[];
+      final cache = LruCache<String, int>(
+        100,
+        sizeOf: (value) => value,
+        onEvict: (key, _) => evicted.add(key),
+        isCapped: (key) => key.startsWith('full'),
+        cappedMaximumSize: 75,
+      );
+
+      // Uncapped entries may still fill the whole budget.
+      for (final key in ['t1', 't2', 't3', 't4', 't5']) {
+        cache.put(key, 20);
+      }
+      expect(evicted, isEmpty);
+
+      // Plain LRU makes room for the first capped entry.
+      cache.put('full1', 40);
+      expect(evicted, ['t1', 't2']);
+
+      // The second one would push capped entries past 75, so the older capped
+      // entry goes rather than more thumbnails.
+      cache.put('full2', 40);
+      expect(evicted, ['t1', 't2', 'full1']);
+      expect(cache.containsKey('t3'), isTrue);
+      expect(cache.size, 100);
+
+      cache.remove('full2');
+      cache.put('t6', 20);
+      cache.put('t7', 20);
+      expect(cache.size, 100);
+      expect(evicted, ['t1', 't2', 'full1', 'full2']);
+    });
+
     test('clear reports every entry', () {
       final evicted = <String>[];
       final cache = LruCache<String, int>(
@@ -1034,6 +1068,23 @@ void main() {
       final fullRes = ImageStore.cacheKey(path, RawLayer.thumbnail);
 
       expect(thumb, isNot(fullRes));
+    });
+
+    test('classifies full-screen layers by the key suffix alone', () {
+      const trickyPath = '/photos/x:decoded-raw:1:0.arw';
+      expect(
+        ImageStore.isFullScreenKey(ImageStore.cacheKey(
+            trickyPath, RawLayer.thumbnail,
+            targetWidth: 512)),
+        isFalse,
+      );
+      for (final key in [
+        ImageStore.cacheKey(trickyPath, RawLayer.embeddedJpeg),
+        ImageStore.cacheKey(path, RawLayer.decoded, halfSize: 0),
+        ImageStore.cacheKey(path, RawLayer.decoded, halfSize: 1),
+      ]) {
+        expect(ImageStore.isFullScreenKey(key), isTrue, reason: key);
+      }
     });
 
     test('is stable for identical requests', () {
