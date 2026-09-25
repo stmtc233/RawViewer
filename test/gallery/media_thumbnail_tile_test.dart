@@ -26,6 +26,10 @@ class _Exif extends ExifRepository {
     reads++;
     return ExifMetadata(tags: {if (rating != null) 'Image Rating': '$rating'});
   }
+
+  @override
+  Future<int?> loadRating(String filePath) async =>
+      parseExifRating((await load(filePath)).tags['Image Rating']);
 }
 
 void main() {

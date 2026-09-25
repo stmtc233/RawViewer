@@ -11,6 +11,10 @@ class _Exif extends ExifRepository {
   @override
   Future<ExifMetadata> load(String filePath) => read(filePath);
 
+  @override
+  Future<int?> loadRating(String filePath) async =>
+      parseExifRating((await load(filePath)).tags['Image Rating']);
+
   void changed() => notifyListeners();
 }
 
@@ -152,21 +156,28 @@ void main() {
       }),
     ));
     addTearDown(controller.dispose);
-    controller.update(
-        groups: [_group('old'), _group('unused')], filter: RatingFilter.three);
+    // Reads overlap, so the superseded scan may already have a few files in
+    // flight; it must stop taking new ones rather than finish the folder.
+    const unusedCount = 40;
+    controller.update(groups: [
+      _group('old'),
+      for (var i = 0; i < unusedCount; i++) _group('unused-$i'),
+    ], filter: RatingFilter.three);
     controller.update(groups: [_group('new')], filter: RatingFilter.five);
     await _finish(controller);
     pending.complete(const ExifMetadata(tags: {'Image Rating': '3'}));
     await Future<void>.delayed(Duration.zero);
     expect(controller.visibleGroups.single.primary.path, 'new');
-    expect(reads, isNot(contains('unused')));
+    expect(reads.where((path) => path.startsWith('unused')).length,
+        lessThan(unusedCount));
     controller.update(filter: RatingFilter.one);
     controller.update(filter: RatingFilter.all);
     await Future<void>.delayed(Duration.zero);
     expect(controller.visibleGroups.single.primary.path, 'new');
   });
 
-  test('disposal stops scanning after the active read', () async {
+  test('disposal stops scanning after the active reads', () async {
+    const groupCount = 40;
     final pending = Completer<ExifMetadata>();
     var reads = 0;
     final controller = RatingFilterController(RatingRepository(
@@ -175,11 +186,14 @@ void main() {
         return pending.future;
       }),
     ));
-    controller
-        .update(groups: [_group('a'), _group('b')], filter: RatingFilter.one);
+    controller.update(
+        groups: [for (var i = 0; i < groupCount; i++) _group('$i')],
+        filter: RatingFilter.one);
+    final activeReads = reads;
     controller.dispose();
     pending.complete(const ExifMetadata());
     await Future<void>.delayed(Duration.zero);
-    expect(reads, 1);
+    expect(reads, activeReads);
+    expect(reads, lessThan(groupCount));
   });
 }

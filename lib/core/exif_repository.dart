@@ -4,6 +4,7 @@ import 'dart:isolate';
 import 'package:exif/exif.dart';
 import 'package:flutter/foundation.dart';
 
+import 'concurrency.dart';
 import 'xmp_sidecar.dart';
 
 int? parseExifRating(String? value) {
@@ -32,6 +33,11 @@ class ExifMetadata {
 class ExifRepository extends ChangeNotifier {
   final _cache = <String, Future<ExifMetadata>>{};
   Future<void> _pending = Future<void>.value();
+  Future<void> _pendingWrite = Future<void>.value();
+  // Rating reads come from every visible grid tile and from rating sorts and
+  // filters. They run beside the serialized full reads, so a large folder
+  // never queues the preview's EXIF sidebar behind hundreds of them.
+  final ConcurrencyLimiter _ratingReads = ConcurrencyLimiter(4);
   bool _disposed = false;
   String? _lastRatingSavedPath;
   String? get lastRatingSavedPath => _lastRatingSavedPath;
@@ -43,6 +49,7 @@ class ExifRepository extends ChangeNotifier {
     final future = _pending
         .then((_) => Isolate.run(() => writeXmpRating(filePath, rating)));
     _pending = future.then<void>((_) {}, onError: (Object _, StackTrace __) {});
+    _pendingWrite = _pending;
     await future;
     // Same-stem RAW and JPEG files can share one sidecar.
     _cache.removeWhere((path, _) => sharesXmpSidecar(path, filePath));
@@ -54,6 +61,16 @@ class ExifRepository extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     super.dispose();
+  }
+
+  /// Reads only the effective rating, without the full metadata [load] does.
+  ///
+  /// The result matches `load(filePath).tags['Image Rating']` parsed with
+  /// [parseExifRating]: an XMP sidecar rating wins over the embedded one.
+  Future<int?> loadRating(String filePath) async {
+    // Never read a sidecar while one of our own saves is replacing it.
+    await _pendingWrite;
+    return _ratingReads.run(() => Isolate.run(() => _readRating(filePath)));
   }
 
   Future<ExifMetadata> load(String filePath) {
@@ -98,6 +115,26 @@ Future<ExifMetadata> _readExif(String filePath) async {
       readFailed: metadata.readFailed,
       xmpReadFailed: true,
     );
+  }
+}
+
+Future<int?> _readRating(String filePath) async {
+  try {
+    final xmp = await readXmpSidecar(filePath);
+    if (xmp.containsKey('Image Rating')) {
+      return parseExifRating(xmp['Image Rating']);
+    }
+  } catch (_) {
+    // An unreadable sidecar falls back to the embedded rating, as in load().
+  }
+  try {
+    // The rating is a standard IFD0 tag, so skip MakerNote decoding.
+    final tags = await readExifFromFile(File(filePath), details: false);
+    final value =
+        tags['Image Rating']?.printable.replaceAll('\u0000', '').trim();
+    return parseExifRating(value);
+  } catch (_) {
+    return null;
   }
 }
 

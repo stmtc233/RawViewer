@@ -72,6 +72,24 @@ void main() {
     expect(await directory.list().length, 3);
   });
 
+  test('rating-only reads agree with full metadata reads', () async {
+    Future<void> expectAgreement(String name, {String? sidecar}) async {
+      final file = File('${directory.path}/$name.dng');
+      await file.writeAsBytes(_tiffFixture());
+      if (sidecar != null) {
+        await File('${directory.path}/$name.xmp').writeAsString(sidecar);
+      }
+      final full = await ExifRepository().load(file.path);
+      expect(await ExifRepository().loadRating(file.path),
+          parseExifRating(full.tags['Image Rating']),
+          reason: name);
+    }
+
+    await expectAgreement('embedded');
+    await expectAgreement('sidecar', sidecar: _xmpFixture());
+    await expectAgreement('malformed', sidecar: '<not-xmp');
+  });
+
   test('reads XMP for formats without readable embedded metadata', () async {
     final file = File('${directory.path}/photo.cr3');
     await file.writeAsBytes(List.filled(32, 0));

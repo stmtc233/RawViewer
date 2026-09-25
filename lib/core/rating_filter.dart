@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../media_group.dart';
+import 'concurrency.dart';
 import 'exif_repository.dart';
 import 'xmp_sidecar.dart';
 
@@ -77,8 +78,7 @@ class RatingRepository extends ChangeNotifier {
 
   Future<int?> _read(String path) async {
     try {
-      return parseExifRating(
-          (await exifRepository.load(path)).tags['Image Rating']);
+      return await exifRepository.loadRating(path);
     } catch (_) {
       return null;
     }
@@ -87,6 +87,10 @@ class RatingRepository extends ChangeNotifier {
 
 /// Publishes a complete result so metadata arrival cannot reorder navigation.
 class RatingFilterController extends ChangeNotifier {
+  // Reads overlap so a large folder is not scanned one file at a time; a
+  // superseded scan stops taking new files but lets in-flight reads finish.
+  static const int _concurrentReads = 8;
+
   final RatingRepository repository;
   List<MediaGroup> _groups = const [];
   List<MediaGroup> get groups => _groups;
@@ -122,15 +126,22 @@ class RatingFilterController extends ChangeNotifier {
 
   Future<void> _filter(
       int generation, List<MediaGroup> groups, RatingFilter filter) async {
-    final matches = <MediaGroup>[];
-    for (final group in groups) {
-      if (generation != _generation) return;
-      final rating = await repository.load(group.primary.path);
-      if (generation != _generation) return;
-      if (filter.includes(rating)) matches.add(group);
-    }
+    final included = List<bool>.filled(groups.length, false);
+    final indices = List<int>.generate(groups.length, (index) => index);
+    await forEachConcurrently(
+      indices,
+      _concurrentReads,
+      (index) async {
+        final rating = await repository.load(groups[index].primary.path);
+        included[index] = filter.includes(rating);
+      },
+      isCancelled: () => generation != _generation,
+    );
     if (generation != _generation) return;
-    visibleGroups = List.unmodifiable(matches);
+    visibleGroups = List.unmodifiable([
+      for (var index = 0; index < groups.length; index++)
+        if (included[index]) groups[index],
+    ]);
     loading = false;
     notifyListeners();
   }

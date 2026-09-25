@@ -29,6 +29,10 @@ class _Exif extends ExifRepository {
   Future<ExifMetadata> load(String path) async => ExifMetadata(tags: {
         'Image Rating': overrides[path] ?? (path.contains('five') ? '5' : '3'),
       });
+
+  @override
+  Future<int?> loadRating(String filePath) async =>
+      parseExifRating((await load(filePath)).tags['Image Rating']);
 }
 
 void main() {

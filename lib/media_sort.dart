@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 
+import 'core/concurrency.dart';
 import 'l10n/app_localizations.dart';
 import 'media_group.dart';
 import 'ui/desktop_controls.dart';
@@ -21,6 +22,9 @@ enum MediaSortOrder {
 }
 
 const defaultMediaSortOrder = MediaSortOrder.nameAscending;
+
+// Per-file metadata loads overlap instead of running one file at a time.
+const int _concurrentSortLoads = 8;
 
 typedef CapturedAtLoader = Future<DateTime> Function(String filePath);
 
@@ -67,7 +71,8 @@ Future<List<MediaFile>> sortMediaFiles(
         throw ArgumentError('Rating sorting requires a loadRating callback.');
       }
       final ratings = <String, int>{};
-      for (final file in sortedFiles) {
+      await forEachConcurrently(sortedFiles, _concurrentSortLoads,
+          (file) async {
         try {
           final rating = await loadRating(file.path);
           ratings[file.path] =
@@ -75,7 +80,7 @@ Future<List<MediaFile>> sortMediaFiles(
         } catch (_) {
           ratings[file.path] = 0;
         }
-      }
+      });
       sortedFiles.sort((a, b) {
         final comparison = ratings[a.path]!.compareTo(ratings[b.path]!);
         if (comparison == 0) return _compareByName(a, b);
@@ -93,13 +98,13 @@ Future<List<MediaFile>> _sortByTime(
   required Future<DateTime> Function(MediaFile file) loadTime,
 }) async {
   final timestamps = <String, DateTime>{};
-  for (final file in files) {
+  await forEachConcurrently(files, _concurrentSortLoads, (file) async {
     try {
       timestamps[file.path] = await loadTime(file);
     } on FileSystemException {
       timestamps[file.path] = DateTime.fromMillisecondsSinceEpoch(0);
     }
-  }
+  });
 
   files.sort((a, b) {
     final comparison = timestamps[a.path]!.compareTo(timestamps[b.path]!);

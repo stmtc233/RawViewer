@@ -8,6 +8,7 @@ import 'package:exif/exif.dart';
 import 'package:intl/intl.dart';
 
 import '../settings_page.dart';
+import 'concurrency.dart';
 
 final DateFormat _timestampFormatter = DateFormat('yyyy-MM-dd HH:mm:ss');
 
@@ -40,6 +41,9 @@ class TimestampRepository {
   final LinkedHashMap<String, Future<MediaTimestampInfo>> _futureCache =
       LinkedHashMap<String, Future<MediaTimestampInfo>>();
 
+  // Every visible tile, and every file in a capture-time sort, asks at once.
+  final ConcurrencyLimiter _reads = ConcurrencyLimiter(4);
+
   Future<MediaTimestampInfo> load(String filePath) {
     final existing = _futureCache.remove(filePath);
     if (existing != null) {
@@ -47,7 +51,7 @@ class TimestampRepository {
       return existing;
     }
 
-    final future = _readTimestampInfo(filePath);
+    final future = _reads.run(() => _readTimestampInfo(filePath));
     _futureCache[filePath] = future;
     while (_futureCache.length > _maxEntries) {
       _futureCache.remove(_futureCache.keys.first);
@@ -96,7 +100,8 @@ Future<DateTime?> _parseCapturedAtFromBytes(Uint8List bytes) {
 
 Future<DateTime?> _parseCapturedAtFromBytesSync(Uint8List bytes) async {
   try {
-    final data = await readExifFromBytes(bytes);
+    // Only standard date tags are needed, so skip MakerNote decoding.
+    final data = await readExifFromBytes(bytes, details: false);
     final rawValue = data['Image DateTime']?.printable ??
         data['EXIF DateTimeOriginal']?.printable ??
         data['EXIF DateTimeDigitized']?.printable;
