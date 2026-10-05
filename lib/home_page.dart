@@ -877,6 +877,37 @@ class _HomePageState extends State<HomePage> {
     await const PreferencesRepository().saveRecentOpenItems(savedItems);
   }
 
+  Future<void> _clearRecentOpenItems() async {
+    _recentOpenItemsChangedBeforeLoad = true;
+    if (mounted) {
+      setState(() {
+        _recentOpenItems = const [];
+      });
+    }
+    await const PreferencesRepository().saveRecentOpenItems(const []);
+  }
+
+  /// Returns to the empty home screen, dropping whatever is open.
+  void _closeCurrentSource() {
+    // Discard any directory scan or sort still in flight for the old source.
+    ++_openRequestGeneration;
+    ++_mediaSortGeneration;
+    _imageCache.clear();
+    _mediaAspectRatios.clear();
+    _pendingMediaAspectRatios.clear();
+    _timestampRepository.clear();
+    _lastGalleryPrefetchAnchor = -1;
+    setState(() {
+      _openedSourceKind = _OpenedSourceKind.none;
+      _currentDirectoryPath = null;
+      _openedDirectoryCount = null;
+      _deferredDirectoryPath = null;
+      _files = [];
+      _refreshRatingGroups();
+    });
+    _updateHotFolderWatch();
+  }
+
   String? _currentFolderPath() {
     if (_openedSourceKind == _OpenedSourceKind.folder) {
       return _currentDirectoryPath;
@@ -1403,10 +1434,14 @@ class _HomePageState extends State<HomePage> {
             openFolderLabel: l10n.openFolder,
             openFilesLabel: l10n.openFiles,
             recentItemsTitle: l10n.recentOpenItemsTitle,
+            clearRecentItemsLabel: l10n.clearRecentOpenItems,
+            removeRecentItemTooltip: l10n.removeRecentOpenItemTooltip,
             onOpenFiles: _openFiles,
             onOpenFolder: _openFolder,
             recentOpenItems: _recentOpenItems,
             onRecentOpenItemSelected: _openRecentItem,
+            onRecentOpenItemRemoved: _removeRecentOpenItem,
+            onClearRecentOpenItems: _clearRecentOpenItems,
           )
         else if (_ratingFilter.loading)
           const Center(child: CircularProgressIndicator())
@@ -1686,8 +1721,11 @@ class _HomePageState extends State<HomePage> {
               openFolderLabel: l10n.openFolder,
               openFilesLabel: l10n.openFiles,
               openCurrentFolderLabel: _currentFolderActionLabel(l10n),
+              closeFolderLabel: l10n.closeCurrentFolder,
               recentItemsTitle: l10n.recentOpenItemsTitle,
               noRecentItemsLabel: l10n.noRecentOpenItems,
+              clearRecentItemsLabel: l10n.clearRecentOpenItems,
+              removeRecentItemTooltip: l10n.removeRecentOpenItemTooltip,
               moreActionsTooltip: l10n.moreActionsTooltip,
               settingsTooltip: l10n.settingsTooltip,
               selectedMediaFilter: _mediaFilter,
@@ -1718,6 +1756,11 @@ class _HomePageState extends State<HomePage> {
               onOpenFolder: _openFolder,
               recentOpenItems: _recentOpenItems,
               onRecentOpenItemSelected: _openRecentItem,
+              onRecentOpenItemRemoved: _removeRecentOpenItem,
+              onClearRecentOpenItems: _clearRecentOpenItems,
+              onCloseFolder: _openedSourceKind == _OpenedSourceKind.none
+                  ? null
+                  : _closeCurrentSource,
               onOpenCurrentFolder: !canOpenCurrentFolder
                   ? null
                   : () => _openCurrentFolder(currentFolderPath),

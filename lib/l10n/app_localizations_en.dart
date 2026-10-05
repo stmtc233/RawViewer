@@ -503,6 +503,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noRecentOpenItems => 'No recent files or folders';
 
   @override
+  String get clearRecentOpenItems => 'Clear recent';
+
+  @override
+  String get removeRecentOpenItemTooltip => 'Remove from recent';
+
+  @override
+  String get closeCurrentFolder => 'Close folder';
+
+  @override
   String get openInFinder => 'Open in Finder';
 
   @override

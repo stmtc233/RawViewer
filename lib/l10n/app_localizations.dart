@@ -1031,6 +1031,24 @@ abstract class AppLocalizations {
   /// **'No recent files or folders'**
   String get noRecentOpenItems;
 
+  /// No description provided for @clearRecentOpenItems.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear recent'**
+  String get clearRecentOpenItems;
+
+  /// No description provided for @removeRecentOpenItemTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from recent'**
+  String get removeRecentOpenItemTooltip;
+
+  /// No description provided for @closeCurrentFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Close folder'**
+  String get closeCurrentFolder;
+
   /// No description provided for @openInFinder.
   ///
   /// In en, this message translates to:

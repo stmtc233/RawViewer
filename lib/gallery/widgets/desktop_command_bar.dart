@@ -7,14 +7,18 @@ import '../../rating_filter_button.dart';
 import '../../media_sort.dart';
 import '../../ui/app_theme.dart';
 import '../../ui/desktop_controls.dart';
+import 'gallery_chrome.dart';
 
 class DesktopCommandBar extends StatelessWidget {
   final String title;
   final String openFolderLabel;
   final String openFilesLabel;
   final String openCurrentFolderLabel;
+  final String closeFolderLabel;
   final String recentItemsTitle;
   final String noRecentItemsLabel;
+  final String clearRecentItemsLabel;
+  final String removeRecentItemTooltip;
   final String moreActionsTooltip;
   final String settingsTooltip;
   final MediaFilter selectedMediaFilter;
@@ -34,8 +38,11 @@ class DesktopCommandBar extends StatelessWidget {
   final VoidCallback onOpenFiles;
   final VoidCallback onOpenFolder;
   final VoidCallback? onOpenCurrentFolder;
+  final VoidCallback? onCloseFolder;
   final List<RecentOpenItem> recentOpenItems;
   final ValueChanged<RecentOpenItem> onRecentOpenItemSelected;
+  final ValueChanged<RecentOpenItem> onRecentOpenItemRemoved;
+  final VoidCallback onClearRecentOpenItems;
 
   const DesktopCommandBar({
     super.key,
@@ -43,8 +50,11 @@ class DesktopCommandBar extends StatelessWidget {
     required this.openFolderLabel,
     required this.openFilesLabel,
     required this.openCurrentFolderLabel,
+    required this.closeFolderLabel,
     required this.recentItemsTitle,
     required this.noRecentItemsLabel,
+    required this.clearRecentItemsLabel,
+    required this.removeRecentItemTooltip,
     required this.moreActionsTooltip,
     required this.settingsTooltip,
     required this.selectedMediaFilter,
@@ -64,8 +74,11 @@ class DesktopCommandBar extends StatelessWidget {
     required this.onOpenFiles,
     required this.onOpenFolder,
     required this.onOpenCurrentFolder,
+    required this.onCloseFolder,
     required this.recentOpenItems,
     required this.onRecentOpenItemSelected,
+    required this.onRecentOpenItemRemoved,
+    required this.onClearRecentOpenItems,
   });
 
   @override
@@ -87,13 +100,19 @@ class DesktopCommandBar extends StatelessWidget {
                 openFolderLabel: openFolderLabel,
                 openFilesLabel: openFilesLabel,
                 openCurrentFolderLabel: openCurrentFolderLabel,
+                closeFolderLabel: closeFolderLabel,
                 recentItemsTitle: recentItemsTitle,
                 noRecentItemsLabel: noRecentItemsLabel,
+                clearRecentItemsLabel: clearRecentItemsLabel,
+                removeRecentItemTooltip: removeRecentItemTooltip,
                 onOpenFiles: onOpenFiles,
                 onOpenFolder: onOpenFolder,
                 onOpenCurrentFolder: onOpenCurrentFolder,
+                onCloseFolder: onCloseFolder,
                 recentOpenItems: recentOpenItems,
                 onRecentOpenItemSelected: onRecentOpenItemSelected,
+                onRecentOpenItemRemoved: onRecentOpenItemRemoved,
+                onClearRecentOpenItems: onClearRecentOpenItems,
               ),
               const SizedBox(width: 4),
               const Icon(Icons.photo_library_outlined,
@@ -171,20 +190,26 @@ class DesktopCommandBar extends StatelessWidget {
   }
 }
 
-enum GalleryAction { openFiles, openFolder, openCurrentFolder }
+enum GalleryAction { openFiles, openFolder, openCurrentFolder, closeFolder }
 
 class GalleryActionsMenu extends StatelessWidget {
   final String tooltip;
   final String openFolderLabel;
   final String openFilesLabel;
   final String openCurrentFolderLabel;
+  final String closeFolderLabel;
   final String recentItemsTitle;
   final String noRecentItemsLabel;
+  final String clearRecentItemsLabel;
+  final String removeRecentItemTooltip;
   final VoidCallback onOpenFiles;
   final VoidCallback onOpenFolder;
   final VoidCallback? onOpenCurrentFolder;
+  final VoidCallback? onCloseFolder;
   final List<RecentOpenItem> recentOpenItems;
   final ValueChanged<RecentOpenItem> onRecentOpenItemSelected;
+  final ValueChanged<RecentOpenItem> onRecentOpenItemRemoved;
+  final VoidCallback onClearRecentOpenItems;
 
   const GalleryActionsMenu({
     super.key,
@@ -192,13 +217,19 @@ class GalleryActionsMenu extends StatelessWidget {
     required this.openFolderLabel,
     required this.openFilesLabel,
     required this.openCurrentFolderLabel,
+    required this.closeFolderLabel,
     required this.recentItemsTitle,
     required this.noRecentItemsLabel,
+    required this.clearRecentItemsLabel,
+    required this.removeRecentItemTooltip,
     required this.onOpenFiles,
     required this.onOpenFolder,
     required this.onOpenCurrentFolder,
+    required this.onCloseFolder,
     required this.recentOpenItems,
     required this.onRecentOpenItemSelected,
+    required this.onRecentOpenItemRemoved,
+    required this.onClearRecentOpenItems,
   });
 
   @override
@@ -216,6 +247,9 @@ class GalleryActionsMenu extends StatelessWidget {
             break;
           case GalleryAction.openCurrentFolder:
             onOpenCurrentFolder?.call();
+            break;
+          case GalleryAction.closeFolder:
+            onCloseFolder?.call();
             break;
         }
       },
@@ -236,6 +270,12 @@ class GalleryActionsMenu extends StatelessWidget {
           icon: Icons.open_in_new,
           label: openCurrentFolderLabel,
         ),
+        desktopPopupMenuItem<GalleryAction>(
+          value: GalleryAction.closeFolder,
+          enabled: onCloseFolder != null,
+          icon: Icons.folder_off_outlined,
+          label: closeFolderLabel,
+        ),
         const PopupMenuDivider(height: 12),
         PopupMenuItem<GalleryAction>(
           enabled: false,
@@ -244,10 +284,19 @@ class GalleryActionsMenu extends StatelessWidget {
           child: _RecentOpenItemsSubmenu(
             title: recentItemsTitle,
             emptyLabel: noRecentItemsLabel,
+            clearLabel: clearRecentItemsLabel,
+            removeTooltip: removeRecentItemTooltip,
             items: recentOpenItems,
-            onSelected: (item) {
+            onSelected: (selection) {
               Navigator.pop(context);
-              onRecentOpenItemSelected(item);
+              switch (selection.action) {
+                case _RecentMenuAction.open:
+                  onRecentOpenItemSelected(selection.item!);
+                case _RecentMenuAction.remove:
+                  onRecentOpenItemRemoved(selection.item!);
+                case _RecentMenuAction.clear:
+                  onClearRecentOpenItems();
+              }
             },
           ),
         ),
@@ -259,29 +308,42 @@ class GalleryActionsMenu extends StatelessWidget {
   }
 }
 
+enum _RecentMenuAction { open, remove, clear }
+
+class _RecentMenuSelection {
+  final _RecentMenuAction action;
+  final RecentOpenItem? item;
+
+  const _RecentMenuSelection(this.action, [this.item]);
+}
+
 class _RecentOpenItemsSubmenu extends StatelessWidget {
   final String title;
   final String emptyLabel;
+  final String clearLabel;
+  final String removeTooltip;
   final List<RecentOpenItem> items;
-  final ValueChanged<RecentOpenItem> onSelected;
+  final ValueChanged<_RecentMenuSelection> onSelected;
 
   const _RecentOpenItemsSubmenu({
     required this.title,
     required this.emptyLabel,
+    required this.clearLabel,
+    required this.removeTooltip,
     required this.items,
     required this.onSelected,
   });
 
   @override
   Widget build(BuildContext context) {
-    return DesktopPopupMenuButton<RecentOpenItem>(
+    return DesktopPopupMenuButton<_RecentMenuSelection>(
       key: const ValueKey('recent-open-submenu'),
       tooltip: title,
       offset: const Offset(196, 0),
       onSelected: onSelected,
       itemBuilder: (context) => [
         if (items.isEmpty)
-          PopupMenuItem<RecentOpenItem>(
+          PopupMenuItem<_RecentMenuSelection>(
             enabled: false,
             height: 36,
             padding: EdgeInsets.zero,
@@ -291,21 +353,47 @@ class _RecentOpenItemsSubmenu extends StatelessWidget {
               enabled: false,
             ),
           )
-        else
+        else ...[
           ...items.map(
-            (item) => desktopPopupMenuItem<RecentOpenItem>(
-              value: item,
-              icon: item.isDirectory
-                  ? Icons.folder_outlined
-                  : Icons.insert_drive_file_outlined,
-              label: item.path,
+            (item) => PopupMenuItem<_RecentMenuSelection>(
+              value: _RecentMenuSelection(_RecentMenuAction.open, item),
+              height: 36,
+              padding: EdgeInsets.zero,
+              child: Builder(
+                builder: (menuContext) => _RecentOpenItemsMenuContent(
+                  icon: item.isDirectory
+                      ? Icons.folder_outlined
+                      : Icons.insert_drive_file_outlined,
+                  label: item.path,
+                  // The inner button wins the tap, so removing an entry
+                  // closes the menu with its own result instead of opening it.
+                  trailing: RecentOpenItemRemoveButton(
+                    tooltip: removeTooltip,
+                    onPressed: () => Navigator.pop(
+                      menuContext,
+                      _RecentMenuSelection(_RecentMenuAction.remove, item),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
+          const PopupMenuDivider(height: 12),
+          desktopPopupMenuItem<_RecentMenuSelection>(
+            value: const _RecentMenuSelection(_RecentMenuAction.clear),
+            icon: Icons.delete_sweep_outlined,
+            label: clearLabel,
+          ),
+        ],
       ],
       child: _RecentOpenItemsMenuContent(
         icon: Icons.history,
         label: title,
-        trailingIcon: Icons.chevron_right,
+        trailing: const Icon(
+          Icons.chevron_right,
+          size: 17,
+          color: RawViewerColors.mutedText,
+        ),
       ),
     );
   }
@@ -314,13 +402,13 @@ class _RecentOpenItemsSubmenu extends StatelessWidget {
 class _RecentOpenItemsMenuContent extends StatelessWidget {
   final IconData icon;
   final String label;
-  final IconData? trailingIcon;
+  final Widget? trailing;
   final bool enabled;
 
   const _RecentOpenItemsMenuContent({
     required this.icon,
     required this.label,
-    this.trailingIcon,
+    this.trailing,
     this.enabled = true,
   });
 
@@ -352,9 +440,9 @@ class _RecentOpenItemsMenuContent extends StatelessWidget {
               ),
             ),
           ),
-          if (trailingIcon != null) ...[
+          if (trailing != null) ...[
             const SizedBox(width: 8),
-            Icon(trailingIcon, size: 17, color: iconColor),
+            trailing!,
           ],
         ],
       ),

@@ -10,10 +10,14 @@ class EmptyGallery extends StatelessWidget {
   final String openFolderLabel;
   final String openFilesLabel;
   final String recentItemsTitle;
+  final String clearRecentItemsLabel;
+  final String removeRecentItemTooltip;
   final VoidCallback onOpenFiles;
   final VoidCallback onOpenFolder;
   final List<RecentOpenItem> recentOpenItems;
   final ValueChanged<RecentOpenItem> onRecentOpenItemSelected;
+  final ValueChanged<RecentOpenItem> onRecentOpenItemRemoved;
+  final VoidCallback onClearRecentOpenItems;
 
   const EmptyGallery({
     super.key,
@@ -21,10 +25,14 @@ class EmptyGallery extends StatelessWidget {
     required this.openFolderLabel,
     required this.openFilesLabel,
     required this.recentItemsTitle,
+    required this.clearRecentItemsLabel,
+    required this.removeRecentItemTooltip,
     required this.onOpenFiles,
     required this.onOpenFolder,
     required this.recentOpenItems,
     required this.onRecentOpenItemSelected,
+    required this.onRecentOpenItemRemoved,
+    required this.onClearRecentOpenItems,
   });
 
   @override
@@ -77,22 +85,40 @@ class EmptyGallery extends StatelessWidget {
             ),
             if (recentOpenItems.isNotEmpty) ...[
               const SizedBox(height: 28),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  recentItemsTitle,
-                  style: const TextStyle(
-                    color: RawViewerColors.mutedText,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      recentItemsTitle,
+                      style: const TextStyle(
+                        color: RawViewerColors.mutedText,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
-                ),
+                  TextButton(
+                    onPressed: onClearRecentOpenItems,
+                    style: TextButton.styleFrom(
+                      foregroundColor: RawViewerColors.mutedText,
+                      minimumSize: const Size(0, 28),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      textStyle: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    child: Text(clearRecentItemsLabel),
+                  ),
+                ],
               ),
               const SizedBox(height: 6),
               ...recentOpenItems.take(5).map(
                     (item) => _RecentOpenItemButton(
                       item: item,
+                      removeTooltip: removeRecentItemTooltip,
                       onPressed: () => onRecentOpenItemSelected(item),
+                      onRemove: () => onRecentOpenItemRemoved(item),
                     ),
                   ),
             ],
@@ -105,11 +131,15 @@ class EmptyGallery extends StatelessWidget {
 
 class _RecentOpenItemButton extends StatelessWidget {
   final RecentOpenItem item;
+  final String removeTooltip;
   final VoidCallback onPressed;
+  final VoidCallback onRemove;
 
   const _RecentOpenItemButton({
     required this.item,
+    required this.removeTooltip,
     required this.onPressed,
+    required this.onRemove,
   });
 
   @override
@@ -159,7 +189,49 @@ class _RecentOpenItemButton extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(width: 6),
+              RecentOpenItemRemoveButton(
+                tooltip: removeTooltip,
+                onPressed: onRemove,
+              ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small "×" that drops one entry from the recent-open list.
+class RecentOpenItemRemoveButton extends StatelessWidget {
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  const RecentOpenItemRemoveButton({
+    super.key,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox(
+        width: 24,
+        height: 24,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(4),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(4),
+            hoverColor: RawViewerColors.border,
+            onTap: onPressed,
+            child: const Icon(
+              Icons.close,
+              size: 15,
+              color: RawViewerColors.mutedText,
+            ),
           ),
         ),
       ),

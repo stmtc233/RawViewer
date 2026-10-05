@@ -497,6 +497,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noRecentOpenItems => '没有最近打开的文件或文件夹';
 
   @override
+  String get clearRecentOpenItems => '清空记录';
+
+  @override
+  String get removeRecentOpenItemTooltip => '从最近打开中移除';
+
+  @override
+  String get closeCurrentFolder => '关闭当前文件夹';
+
+  @override
   String get openInFinder => '在访达中打开';
 
   @override

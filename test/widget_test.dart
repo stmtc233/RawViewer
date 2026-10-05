@@ -1245,8 +1245,9 @@ void main() {
     final popupMenuItems = find.byWidgetPredicate(
       (widget) => widget is PopupMenuItem,
     );
-    expect(popupMenuItems, findsNWidgets(4));
+    expect(popupMenuItems, findsNWidgets(5));
     expect(find.text('Recent'), findsOneWidget);
+    expect(find.text('Close folder'), findsOneWidget);
     expect(find.text('No recent files or folders'), findsNothing);
     expect(
       find.ancestor(
@@ -1273,7 +1274,9 @@ void main() {
       find.byWidgetPredicate(
         (widget) => widget is PopupMenuItem && !widget.enabled,
       ),
-      findsNWidgets(2),
+      // Open-in-file-manager and close are disabled with nothing open; the
+      // recent entry hosts its own submenu.
+      findsNWidgets(3),
     );
 
     await tester.tap(find.byKey(const ValueKey('recent-open-submenu')));
@@ -1308,6 +1311,96 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('/photos/IMG_0001.ARW'), findsNWidgets(2));
   });
+
+  testWidgets('recent items can be removed one at a time or cleared',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'recent_open_items': [
+        '{"path":"/photos","isDirectory":true}',
+        '{"path":"/photos/IMG_0001.ARW","isDirectory":false}',
+        '{"path":"/other","isDirectory":true}',
+      ],
+    });
+    tester.view.physicalSize = const Size(800, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const MyApp());
+    await tester.pumpAndSettle();
+
+    // Removing from the home list drops only that entry.
+    await tester.tap(find.byTooltip('Remove from recent').first);
+    await tester.pumpAndSettle();
+    expect(find.text('/photos'), findsNothing);
+    expect(find.text('/photos/IMG_0001.ARW'), findsOneWidget);
+    expect(
+      (await const PreferencesRepository().loadRecentOpenItems())
+          .map((item) => item.path),
+      ['/photos/IMG_0001.ARW', '/other'],
+    );
+
+    // Removing from the menu does not open the entry.
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('recent-open-submenu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Remove from recent').last);
+    await tester.pumpAndSettle();
+    expect(
+      (await const PreferencesRepository().loadRecentOpenItems())
+          .map((item) => item.path),
+      ['/photos/IMG_0001.ARW'],
+    );
+    expect(
+        find.text('Open or drop RAW and image files/folders'), findsOneWidget);
+
+    await tester.tap(find.text('Clear recent'));
+    await tester.pumpAndSettle();
+    expect(find.text('Recent'), findsNothing);
+    expect(await const PreferencesRepository().loadRecentOpenItems(), isEmpty);
+  });
+
+  testWidgets('close folder returns to the empty home screen', (tester) async {
+    await tester.runAsync(() async {
+      final root = Directory.systemTemp.createTempSync('close-folder-');
+      addTearDown(() => root.deleteSync(recursive: true));
+      File('${root.path}/a.jpg').writeAsStringSync('');
+      SharedPreferences.setMockInitialValues({});
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(
+          desktopOpenChannel, (_) async => [root.path]);
+      addTearDown(
+          () => messenger.setMockMethodCallHandler(desktopOpenChannel, null));
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(const MyApp());
+      Future<void> settle() async {
+        for (var i = 0; i < 10; i++) {
+          await tester.pump();
+          await Future<void>.delayed(const Duration(milliseconds: 30));
+        }
+        await tester.pumpAndSettle();
+      }
+
+      await settle();
+      const emptyMessage = 'Open or drop RAW and image files/folders';
+      expect(find.text(emptyMessage), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Close folder'));
+      await settle();
+
+      expect(find.text(emptyMessage), findsOneWidget);
+      // The closed folder stays available from the recent list.
+      expect(find.text(root.path), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }, skip: !Platform.isMacOS && !Platform.isWindows && !Platform.isLinux);
 
   testWidgets('recent folder reopens through its security-scoped bookmark',
       (tester) async {
