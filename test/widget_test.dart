@@ -1373,32 +1373,37 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      // Linux reads its startup paths from the process arguments instead of
-      // the desktop-open channel, so inject them for every platform.
+      // Linux reads startup paths from the process arguments rather than the
+      // desktop open channel, so inject the folder directly.
       await tester.pumpWidget(MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('en'),
         home: HomePage(
           onAppLanguageChanged: (_) {},
           initialPathsLoader: () async => [root.path],
         ),
       ));
-      Future<void> settle() async {
-        for (var i = 0; i < 10; i++) {
+
+      const emptyMessage = 'Open or drop RAW and image files/folders';
+      // The folder scan is real async I/O, so wait for it rather than for a
+      // fixed number of frames.
+      Future<void> waitForEmptyState(bool empty) async {
+        for (var i = 0; i < 100; i++) {
           await tester.pump();
-          await Future<void>.delayed(const Duration(milliseconds: 30));
+          if (find.text(emptyMessage).evaluate().isNotEmpty == empty) return;
+          await Future<void>.delayed(const Duration(milliseconds: 50));
         }
-        await tester.pumpAndSettle();
       }
 
-      await settle();
-      const emptyMessage = 'Open or drop RAW and image files/folders';
+      await waitForEmptyState(false);
       expect(find.text(emptyMessage), findsNothing);
 
       await tester.tap(find.byIcon(Icons.more_vert));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Close folder'));
-      await settle();
+      await waitForEmptyState(true);
+      await tester.pumpAndSettle();
 
       expect(find.text(emptyMessage), findsOneWidget);
       // The closed folder stays available from the recent list.
