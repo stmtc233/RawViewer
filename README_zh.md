@@ -1,18 +1,12 @@
 # Raw Viewer
 
-## 0.1.1
-
-新增 14 种相机 RAW 格式与 GIF、BMP 支持，改进网格与预览交互，修复 Windows ARM64 构建，并将 Windows 包体积减少约 20 MB。
-
-完整发布历史见 [CHANGELOG.md](CHANGELOG.md)。
-
 ![Flutter](https://img.shields.io/badge/Flutter-%2302569B.svg?style=for-the-badge&logo=Flutter&logoColor=white)
 ![Windows](https://img.shields.io/badge/Windows-0078D6.svg?style=for-the-badge&logo=windows&logoColor=white)
 ![macOS](https://img.shields.io/badge/macOS-000000.svg?style=for-the-badge&logo=apple&logoColor=white)
 ![Linux](https://img.shields.io/badge/Linux-FCC624.svg?style=for-the-badge&logo=linux&logoColor=black)
 ![Android](https://img.shields.io/badge/Android-3DDC84.svg?style=for-the-badge&logo=android&logoColor=white)
 
-*[Read this in English](README.md)*
+*[Read this in English](README.md)* · [Releases](https://github.com/stmtc233/rawviewer/releases) · [更新日志](CHANGELOG.md)
 
 一个基于 Flutter 开发的快速、跨平台的相机 RAW 格式图片浏览器。底层通过 Dart FFI 集成了 [LibRaw](https://www.libraw.org/) 用于高性能的 RAW 解码。
 

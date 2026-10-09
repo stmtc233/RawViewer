@@ -1,18 +1,12 @@
 # Raw Viewer
 
-## 0.1.1
-
-Adds 14 more camera RAW formats plus GIF and BMP support, refines gallery and preview interaction, fixes the Windows ARM64 build, and trims roughly 20 MB from the Windows packages.
-
-See [CHANGELOG.md](CHANGELOG.md) for the full release history.
-
 ![Flutter](https://img.shields.io/badge/Flutter-%2302569B.svg?style=for-the-badge&logo=Flutter&logoColor=white)
 ![Windows](https://img.shields.io/badge/Windows-0078D6.svg?style=for-the-badge&logo=windows&logoColor=white)
 ![macOS](https://img.shields.io/badge/macOS-000000.svg?style=for-the-badge&logo=apple&logoColor=white)
 ![Linux](https://img.shields.io/badge/Linux-FCC624.svg?style=for-the-badge&logo=linux&logoColor=black)
 ![Android](https://img.shields.io/badge/Android-3DDC84.svg?style=for-the-badge&logo=android&logoColor=white)
 
-*[Read this in Chinese / 中文文档](README_zh.md)*
+*[Read this in Chinese / 中文文档](README_zh.md)* · [Releases](https://github.com/stmtc233/rawviewer/releases) · [Changelog](CHANGELOG.md)
 
 A fast, cross-platform image viewer specifically built for RAW photography files, developed with Flutter and powered by [LibRaw](https://www.libraw.org/) via Dart FFI. 
 
