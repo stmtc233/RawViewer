@@ -1386,8 +1386,14 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      await settle();
       const emptyMessage = 'Open or drop RAW and image files/folders';
+      // The folder is scanned on a real isolate, so wait for it to land
+      // instead of assuming a fixed number of pumps is enough.
+      final deadline = DateTime.now().add(const Duration(seconds: 10));
+      do {
+        await settle();
+      } while (find.text(emptyMessage).evaluate().isNotEmpty &&
+          DateTime.now().isBefore(deadline));
       expect(find.text(emptyMessage), findsNothing);
 
       await tester.tap(find.byIcon(Icons.more_vert));
