@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:rawviewer/lru_cache.dart';
 import 'package:rawviewer/l10n/app_localizations.dart';
 import 'package:rawviewer/app.dart';
+import 'package:rawviewer/home_page.dart';
 import 'package:rawviewer/core/decode_target.dart';
 import 'package:rawviewer/core/preview_filmstrip_size.dart';
 import 'package:rawviewer/core/media_types.dart';
@@ -1367,17 +1368,21 @@ void main() {
       addTearDown(() => root.deleteSync(recursive: true));
       File('${root.path}/a.jpg').writeAsStringSync('');
       SharedPreferences.setMockInitialValues({});
-      final messenger = tester.binding.defaultBinaryMessenger;
-      messenger.setMockMethodCallHandler(
-          desktopOpenChannel, (_) async => [root.path]);
-      addTearDown(
-          () => messenger.setMockMethodCallHandler(desktopOpenChannel, null));
       tester.view.physicalSize = const Size(800, 600);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      await tester.pumpWidget(const MyApp());
+      // Linux reads its startup paths from the process arguments instead of
+      // the desktop-open channel, so inject them for every platform.
+      await tester.pumpWidget(MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: HomePage(
+          onAppLanguageChanged: (_) {},
+          initialPathsLoader: () async => [root.path],
+        ),
+      ));
       Future<void> settle() async {
         for (var i = 0; i < 10; i++) {
           await tester.pump();
