@@ -388,6 +388,12 @@ jobs:
     needs: [resolve-version, build-windows, build-windows-arm64, build-macos, build-android, build-linux, build-linux-arm64]
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Extract release notes
+        run: tool/release_notes.sh "${{ needs.resolve-version.outputs.tag }}" > release_notes.md
+
       - name: Download Windows Build
         uses: actions/download-artifact@v6
         with:
@@ -433,6 +439,7 @@ jobs:
         with:
           tag_name: ${{ needs.resolve-version.outputs.tag }}
           name: Release ${{ needs.resolve-version.outputs.tag }}
+          body_path: release_notes.md
           files: |
             rawviewer-windows-${{ needs.resolve-version.outputs.tag }}.zip
             rawviewer-windows-${{ needs.resolve-version.outputs.tag }}-setup.exe
