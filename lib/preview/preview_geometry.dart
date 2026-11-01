@@ -47,6 +47,10 @@ const double previewFilmstripResizeHandleAboveBar = 14;
 const double previewFilmstripVerticalChromeHeight = 30;
 const double previewFilmstripMinimumContentHeight = 160;
 const Duration previewOverlayFadeDuration = Duration(milliseconds: 140);
+
+/// How long touch-revealed overlay controls stay fully opaque after the last
+/// finger lifts. Touch has no hover exit, so this replaces it.
+const Duration previewTouchRevealHoldDuration = Duration(seconds: 3);
 const double previewFitScale = 1.0;
 const double previewScaleEpsilon = 0.01;
 const double previewControlZoomStep = 1.25;

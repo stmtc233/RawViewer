@@ -334,4 +334,44 @@ void main() {
         findsNothing);
     expect(find.byKey(const ValueKey('preview-navigation-next')), findsNothing);
   });
+
+  testWidgets('touch reveals hover controls and fades back after release',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Center(
+        child: PreviewHoverReveal(
+          restingOpacity: 0.2,
+          child: SizedBox(width: 100, height: 100),
+        ),
+      ),
+    ));
+
+    double opacity() =>
+        tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity;
+    expect(opacity(), 0.2);
+
+    final touch = await tester.startGesture(
+        tester.getCenter(find.byType(SizedBox)),
+        kind: PointerDeviceKind.touch);
+    await tester.pump();
+    expect(opacity(), 1);
+
+    // Held fingers keep the controls revealed indefinitely.
+    await tester.pump(previewTouchRevealHoldDuration * 2);
+    expect(opacity(), 1);
+
+    await touch.up();
+    await tester.pump(previewTouchRevealHoldDuration ~/ 2);
+    expect(opacity(), 1);
+
+    await tester.pump(previewTouchRevealHoldDuration);
+    expect(opacity(), 0.2);
+
+    // A fresh tap restarts the hold rather than inheriting an old timer.
+    await tester.tapAt(tester.getCenter(find.byType(SizedBox)));
+    await tester.pump();
+    expect(opacity(), 1);
+    await tester.pump(previewTouchRevealHoldDuration);
+    expect(opacity(), 0.2);
+  });
 }
