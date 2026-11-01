@@ -199,6 +199,9 @@ class _MediaThumbnailTileState extends State<MediaThumbnailTile> {
     final imageStream = imageProvider.resolve(ImageConfiguration.empty);
     final listener = ImageStreamListener((imageInfo, _) {
       _reportAspectRatio(imageInfo.image.width / imageInfo.image.height);
+    }, onError: (Object error, StackTrace? stackTrace) {
+      // The Image widget renders the failure. This observer only measures
+      // layout and must not report a second, unhandled asynchronous error.
     });
     _bitmapImageStream = imageStream;
     _bitmapImageListener = listener;

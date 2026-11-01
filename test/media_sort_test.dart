@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,63 @@ import 'package:rawviewer/media_group.dart';
 import 'package:rawviewer/media_sort.dart';
 
 void main() {
+  test('sorts thousands of files in the background without reading metadata',
+      () async {
+    final files = [
+      for (var i = 3999; i >= 0; i--)
+        MediaFile(
+            path: '/photos/${i.toString().padLeft(4, '0')}.jpg',
+            kind: MediaKind.bitmap),
+    ];
+    final ascending = await sortMediaFiles(files, MediaSortOrder.nameAscending,
+        loadCapturedAt: (_) => throw StateError('Unexpected metadata read'),
+        loadRating: (_) => throw StateError('Unexpected metadata read'));
+    expect(ascending.first.path, '/photos/0000.jpg');
+    expect(ascending.last.path, '/photos/3999.jpg');
+    expect(files.first.path, '/photos/3999.jpg');
+    final descending =
+        await sortMediaFiles(files, MediaSortOrder.nameDescending);
+    expect(descending.map((file) => file.path),
+        ascending.reversed.map((file) => file.path));
+  });
+
+  for (final order in [
+    MediaSortOrder.capturedNewest,
+    MediaSortOrder.ratingDescending
+  ]) {
+    test('superseded $order stops starting metadata reads', () async {
+      var cancelled = false;
+      final gate = Completer<void>();
+      var reads = 0;
+      Future<void> read() async {
+        reads++;
+        await gate.future;
+      }
+
+      final files = [
+        for (var i = 0; i < 4000; i++)
+          MediaFile(path: '/photos/$i.jpg', kind: MediaKind.bitmap)
+      ];
+      final sorted = sortMediaFiles(files, order,
+          loadCapturedAt: (_) async {
+            await read();
+            return DateTime(2026);
+          },
+          loadRating: (_) async {
+            await read();
+            return 3;
+          },
+          isCancelled: () => cancelled);
+      expect(reads, greaterThan(0));
+      expect(reads, lessThan(files.length));
+      final started = reads;
+      cancelled = true;
+      gate.complete();
+      await sorted;
+      expect(reads, started);
+    });
+  }
+
   test(
       'sorts ratings in both directions with stable names for ties and unrated',
       () async {

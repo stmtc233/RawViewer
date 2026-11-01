@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
@@ -37,15 +38,16 @@ typedef CapturedAtLoader = Future<DateTime> Function(String filePath);
 Future<List<MediaFile>> sortMediaFiles(
     Iterable<MediaFile> files, MediaSortOrder sortOrder,
     {CapturedAtLoader? loadCapturedAt,
-    Future<int?> Function(String filePath)? loadRating}) async {
+    Future<int?> Function(String filePath)? loadRating,
+    bool Function()? isCancelled}) async {
   final sortedFiles = List<MediaFile>.of(files);
   switch (sortOrder) {
     case MediaSortOrder.nameAscending:
-      sortedFiles.sort(_compareByName);
-      return sortedFiles;
+      return _sortWithKeys(sortedFiles);
     case MediaSortOrder.nameDescending:
-      sortedFiles.sort(_compareByName);
-      return sortedFiles.reversed.toList(growable: false);
+      return (await _sortWithKeys(sortedFiles))
+          .reversed
+          .toList(growable: false);
     case MediaSortOrder.capturedNewest:
     case MediaSortOrder.capturedOldest:
       if (loadCapturedAt == null) {
@@ -57,6 +59,7 @@ Future<List<MediaFile>> sortMediaFiles(
         sortedFiles,
         newestFirst: sortOrder == MediaSortOrder.capturedNewest,
         loadTime: (file) => loadCapturedAt(file.path),
+        isCancelled: isCancelled,
       );
     case MediaSortOrder.modifiedNewest:
     case MediaSortOrder.modifiedOldest:
@@ -64,6 +67,7 @@ Future<List<MediaFile>> sortMediaFiles(
         sortedFiles,
         newestFirst: sortOrder == MediaSortOrder.modifiedNewest,
         loadTime: (file) => File(file.path).lastModified(),
+        isCancelled: isCancelled,
       );
     case MediaSortOrder.ratingDescending:
     case MediaSortOrder.ratingAscending:
@@ -80,15 +84,11 @@ Future<List<MediaFile>> sortMediaFiles(
         } catch (_) {
           ratings[file.path] = 0;
         }
-      });
-      sortedFiles.sort((a, b) {
-        final comparison = ratings[a.path]!.compareTo(ratings[b.path]!);
-        if (comparison == 0) return _compareByName(a, b);
-        return sortOrder == MediaSortOrder.ratingDescending
-            ? -comparison
-            : comparison;
-      });
-      return sortedFiles;
+      }, isCancelled: isCancelled);
+      if (isCancelled?.call() ?? false) return sortedFiles;
+      return _sortWithKeys(sortedFiles,
+          values: ratings,
+          descending: sortOrder == MediaSortOrder.ratingDescending);
   }
 }
 
@@ -96,34 +96,43 @@ Future<List<MediaFile>> _sortByTime(
   List<MediaFile> files, {
   required bool newestFirst,
   required Future<DateTime> Function(MediaFile file) loadTime,
+  bool Function()? isCancelled,
 }) async {
-  final timestamps = <String, DateTime>{};
+  final timestamps = <String, int>{};
   await forEachConcurrently(files, _concurrentSortLoads, (file) async {
     try {
-      timestamps[file.path] = await loadTime(file);
+      timestamps[file.path] = (await loadTime(file)).microsecondsSinceEpoch;
     } on FileSystemException {
-      timestamps[file.path] = DateTime.fromMillisecondsSinceEpoch(0);
+      timestamps[file.path] = 0;
     }
-  });
-
-  files.sort((a, b) {
-    final comparison = timestamps[a.path]!.compareTo(timestamps[b.path]!);
-    if (comparison == 0) {
-      return _compareByName(a, b);
-    }
-    return newestFirst ? -comparison : comparison;
-  });
-  return files;
+  }, isCancelled: isCancelled);
+  if (isCancelled?.call() ?? false) return files;
+  return _sortWithKeys(files, values: timestamps, descending: newestFirst);
 }
 
-int _compareByName(MediaFile a, MediaFile b) {
-  final aName = path.basename(a.path).toLowerCase();
-  final bName = path.basename(b.path).toLowerCase();
-  final nameComparison = aName.compareTo(bName);
-  if (nameComparison != 0) {
-    return nameComparison;
+Future<List<MediaFile>> _sortWithKeys(List<MediaFile> files,
+    {Map<String, int>? values, bool descending = false}) async {
+  // Only send data to the isolate; metadata callbacks can own widget state.
+  if (files.length >= 256) {
+    return Isolate.run(() => _sortWithKeysSync(files, values, descending));
   }
-  return a.path.toLowerCase().compareTo(b.path.toLowerCase());
+  return _sortWithKeysSync(files, values, descending);
+}
+
+List<MediaFile> _sortWithKeysSync(
+    List<MediaFile> files, Map<String, int>? values, bool descending) {
+  // Compute path keys once, instead of allocating them O(n log n) times.
+  final names = {
+    for (final file in files) file.path: path.basename(file.path).toLowerCase(),
+  };
+  final paths = {for (final file in files) file.path: file.path.toLowerCase()};
+  files.sort((a, b) {
+    final comparison = (values?[a.path] ?? 0).compareTo(values?[b.path] ?? 0);
+    if (comparison != 0) return descending ? -comparison : comparison;
+    final byName = names[a.path]!.compareTo(names[b.path]!);
+    return byName != 0 ? byName : paths[a.path]!.compareTo(paths[b.path]!);
+  });
+  return files;
 }
 
 class MediaSortButton extends StatelessWidget {

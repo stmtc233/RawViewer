@@ -61,12 +61,14 @@ class HomePage extends StatefulWidget {
   final ValueChanged<AppLanguage> onAppLanguageChanged;
   final Future<void>? desktopWindowReady;
   final Future<List<String>> Function()? initialPathsLoader;
+  final Stream<List<MediaFile>> Function(String)? directoryScanner;
 
   const HomePage({
     super.key,
     required this.onAppLanguageChanged,
     this.desktopWindowReady,
     this.initialPathsLoader,
+    this.directoryScanner,
   });
 
   @override
@@ -101,6 +103,8 @@ class _HomePageState extends State<HomePage> {
   /// Bumped by every user request to open something, so a directory scan
   /// that finishes after a later request is discarded instead of replacing it.
   int _openRequestGeneration = 0;
+  StreamIterator<List<MediaFile>>? _directoryScan;
+  bool _openingSource = false;
   int _crossAxisCount = 4;
   bool _hasUserConfiguredGridAspectRatio = false;
   final GridZoomAccumulator _gridZoom = GridZoomAccumulator();
@@ -109,6 +113,11 @@ class _HomePageState extends State<HomePage> {
   final Map<String, double> _pendingMediaAspectRatios = <String, double>{};
   bool _mediaAspectRatioUpdateScheduled = false;
   int _lastGalleryPrefetchAnchor = -1;
+  Timer? _galleryPrefetchTimer;
+  int _galleryPrefetchGeneration = 0;
+  List<MediaFile>? _groupedFiles;
+  List<MediaGroup> _adaptiveMediaGroups = const [];
+  int _rawCount = 0;
 
   @override
   void initState() {
@@ -124,6 +133,10 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    _openRequestGeneration++;
+    unawaited(_directoryScan?.cancel());
+    _galleryPrefetchTimer?.cancel();
+    _galleryPrefetchGeneration++;
     _ratingFilter.dispose();
     _ratingRepository.dispose();
     _gridZoomResetTimer?.cancel();
@@ -211,7 +224,8 @@ class _HomePageState extends State<HomePage> {
     final files = List<MediaFile>.of(_files);
     final sortOrder = _mediaSortOrder;
     final generation = ++_mediaSortGeneration;
-    final sortedFiles = await _sortMediaFiles(files, sortOrder);
+    final sortedFiles = await _sortMediaFiles(files, sortOrder,
+        isCancelled: () => !mounted || generation != _mediaSortGeneration);
     if (!mounted ||
         generation != _mediaSortGeneration ||
         sortOrder != _mediaSortOrder) {
@@ -766,7 +780,8 @@ class _HomePageState extends State<HomePage> {
             : await restoreSecurityScopedAccess(bookmark)) ??
         item.path;
 
-    final entityType = FileSystemEntity.typeSync(openPath, followLinks: true);
+    final entityType = await FileSystemEntity.type(openPath, followLinks: true);
+    if (!mounted) return;
     final matchesStoredType = item.isDirectory
         ? entityType == FileSystemEntityType.directory
         : entityType == FileSystemEntityType.file;
@@ -892,12 +907,17 @@ class _HomePageState extends State<HomePage> {
     // Discard any directory scan or sort still in flight for the old source.
     ++_openRequestGeneration;
     ++_mediaSortGeneration;
+    unawaited(_directoryScan?.cancel());
+    _directoryScan = null;
+    _galleryPrefetchTimer?.cancel();
+    _galleryPrefetchGeneration++;
     _imageCache.clear();
     _mediaAspectRatios.clear();
     _pendingMediaAspectRatios.clear();
     _timestampRepository.clear();
     _lastGalleryPrefetchAnchor = -1;
     setState(() {
+      _openingSource = false;
       _openedSourceKind = _OpenedSourceKind.none;
       _currentDirectoryPath = null;
       _openedDirectoryCount = null;
@@ -985,6 +1005,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _handleIncomingPaths(List<String> incomingPaths) async {
+    if (!mounted) return;
     final normalizedPaths = incomingPaths
         .where((filePath) => filePath.trim().isNotEmpty)
         .map((filePath) => path.normalize(path.absolute(filePath)))
@@ -992,13 +1013,34 @@ class _HomePageState extends State<HomePage> {
     if (normalizedPaths.isEmpty) {
       return;
     }
-    ++_openRequestGeneration;
+    final request = ++_openRequestGeneration;
+    ++_mediaSortGeneration;
+    unawaited(_directoryScan?.cancel());
+    _directoryScan = null;
+    _galleryPrefetchTimer?.cancel();
+    _galleryPrefetchGeneration++;
+    setState(() => _openingSource = true);
+    try {
+      await _openIncomingPaths(normalizedPaths, request);
+    } on FileSystemException catch (error) {
+      if (mounted && request == _openRequestGeneration) {
+        _showDirectoryLoadError(error);
+      }
+    } finally {
+      if (mounted && request == _openRequestGeneration) {
+        setState(() => _openingSource = false);
+      }
+    }
+  }
 
+  Future<void> _openIncomingPaths(
+      List<String> normalizedPaths, int request) async {
     final directories = <String>[];
     final files = <MediaFile>[];
 
     for (final openPath in normalizedPaths) {
-      final entityType = FileSystemEntity.typeSync(openPath);
+      final entityType = await FileSystemEntity.type(openPath);
+      if (!mounted || request != _openRequestGeneration) return;
       if (entityType == FileSystemEntityType.directory) {
         directories.add(openPath);
         continue;
@@ -1008,30 +1050,86 @@ class _HomePageState extends State<HomePage> {
         if (mediaFile != null) {
           files.add(mediaFile);
         }
+      } else if (entityType == FileSystemEntityType.notFound) {
+        // type() returns notFound for inaccessible SMB paths too. Report it
+        // instead of silently treating the drop as an empty request.
+        _showDirectoryLoadError(openPath);
       }
     }
 
     if (directories.isNotEmpty) {
       final directoryFiles = <MediaFile>[];
+      var published = false;
+      Timer? publishTimer;
+      Future<void> pendingPublish = Future<void>.value();
+      Future<void> publish({bool complete = false}) {
+        return pendingPublish = pendingPublish.then((_) async {
+          if (!mounted || request != _openRequestGeneration) return;
+          await _applyOpenedFiles(
+            files: _deduplicateMediaFiles([...directoryFiles, ...files]),
+            sourceKind: _OpenedSourceKind.folder,
+            clearCache: !published,
+            preserveBrowsingCache: true,
+            openedDirectoryPath:
+                directories.length == 1 ? directories.first : null,
+            openedDirectoryCount: directories.length,
+            // Metadata sorting may need to download every file. Show the name
+            // ordered gallery first so enumeration never waits for those reads.
+            sortOrder: complete ||
+                    _mediaSortOrder == MediaSortOrder.nameAscending ||
+                    _mediaSortOrder == MediaSortOrder.nameDescending
+                ? _mediaSortOrder
+                : defaultMediaSortOrder,
+          );
+          published = true;
+        });
+      }
+
       try {
         for (final directory in directories) {
-          final files = await _listRawFilesInDirectory(directory);
-          if (files == null) return;
-          directoryFiles.addAll(files);
+          final scan = StreamIterator((widget.directoryScanner ??
+              scanMediaFilesInDirectory)(directory));
+          _directoryScan = scan;
+          try {
+            while (await scan.moveNext()) {
+              if (!mounted || request != _openRequestGeneration) return;
+              directoryFiles.addAll(scan.current);
+              if (!published) {
+                await publish();
+              } else {
+                // Flush buffered entries even if the SMB server stops sending
+                // the next batch. Publications remain serialized.
+                publishTimer ??= Timer(const Duration(milliseconds: 150), () {
+                  publishTimer = null;
+                  // The final publication awaits this same future and reports
+                  // failures. Avoid an unhandled error in the timer callback.
+                  publish().ignore();
+                });
+              }
+            }
+          } finally {
+            publishTimer?.cancel();
+            publishTimer = null;
+            await scan.cancel();
+            if (identical(_directoryScan, scan)) _directoryScan = null;
+          }
+          if (!mounted || request != _openRequestGeneration) return;
         }
       } on FileSystemException catch (error) {
+        if (!mounted || request != _openRequestGeneration) return;
+        // Retain files already enumerated when a network listing drops out.
+        if (directoryFiles.isNotEmpty) await publish();
+        if (!mounted || request != _openRequestGeneration) return;
         _showDirectoryLoadError(error);
         return;
       }
-      final nextFiles = _deduplicateMediaFiles([...directoryFiles, ...files]);
-      await _applyOpenedFiles(
-        files: nextFiles,
-        sourceKind: _OpenedSourceKind.folder,
-        clearCache: true,
-        preserveBrowsingCache: true,
-        openedDirectoryPath: directories.length == 1 ? directories.first : null,
-        openedDirectoryCount: directories.length,
-      );
+      // Publish the final batch before starting any expensive metadata sort.
+      await publish();
+      if (_mediaSortOrder != MediaSortOrder.nameAscending &&
+          _mediaSortOrder != MediaSortOrder.nameDescending) {
+        await publish(complete: true);
+      }
+      if (!mounted || request != _openRequestGeneration) return;
       await _recordRecentOpenItems(
         directories.map(
           (directory) => RecentOpenItem(path: directory, isDirectory: true),
@@ -1058,6 +1156,7 @@ class _HomePageState extends State<HomePage> {
       deferredDirectoryPath:
           shouldOpenSingleFile ? path.dirname(files.single.path) : null,
     );
+    if (!mounted || request != _openRequestGeneration) return;
     await _recordRecentOpenItems(
       files.map(
         (file) => RecentOpenItem(path: file.path, isDirectory: false),
@@ -1078,6 +1177,7 @@ class _HomePageState extends State<HomePage> {
     int? openedDirectoryCount,
     String? deferredDirectoryPath,
     bool refreshDirectoryBrowser = false,
+    MediaSortOrder? sortOrder,
   }) async {
     if (!mounted) {
       return;
@@ -1087,12 +1187,21 @@ class _HomePageState extends State<HomePage> {
       _timestampRepository.clear();
     }
     final generation = ++_mediaSortGeneration;
-    final sortedFiles = await _sortMediaFiles(files, _mediaSortOrder);
-    if (!mounted || generation != _mediaSortGeneration) {
+    final request = _openRequestGeneration;
+    final sortedFiles = await _sortMediaFiles(
+        files, sortOrder ?? _mediaSortOrder,
+        isCancelled: () =>
+            !mounted ||
+            request != _openRequestGeneration ||
+            generation != _mediaSortGeneration);
+    if (!mounted ||
+        generation != _mediaSortGeneration ||
+        request != _openRequestGeneration) {
       return;
     }
 
     if (clearCache) {
+      _lastGalleryPrefetchAnchor = -1;
       // Directory navigation reuses resident data within each cache's budget.
       if (!preserveBrowsingCache) {
         _imageCache.clear();
@@ -1117,13 +1226,15 @@ class _HomePageState extends State<HomePage> {
 
   Future<List<MediaFile>> _sortMediaFiles(
     Iterable<MediaFile> files,
-    MediaSortOrder sortOrder,
-  ) {
+    MediaSortOrder sortOrder, {
+    bool Function()? isCancelled,
+  }) {
     return sortMediaFiles(
       files,
       sortOrder,
       loadCapturedAt: _loadCapturedAt,
       loadRating: _ratingRepository.load,
+      isCancelled: isCancelled,
     );
   }
 
@@ -1428,6 +1539,8 @@ class _HomePageState extends State<HomePage> {
       children: [
         if (directories.isNotEmpty || mediaGroups.isNotEmpty)
           _buildGalleryGrid(mediaGroups, thumbnailResizeWidth, directories)
+        else if (_files.isEmpty && _openingSource)
+          const Center(child: CircularProgressIndicator())
         else if (_files.isEmpty)
           EmptyGallery(
             message: l10n.homeEmptyState,
@@ -1447,6 +1560,13 @@ class _HomePageState extends State<HomePage> {
           const Center(child: CircularProgressIndicator())
         else
           Center(child: Text(l10n.mediaFilterEmptyState)),
+        if (_openingSource)
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(),
+          ),
         Positioned(
           right: 12,
           bottom: 12,
@@ -1640,32 +1760,47 @@ class _HomePageState extends State<HomePage> {
     if (mediaGroups.isEmpty || metrics.maxScrollExtent <= 0) return;
     final fraction = (metrics.pixels / metrics.maxScrollExtent).clamp(0.0, 1.0);
     final anchor = (fraction * (mediaGroups.length - 1)).round();
-    if ((anchor - _lastGalleryPrefetchAnchor).abs() < _crossAxisCount) return;
-    _lastGalleryPrefetchAnchor = anchor;
+    _galleryPrefetchTimer?.cancel();
+    final generation = ++_galleryPrefetchGeneration;
+    // A fast scroll must not queue reads for every row it crosses, especially
+    // when those files have to be downloaded. Warm only after it settles.
+    _galleryPrefetchTimer = Timer(const Duration(milliseconds: 180), () {
+      if (!mounted ||
+          _openingSource ||
+          (anchor - _lastGalleryPrefetchAnchor).abs() < _crossAxisCount) {
+        return;
+      }
+      _lastGalleryPrefetchAnchor = anchor;
+      unawaited(_prefetchGalleryRange(
+          mediaGroups, thumbnailResizeWidth, anchor, generation));
+    });
+  }
 
-    final start = math.max(0, anchor - _crossAxisCount * 2);
+  Future<void> _prefetchGalleryRange(List<MediaGroup> mediaGroups,
+      int thumbnailResizeWidth, int anchor, int generation) async {
+    final start = math.max(0, anchor - _crossAxisCount);
     final end = math.min(
       mediaGroups.length,
-      anchor + _crossAxisCount * 4,
+      anchor + _crossAxisCount * 2,
     );
     for (var index = start; index < end; index++) {
+      if (!mounted || generation != _galleryPrefetchGeneration) return;
       final mediaFile = mediaGroups[index].primary;
       if (!mediaFile.isRaw) {
-        precacheImage(
+        await precacheImage(
           resizedBitmapImageProvider(mediaFile.path,
               width: thumbnailResizeWidth),
           context,
         );
         continue;
       }
-      unawaited(_imageStore
-          .load(
-            mediaFile.path,
-            RawLayer.thumbnail,
-            targetWidth: thumbnailResizeWidth,
-            priority: TaskPriority.low,
-          )
-          .then((image) => image?.dispose()));
+      final image = await _imageStore.load(
+        mediaFile.path,
+        RawLayer.thumbnail,
+        targetWidth: thumbnailResizeWidth,
+        priority: TaskPriority.low,
+      );
+      image?.dispose();
     }
   }
 
@@ -1674,9 +1809,17 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _refreshRatingGroups() {
+    _galleryPrefetchTimer?.cancel();
+    _galleryPrefetchGeneration++;
+    _lastGalleryPrefetchAnchor = -1;
+    if (!identical(_groupedFiles, _files)) {
+      _groupedFiles = _files;
+      _adaptiveMediaGroups = buildAdaptiveMediaGroups(_files);
+      _rawCount = _files.where((file) => file.isRaw).length;
+    }
     _ratingFilter.update(
         groups: switch (_mediaFilter) {
-      MediaFilter.adaptive => buildAdaptiveMediaGroups(_files),
+      MediaFilter.adaptive => _adaptiveMediaGroups,
       _ => [
           for (final file in _files)
             if (_mediaFilter.includes(isRaw: file.isRaw))
@@ -1691,9 +1834,9 @@ class _HomePageState extends State<HomePage> {
     final currentFolderPath = _currentFolderPath();
     final canOpenCurrentFolder = currentFolderPath != null &&
         (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
-    final rawCount = _files.where((file) => file.isRaw).length;
+    final rawCount = _rawCount;
     final imageCount = _files.length - rawCount;
-    final adaptiveMediaGroups = buildAdaptiveMediaGroups(_files);
+    final adaptiveMediaGroups = _adaptiveMediaGroups;
     final visibleMediaGroups = _ratingFilter.visibleGroups;
 
     // Calculate dynamic thumbnail resize width based on grid cell size, then
@@ -1758,9 +1901,10 @@ class _HomePageState extends State<HomePage> {
               onRecentOpenItemSelected: _openRecentItem,
               onRecentOpenItemRemoved: _removeRecentOpenItem,
               onClearRecentOpenItems: _clearRecentOpenItems,
-              onCloseFolder: _openedSourceKind == _OpenedSourceKind.none
-                  ? null
-                  : _closeCurrentSource,
+              onCloseFolder:
+                  _openedSourceKind == _OpenedSourceKind.none && !_openingSource
+                      ? null
+                      : _closeCurrentSource,
               onOpenCurrentFolder: !canOpenCurrentFolder
                   ? null
                   : () => _openCurrentFolder(currentFolderPath),

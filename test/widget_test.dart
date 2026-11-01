@@ -1387,11 +1387,20 @@ void main() {
 
       const emptyMessage = 'Open or drop RAW and image files/folders';
       // The folder scan is real async I/O, so wait for it rather than for a
-      // fixed number of frames.
+      // fixed number of frames. The loading state also hides the empty message,
+      // so opening is complete only once the file is shown and scanning ends.
       Future<void> waitForEmptyState(bool empty) async {
         for (var i = 0; i < 100; i++) {
           await tester.pump();
-          if (find.text(emptyMessage).evaluate().isNotEmpty == empty) return;
+          if (find.text(emptyMessage).evaluate().isNotEmpty == empty &&
+              (empty ||
+                  (find.text('a.jpg').evaluate().isNotEmpty &&
+                      find
+                          .byType(LinearProgressIndicator)
+                          .evaluate()
+                          .isEmpty))) {
+            return;
+          }
           await Future<void>.delayed(const Duration(milliseconds: 50));
         }
       }

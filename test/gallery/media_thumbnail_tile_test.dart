@@ -62,6 +62,44 @@ class _PendingImageStore extends ImageStore {
 }
 
 void main() {
+  testWidgets(
+      'an unreadable adaptive bitmap reports a tile error without an '
+      'unhandled aspect-ratio error', (tester) async {
+    final cache = LruCache<String, ViewerImage>(1024,
+        onEvict: (_, image) => image.dispose());
+    addTearDown(cache.clear);
+    final ratios = <double>[];
+    await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: Center(
+          child: SizedBox(
+        width: 100,
+        height: 80,
+        child: MediaThumbnailTile(
+          mediaFile: const MediaFile(
+              path: '/unavailable-share/missing.jpg', kind: MediaKind.bitmap),
+          hasPairedJpeg: false,
+          settings: const ViewerSettings(
+              showThumbnailRatings: false,
+              gridAspectRatio: GridAspectRatio.adaptive),
+          timestampRepository: TimestampRepository(),
+          resizeWidth: 128,
+          imageStore: ImageStore(cache),
+          onAspectRatioChanged: ratios.add,
+          onTap: () {},
+        ),
+      )),
+    ));
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.broken_image), findsOneWidget);
+    expect(ratios, isEmpty);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('mounted badges refresh after saving without a parent rebuild',
       (tester) async {
     final exif = _Exif();

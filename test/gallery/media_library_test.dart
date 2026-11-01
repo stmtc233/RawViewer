@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -89,6 +90,35 @@ void main() {
   });
 
   group('listMediaFilesInDirectory', () {
+    test('streams a large folder in bounded batches and can stop early',
+        () async {
+      final root = Directory.systemTemp.createTempSync('large-media-library-');
+      addTearDown(() => root.deleteSync(recursive: true));
+      for (var i = 0; i < 4000; i++) {
+        File('${root.path}/photo-$i.jpg').createSync();
+      }
+      File('${root.path}/ignored.txt').createSync();
+      Directory('${root.path}/folder.jpg').createSync();
+
+      final batches = await scanMediaFilesInDirectory(root.path).toList();
+      expect(batches.length, greaterThan(1));
+      expect(batches.every((batch) => batch.isNotEmpty && batch.length <= 128),
+          isTrue);
+      final files = batches.expand((batch) => batch).toList();
+      expect(files, hasLength(4000));
+      expect(files.map((file) => file.path).toSet(), hasLength(4000));
+
+      final iterator = StreamIterator(scanMediaFilesInDirectory(root.path));
+      expect(await iterator.moveNext(), isTrue);
+      await iterator.cancel();
+      expect(await iterator.moveNext(), isFalse);
+      // Cancelling before the isolate handshake is also safe.
+      await scanMediaFilesInDirectory(root.path).listen((_) {}).cancel();
+      await expectLater(
+          scanMediaFilesInDirectory('${root.path}/missing').drain<void>(),
+          throwsA(isA<FileSystemException>()));
+    });
+
     test('lists supported files by name and reports scan failures', () async {
       final root = Directory.systemTemp.createTempSync('media-library-');
       addTearDown(() => root.deleteSync(recursive: true));
