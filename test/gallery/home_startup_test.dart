@@ -43,6 +43,31 @@ Future<void> _dropPaths(WidgetTester tester, List<String> paths) {
 }
 
 void main() {
+  testWidgets('app forwards entrypoint paths to the gallery on startup',
+      (tester) async {
+    await tester.runAsync(() async {
+      SharedPreferences.setMockInitialValues({});
+      await const PreferencesRepository().saveShowThumbnailRatings(false);
+      final root = Directory.systemTemp.createTempSync('entrypoint-gallery-');
+      addTearDown(() => root.deleteSync(recursive: true));
+      File('${root.path}/startup.jpg').createSync();
+
+      await tester.pumpWidget(MyApp(initialPaths: [root.path]));
+      await _waitFor(
+          tester,
+          () =>
+              find.byType(MediaThumbnailTile).evaluate().isNotEmpty &&
+              find.byType(LinearProgressIndicator).evaluate().isEmpty);
+      expect(find.text('startup.jpg'), findsOneWidget);
+      final bar =
+          tester.widget<DesktopCommandBar>(find.byType(DesktopCommandBar));
+      expect(bar.title, root.path);
+      expect(bar.imageCount, 1);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  });
+
   testWidgets(
       'slow folder publishes files before completion and keeps partial '
       'results when the share disconnects', (tester) async {

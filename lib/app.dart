@@ -12,9 +12,13 @@ import 'settings_page.dart';
 import 'ui/app_theme.dart';
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key, this.desktopWindowReady});
+  const MyApp({super.key, this.desktopWindowReady, this.initialPaths});
 
   final Future<void>? desktopWindowReady;
+
+  /// Paths supplied to the Dart entrypoint by the desktop runner. Null uses
+  /// the native open-path channel on platforms that provide it.
+  final List<String>? initialPaths;
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -102,6 +106,7 @@ class _MyAppState extends State<MyApp> with WindowListener {
 
   @override
   Widget build(BuildContext context) {
+    final initialPaths = widget.initialPaths;
     return ExcludeSemantics(
       child: MaterialApp(
         onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
@@ -120,6 +125,8 @@ class _MyAppState extends State<MyApp> with WindowListener {
         home: HomePage(
           onAppLanguageChanged: _handleAppLanguageChanged,
           desktopWindowReady: widget.desktopWindowReady,
+          initialPathsLoader:
+              initialPaths == null ? null : () async => initialPaths,
         ),
       ),
     );

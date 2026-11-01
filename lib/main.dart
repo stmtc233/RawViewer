@@ -8,7 +8,7 @@ import 'app.dart';
 import 'core/preferences_repository.dart';
 import 'core/windows_startup.dart';
 
-void main() async {
+void main(List<String> arguments) async {
   final binding = WidgetsFlutterBinding.ensureInitialized();
   if (Platform.isLinux) VideoPlayerMediaKit.ensureInitialized(linux: true);
 
@@ -45,7 +45,7 @@ void main() async {
     });
   }
 
-  runApp(const MyApp());
+  runApp(MyApp(initialPaths: Platform.isLinux ? arguments : null));
 }
 
 Future<void> _initializeWindowsWindow(WidgetsBinding binding) async {

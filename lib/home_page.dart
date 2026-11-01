@@ -996,7 +996,10 @@ class _HomePageState extends State<HomePage> {
 
   Future<List<String>> _loadInitialDesktopPaths() async {
     if (Platform.isLinux) {
-      return Platform.executableArguments;
+      // Linux's runner supplies file paths to main(List<String>), which passes
+      // them through initialPathsLoader. executableArguments are VM flags,
+      // including flutter_tester options, and must never be opened as files.
+      return const [];
     }
     return await desktopOpenChannel.invokeListMethod<String>(
           'getInitialPaths',
