@@ -30,6 +30,10 @@ class PreviewFilmstrip extends StatefulWidget {
   final bool showRatings;
   final bool hideUnratedRatings;
 
+  /// Whether the strip floats over the photo (immersive view) rather than
+  /// docking beneath it. A floating strip is a dark scrim without a border.
+  final bool floating;
+
   const PreviewFilmstrip({
     super.key,
     required this.mediaGroups,
@@ -44,6 +48,7 @@ class PreviewFilmstrip extends StatefulWidget {
     this.ratingRepository,
     this.showRatings = true,
     this.hideUnratedRatings = true,
+    this.floating = false,
   });
 
   @override
@@ -237,12 +242,14 @@ class _PreviewFilmstripState extends State<PreviewFilmstrip> {
           key: const ValueKey('preview-filmstrip-panel'),
           height: widget.height + bottomPadding,
           padding: EdgeInsets.fromLTRB(12, 10, 12, bottomPadding + 10),
-          decoration: BoxDecoration(
-            color: RawViewerColors.surface.withValues(alpha: 0.96),
-            border: const Border(
-              top: BorderSide(color: RawViewerColors.border),
-            ),
-          ),
+          decoration: widget.floating
+              ? const BoxDecoration(color: Color(0xD9101214))
+              : const BoxDecoration(
+                  color: RawViewerColors.surface,
+                  border: Border(
+                    top: BorderSide(color: RawViewerColors.mutedBorder),
+                  ),
+                ),
           child: Stack(
             fit: StackFit.expand,
             children: [

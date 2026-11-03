@@ -64,6 +64,9 @@ class _MyAppState extends State<MyApp> with WindowListener {
   Future<void> _persistWindowGeometry() async {
     try {
       if (await windowManager.isMaximized()) return;
+      // The immersive preview's full screen is temporary; keep the bounds the
+      // window had before it.
+      if (await windowManager.isFullScreen()) return;
 
       final size = await windowManager.getSize();
       final position = await windowManager.getPosition();

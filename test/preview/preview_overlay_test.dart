@@ -3,7 +3,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rawviewer/core/exif_sidebar_settings.dart';
 import 'package:rawviewer/core/media_timestamps.dart';
 import 'package:rawviewer/image_store.dart';
 import 'package:rawviewer/l10n/app_localizations.dart';
@@ -553,5 +555,131 @@ void main() {
       expect(chromeOpacity(tester, back), 1);
       await tester.pumpWidget(const SizedBox.shrink());
     });
+  });
+
+  testWidgets('arrow keys page through images', (tester) async {
+    tester.view.physicalSize = const Size(800, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await pumpPreview(tester, mediaGroups: navigationGroups);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(find.text('fixture-2.jpg'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+    await tester.pumpAndSettle();
+    expect(find.text('fixture-3.jpg'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pumpAndSettle();
+    expect(find.text('fixture-2.jpg'), findsOneWidget);
+  });
+
+  testWidgets('immersive view floats everything and goes full screen',
+      (tester) async {
+    const size = Size(1000, 700);
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final fullScreenCalls = <bool>[];
+    const channel = MethodChannel('window_manager');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel,
+        (call) async {
+      switch (call.method) {
+        case 'isFullScreen':
+          return false;
+        case 'setFullScreen':
+          fullScreenCalls.add((call.arguments
+              as Map<Object?, Object?>)['isFullScreen']! as bool);
+      }
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null));
+
+    // The EXIF sidebar's loading spinner never settles; pump past the
+    // fades instead.
+    Future<void> settle() => tester.pump(const Duration(milliseconds: 400));
+    var closed = 0;
+    final image = await redImage(tester, size);
+    await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: ImagePreviewPage(
+        mediaGroups: const [
+          MediaGroup(
+            primary: MediaFile(path: '/fixture.arw', kind: MediaKind.raw),
+          ),
+        ],
+        initialIndex: 0,
+        thumbnailResizeWidth: 256,
+        imageStore: _FixtureImageStore(image),
+        timestampRepository: TimestampRepository(),
+        // Even with auto-hide off, immersion floats and hides the controls.
+        initialSettings: const ViewerSettings(
+          previewAutoHideControls: false,
+          exifSidebar: ExifSidebarSettings(visible: true),
+        ),
+        onClose: () => closed++,
+        onRawViewModeChanged: (_) {},
+        onPreviewFilmstripHeightChanged: (_) {},
+      ),
+    ));
+    await settle();
+
+    final filmstrip = find.byKey(const ValueKey('preview-filmstrip-panel'));
+    final sidebar = find.byKey(const ValueKey('preview-exif-sidebar'));
+    final back = find.byIcon(Icons.arrow_back);
+    expect(sidebar, findsOneWidget);
+    expect(tester.getRect(find.byType(InteractiveViewer)).top,
+        kImagePreviewToolbarHeight);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await settle();
+    expect(fullScreenCalls, [true]);
+    // Nothing is docked: the photo has the whole window.
+    expect(sidebar, findsNothing);
+    expect(tester.getRect(find.byType(InteractiveViewer)), Offset.zero & size);
+    // The strip is still there, floating, and hidden along with the bar.
+    expect(filmstrip, findsOneWidget);
+    expect(chromeOpacity(tester, filmstrip), 0);
+    expect(chromeOpacity(tester, back), 0);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: const Offset(500, 300));
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(const Offset(510, 300));
+    await settle();
+    expect(chromeOpacity(tester, filmstrip), 1);
+    expect(chromeOpacity(tester, back), 1);
+    expect(tester.getRect(find.byType(InteractiveViewer)), Offset.zero & size);
+
+    // Escape leaves immersion first, restoring the docked layout.
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await settle();
+    expect(fullScreenCalls, [true, false]);
+    expect(sidebar, findsOneWidget);
+    expect(tester.getRect(find.byType(InteractiveViewer)).top,
+        kImagePreviewToolbarHeight);
+    expect(closed, 0);
+
+    // The toolbar button toggles it too.
+    await tester.tap(find.byKey(const ValueKey('preview-immersive-toggle')));
+    await settle();
+    expect(fullScreenCalls, [true, false, true]);
+    expect(sidebar, findsNothing);
+    // Entering hid the controls straight away; bring them back to leave.
+    await mouse.moveTo(const Offset(520, 300));
+    await settle();
+    await tester.tap(find.byKey(const ValueKey('preview-immersive-toggle')));
+    await settle();
+    expect(fullScreenCalls, [true, false, true, false]);
+
+    // ...and outside immersion, Escape closes the preview.
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await settle();
+    expect(closed, 1);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }

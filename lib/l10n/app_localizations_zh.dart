@@ -554,6 +554,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get previewDisplayControlsTooltip => '预览显示';
 
   @override
+  String get enterImmersivePreviewTooltip => '沉浸查看 (F)';
+
+  @override
+  String get exitImmersivePreviewTooltip => '退出沉浸查看 (F / Esc)';
+
+  @override
   String get previewFilmstripTitle => '缩略图导航';
 
   @override

@@ -560,6 +560,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get previewDisplayControlsTooltip => 'Preview display';
 
   @override
+  String get enterImmersivePreviewTooltip => 'Immersive view (F)';
+
+  @override
+  String get exitImmersivePreviewTooltip => 'Exit immersive view (F / Esc)';
+
+  @override
   String get previewFilmstripTitle => 'Thumbnail navigation';
 
   @override

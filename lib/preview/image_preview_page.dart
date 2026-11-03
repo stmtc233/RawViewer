@@ -15,6 +15,7 @@ import '../core/exif_sidebar_settings.dart';
 import '../core/preview_filmstrip_size.dart';
 import '../core/media_timestamps.dart';
 import '../core/media_types.dart';
+import '../core/app_fullscreen.dart';
 import '../core/raw_view_mode.dart';
 import '../image_store.dart';
 import '../l10n/app_localizations.dart';
@@ -183,6 +184,14 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   /// which toggles the chrome. Touch has no hover to reveal it.
   final Map<int, ({Offset position, Duration timeStamp})> _chromeTaps = {};
 
+  /// The immersive view: nothing is docked, every control floats and hides,
+  /// and the window goes full screen. Route-scoped, like the HDR toggles.
+  bool _immersive = false;
+
+  /// Whether the window was already full screen when immersion began, in
+  /// which case leaving immersion must not take it out of full screen.
+  bool _fullScreenBeforeImmersive = false;
+
   @override
   void initState() {
     super.initState();
@@ -280,6 +289,9 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     _trackpadVelocityTracker = null;
     _isFastScrolling.dispose();
     _chrome.dispose();
+    if (_immersive && !_fullScreenBeforeImmersive) {
+      unawaited(setAppFullScreen(false));
+    }
     _pageController.dispose();
     _previewKeys.clear();
     super.dispose();
@@ -644,6 +656,71 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     );
   }
 
+  Future<void> _setImmersive(bool immersive) async {
+    if (_immersive == immersive) return;
+    setState(() => _immersive = immersive);
+    _chrome.autoHide =
+        widget.initialSettings.previewAutoHideControls || immersive;
+    if (immersive) {
+      // Straight to the bare photo, unless the pointer is on a control.
+      _chrome.hide();
+      _fullScreenBeforeImmersive = await isAppFullScreen();
+      if (!_fullScreenBeforeImmersive && mounted && _immersive) {
+        await setAppFullScreen(true);
+      }
+    } else {
+      _chrome.reveal();
+      if (!_fullScreenBeforeImmersive) await setAppFullScreen(false);
+    }
+  }
+
+  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    // A menu or dialog over the preview can leave focus down here; its own
+    // Escape must still dismiss it rather than close the preview.
+    if (!(ModalRoute.of(context)?.isCurrent ?? true)) {
+      return KeyEventResult.ignored;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed ||
+        keyboard.isAltPressed ||
+        keyboard.isMetaPressed) {
+      return KeyEventResult.ignored;
+    }
+    // Typing in the EXIF search must not page through images.
+    final focused = FocusManager.instance.primaryFocus?.context;
+    if (focused != null &&
+        (focused.widget is EditableText ||
+            focused.findAncestorStateOfType<EditableTextState>() != null)) {
+      return KeyEventResult.ignored;
+    }
+    final isRepeat = event is KeyRepeatEvent;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowLeft ||
+        key == LogicalKeyboardKey.pageUp) {
+      if (_mediaGroups.isNotEmpty) _switchPage(-1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowRight ||
+        key == LogicalKeyboardKey.pageDown) {
+      if (_mediaGroups.isNotEmpty) _switchPage(1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyF || key == LogicalKeyboardKey.f11) {
+      if (!isRepeat) unawaited(_setImmersive(!_immersive));
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape) {
+      if (!isRepeat) {
+        _immersive ? unawaited(_setImmersive(false)) : widget.onClose();
+      }
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   void _onRootPointerDown(PointerDownEvent event) {
     final onChrome = _chrome.takeChromePointer(event.pointer);
     switch (event.kind) {
@@ -735,29 +812,25 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
 
   Widget _buildDirectoryLoadPanel(AppLocalizations l10n) {
     final bottomPadding = MediaQuery.paddingOf(context).bottom;
-    return PreviewChromeRegion(
-      fades: false,
-      child: Container(
-        key: const ValueKey('preview-directory-load-panel'),
-        padding: EdgeInsets.fromLTRB(12, 10, 12, bottomPadding + 10),
-        decoration: const BoxDecoration(
-          color: RawViewerColors.surface,
-          border: Border(
-            top: BorderSide(color: RawViewerColors.mutedBorder),
-          ),
+    return Container(
+      key: const ValueKey('preview-directory-load-panel'),
+      padding: EdgeInsets.fromLTRB(12, 10, 12, bottomPadding + 10),
+      decoration: const BoxDecoration(
+        color: RawViewerColors.surface,
+        border: Border(
+          top: BorderSide(color: RawViewerColors.mutedBorder),
         ),
-        child: Center(
-          child: Tooltip(
-            message: l10n.loadDirectoryTooltip,
-            child: DesktopCommandButton(
-              icon: _isLoadingDirectory
-                  ? Icons.hourglass_top_outlined
-                  : Icons.folder_open_outlined,
-              label: l10n.loadDirectoryButtonLabel,
-              onPressed: _isLoadingDirectory
-                  ? null
-                  : () => unawaited(_loadDirectory()),
-            ),
+      ),
+      child: Center(
+        child: Tooltip(
+          message: l10n.loadDirectoryTooltip,
+          child: DesktopCommandButton(
+            icon: _isLoadingDirectory
+                ? Icons.hourglass_top_outlined
+                : Icons.folder_open_outlined,
+            label: l10n.loadDirectoryButtonLabel,
+            onPressed:
+                _isLoadingDirectory ? null : () => unawaited(_loadDirectory()),
           ),
         ),
       ),
@@ -1029,7 +1102,16 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Focus(
+        // At the root so it survives switching between the empty and the
+        // populated layouts: a fresh autofocus would steal focus from an
+        // open menu, whose Escape would then never reach it.
+        autofocus: true,
+        onKeyEvent: _onKeyEvent,
+        child: _buildPage(context),
+      );
+
+  Widget _buildPage(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     if (_ratingFilter.loading || _mediaGroups.isEmpty) {
       return Scaffold(
@@ -1079,8 +1161,10 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
             : currentFilePath;
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final exifWidth = clampExifSidebarWidth(_exifSidebar.width, viewportWidth);
+    // Immersion hides the sidebar without forgetting that it was open.
+    final showExifSidebar = _exifSidebar.visible && !_immersive;
     final isExifDocked =
-        _exifSidebar.visible && viewportWidth >= exifSidebarDockBreakpoint;
+        showExifSidebar && viewportWidth >= exifSidebarDockBreakpoint;
     final exifInset = isExifDocked ? exifWidth : 0.0;
     final bottomSafePadding = MediaQuery.paddingOf(context).bottom;
     final topSafePadding = MediaQuery.paddingOf(context).top;
@@ -1100,9 +1184,15 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     final showDirectoryLoadPanel =
         widget.onLoadDirectory != null && !_isDirectoryLoaded;
     final showNavigationPanel = _showPreviewFilmstrip || showDirectoryLoadPanel;
-    final previewBottomInset =
+    // Immersed, the strip floats over the photo and hides with the controls.
+    final isNavigationFloating = _immersive;
+    final navigationPanelHeight =
         showNavigationPanel ? previewFilmstripTotalHeight : 0.0;
-    final controlsBottomInset = bottomSafePadding + previewBottomInset + 12;
+    final previewBottomInset =
+        isNavigationFloating ? 0.0 : navigationPanelHeight;
+    final floatingBottomInset =
+        isNavigationFloating ? navigationPanelHeight : 0.0;
+    final controlsBottomInset = bottomSafePadding + navigationPanelHeight + 12;
     final pageDragDevices =
         Set<PointerDeviceKind>.from(ScrollConfiguration.of(context).dragDevices)
           ..remove(PointerDeviceKind.trackpad);
@@ -1162,7 +1252,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                     onEmbeddedJpegAvailability: (hasEmbeddedJpeg) =>
                         _recordEmbeddedJpegAvailability(
                             filePath, hasEmbeddedJpeg),
-                    onHistogramChanged: _exifSidebar.visible &&
+                    onHistogramChanged: showExifSidebar &&
                             index == _currentIndex
                         ? (histogram) {
                             if (!mounted || !_exifSidebar.visible) return;
@@ -1190,7 +1280,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                     onTrackpadPanCancel: _cancelTrackpadPageDrag,
                     isActive: index == _currentIndex,
                     showPreviewOverview: _showPreviewOverview,
-                    overviewBottomInset: 0,
+                    overviewBottomInset: floatingBottomInset,
                     isFastScrolling: _isFastScrolling,
                     onScaleStateChanged: (isScaling) {
                       if (_isLocked != isScaling) {
@@ -1305,16 +1395,18 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
             bottom: 0,
             height: previewFilmstripTotalHeight +
                 (_isDirectoryLoaded ? previewFilmstripResizeHandleAboveBar : 0),
-            child: _isDirectoryLoaded
-                ? Stack(
-                    children: [
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: PreviewChromeRegion(
-                          fades: false,
+            child: PreviewChromeRegion(
+              fades: isNavigationFloating,
+              hiddenOffset: const Offset(0, 0.3),
+              child: _isDirectoryLoaded
+                  ? Stack(
+                      children: [
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
                           child: PreviewFilmstrip(
+                            floating: isNavigationFloating,
                             controls: _buildFilmstripControls(),
                             ratingRepository: _ratingRepository,
                             showRatings: _showThumbnailRatings,
@@ -1330,19 +1422,19 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                             onFastIndexSelected: _jumpToPageFast,
                           ),
                         ),
-                      ),
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        height: previewFilmstripResizeHandleHeight,
-                        child: _buildPreviewFilmstripResizeHandle(),
-                      ),
-                    ],
-                  )
-                : _buildDirectoryLoadPanel(l10n),
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: previewFilmstripResizeHandleHeight,
+                          child: _buildPreviewFilmstripResizeHandle(),
+                        ),
+                      ],
+                    )
+                  : _buildDirectoryLoadPanel(l10n),
+            ),
           ),
-        if (_exifSidebar.visible)
+        if (showExifSidebar)
           Positioned(
             top: exifTop,
             right: 0,
@@ -1365,7 +1457,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                       _updateExifSidebar(_exifSidebar.copyWith(visible: false)),
                 )),
           ),
-        if (_exifSidebar.visible)
+        if (showExifSidebar)
           Positioned(
             top: exifTop,
             bottom: 0,
@@ -1565,15 +1657,33 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
                               const SizedBox(width: 8),
                             ],
                             DesktopIconButton(
+                              key: const ValueKey('preview-immersive-toggle'),
+                              icon: _immersive
+                                  ? Icons.fullscreen_exit
+                                  : Icons.fullscreen,
+                              tooltip: _immersive
+                                  ? l10n.exitImmersivePreviewTooltip
+                                  : l10n.enterImmersivePreviewTooltip,
+                              onPressed: () =>
+                                  unawaited(_setImmersive(!_immersive)),
+                            ),
+                            const SizedBox(width: 4),
+                            DesktopIconButton(
                               icon: Icons.info_outline,
-                              tooltip: _exifSidebar.visible
+                              tooltip: showExifSidebar
                                   ? l10n.hideExifTooltip
                                   : l10n.showExifTooltip,
-                              selected: _exifSidebar.visible,
-                              onPressed: () => _updateExifSidebar(
-                                _exifSidebar.copyWith(
-                                    visible: !_exifSidebar.visible),
-                              ),
+                              selected: showExifSidebar,
+                              onPressed: () {
+                                // Asking for the sidebar ends immersion: it
+                                // is a docked panel, and immersion has none.
+                                if (_immersive) {
+                                  unawaited(_setImmersive(false));
+                                  if (_exifSidebar.visible) return;
+                                }
+                                _updateExifSidebar(_exifSidebar.copyWith(
+                                    visible: !_exifSidebar.visible));
+                              },
                             ),
                           ],
                         ),

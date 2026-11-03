@@ -235,6 +235,8 @@
   "enableHdrPreviewTooltip": "Show HDR preview",
   "disableHdrPreviewTooltip": "Show SDR preview",
   "previewDisplayControlsTooltip": "Preview display",
+  "enterImmersivePreviewTooltip": "Immersive view (F)",
+  "exitImmersivePreviewTooltip": "Exit immersive view (F / Esc)",
   "previewFilmstripTitle": "Thumbnail navigation",
   "previewOverviewTitle": "Overview map",
   "showPreviewFilmstripTooltip": "Show thumbnail navigation",

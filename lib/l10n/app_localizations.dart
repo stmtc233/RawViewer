@@ -1145,6 +1145,18 @@ abstract class AppLocalizations {
   /// **'Preview display'**
   String get previewDisplayControlsTooltip;
 
+  /// No description provided for @enterImmersivePreviewTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Immersive view (F)'**
+  String get enterImmersivePreviewTooltip;
+
+  /// No description provided for @exitImmersivePreviewTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Exit immersive view (F / Esc)'**
+  String get exitImmersivePreviewTooltip;
+
   /// No description provided for @previewFilmstripTitle.
   ///
   /// In en, this message translates to:

@@ -235,6 +235,8 @@
   "enableHdrPreviewTooltip": "显示 HDR 预览",
   "disableHdrPreviewTooltip": "显示 SDR 预览",
   "previewDisplayControlsTooltip": "预览显示",
+  "enterImmersivePreviewTooltip": "沉浸查看 (F)",
+  "exitImmersivePreviewTooltip": "退出沉浸查看 (F / Esc)",
   "previewFilmstripTitle": "缩略图导航",
   "previewOverviewTitle": "鸟瞰图",
   "showPreviewFilmstripTooltip": "显示缩略图导航",

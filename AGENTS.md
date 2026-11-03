@@ -329,6 +329,15 @@ photo and nothing hides. Each region's `MouseRegion` is opaque and defers to its
 child. A non-opaque region reports a miss even over its child, which lets a tap
 on a control also reach the photo beneath it.
 
+**Immersive view** (`F` / `F11`, or the toolbar button) is route-scoped state in
+`_ImagePreviewPageState`, not a setting. It forces auto-hide on, hides the EXIF
+sidebar without changing its persisted visibility, floats the filmstrip over
+the photo, and puts the window into full screen through `setAppFullScreen` in
+`core/app_fullscreen.dart`. It leaves full screen only if it entered it.
+`Esc` leaves immersion, and outside immersion it closes the preview. `←`/`→`
+and `PageUp`/`PageDown` page through images unless a text field has focus.
+`MyApp` does not persist window bounds while the window is full screen.
+
 ## Development Workflow
 
 Choose validation by the behavior and dependencies affected, not by the number
