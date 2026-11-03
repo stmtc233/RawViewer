@@ -22,16 +22,15 @@ class PreviewOverviewMap extends StatelessWidget {
         width: kPreviewOverviewMapWidth,
         height: kPreviewOverviewMapHeight,
         child: DecoratedBox(
+          // A thin light rim instead of a drop shadow: it separates the map
+          // from the photo without casting a dark halo over it.
           decoration: BoxDecoration(
-            color: RawViewerColors.surface.withValues(alpha: 0.78),
-            border: Border.all(color: RawViewerColors.border),
-            borderRadius: BorderRadius.circular(5),
-            boxShadow: const [
-              BoxShadow(color: Colors.black54, blurRadius: 12, spreadRadius: 1),
-            ],
+            color: const Color(0xC7101214),
+            border: Border.all(color: const Color(0x33FFFFFF)),
+            borderRadius: BorderRadius.circular(8),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(7),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final mapSize = Size(

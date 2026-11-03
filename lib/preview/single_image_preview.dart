@@ -797,6 +797,32 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
                 ),
               ),
             ),
+            // Decoding in the background; keep showing what we already have.
+            // Outside the zoomed content, so it neither scales nor rotates
+            // with the photo, and in the corner no other control uses for a
+            // RAW file.
+            if (widget.isActive &&
+                widget.isRaw &&
+                !_isShowingPairedJpeg &&
+                _isSharpeningInBackground)
+              Positioned(
+                left: 16,
+                bottom: widget.overviewBottomInset +
+                    MediaQuery.paddingOf(context).bottom +
+                    16,
+                child: const ExcludeSemantics(
+                  child: SizedBox(
+                    key: ValueKey('preview-background-decode'),
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Color(0x8CFFFFFF)),
+                    ),
+                  ),
+                ),
+              ),
             if (widget.isActive && widget.showPreviewOverview && _isZoomed)
               Positioned(
                 right: 12,
@@ -967,11 +993,16 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
   /// them would pay for a large overdraw every frame with nothing to show for
   /// it. The centred spinner only appears when there is genuinely nothing to
   /// display yet.
-  Widget _buildRawPreview() {
+  /// Whether a sharper RAW layer is decoding behind the one on screen.
+  bool get _isSharpeningInBackground {
     final displayed = _displayedImage;
-    final isSharpeningInBackground = _isLoadingDecodedRawPreview &&
+    return _isLoadingDecodedRawPreview &&
         displayed != null &&
         displayed != _decodedRawPreviewImage;
+  }
+
+  Widget _buildRawPreview() {
+    final displayed = _displayedImage;
 
     return Stack(
       fit: StackFit.expand,
@@ -996,22 +1027,6 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
         if (displayed == null)
           const Center(
             child: ExcludeSemantics(child: CircularProgressIndicator()),
-          )
-        else if (isSharpeningInBackground)
-          // Decoding in the background; keep showing what we already have.
-          const Positioned(
-            top: 24,
-            left: 16,
-            child: ExcludeSemantics(
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white54),
-                ),
-              ),
-            ),
           ),
       ],
     );
