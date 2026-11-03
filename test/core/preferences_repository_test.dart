@@ -114,77 +114,6 @@ void main() {
     expect(
         (await repository.loadViewPreferences()).showThumbnailRatings, isTrue);
   });
-  group('PreferencesRepository.resolvePreviewOverlayOpacity', () {
-    test('uses storedOpacity when present', () {
-      expect(
-        PreferencesRepository.resolvePreviewOverlayOpacity(
-          storedOpacity: 0.6,
-          legacyAutoTransparencyEnabled: null,
-        ),
-        0.6,
-      );
-    });
-
-    test('clamps storedOpacity to valid range', () {
-      expect(
-        PreferencesRepository.resolvePreviewOverlayOpacity(
-          storedOpacity: 0.0,
-          legacyAutoTransparencyEnabled: null,
-        ),
-        kMinPreviewOverlayOpacity,
-      );
-      expect(
-        PreferencesRepository.resolvePreviewOverlayOpacity(
-          storedOpacity: 2.0,
-          legacyAutoTransparencyEnabled: null,
-        ),
-        kMaxPreviewOverlayOpacity,
-      );
-    });
-
-    test('migrates legacy flag=false to maximum opacity', () {
-      // Old installs that explicitly turned auto-transparency OFF wanted
-      // opaque overlays; migrate them to the maximum.
-      expect(
-        PreferencesRepository.resolvePreviewOverlayOpacity(
-          storedOpacity: null,
-          legacyAutoTransparencyEnabled: false,
-        ),
-        kMaxPreviewOverlayOpacity,
-      );
-    });
-
-    test('migrates legacy flag=true to default opacity', () {
-      expect(
-        PreferencesRepository.resolvePreviewOverlayOpacity(
-          storedOpacity: null,
-          legacyAutoTransparencyEnabled: true,
-        ),
-        kDefaultPreviewOverlayOpacity,
-      );
-    });
-
-    test('uses default when both values are absent', () {
-      expect(
-        PreferencesRepository.resolvePreviewOverlayOpacity(
-          storedOpacity: null,
-          legacyAutoTransparencyEnabled: null,
-        ),
-        kDefaultPreviewOverlayOpacity,
-      );
-    });
-
-    test('storedOpacity takes precedence over legacy flag', () {
-      expect(
-        PreferencesRepository.resolvePreviewOverlayOpacity(
-          storedOpacity: 0.7,
-          legacyAutoTransparencyEnabled: false,
-        ),
-        0.7,
-      );
-    });
-  });
-
   group('PreferencesRepository loadViewPreferences', () {
     test('returns defaults when no prefs are stored', () async {
       SharedPreferences.setMockInitialValues({});
@@ -196,9 +125,7 @@ void main() {
       expect(stored.timeDisplaySource, TimeDisplaySource.capturedAt);
       expect(stored.appLanguage, AppLanguage.system);
       expect(stored.pageSwitchAnimationEnabled, isTrue);
-      expect(stored.previewOverlayOpacity, kDefaultPreviewOverlayOpacity);
-      expect(stored.previewToolbarOpacity, kDefaultPreviewOverlayOpacity);
-      expect(stored.previewFilmstripOpacity, kDefaultPreviewOverlayOpacity);
+      expect(stored.previewAutoHideControls, isTrue);
       expect(stored.previewFilmstripHeight, kPreviewFilmstripHeight);
       expect(stored.showPreviewFilmstrip, isTrue);
       expect(stored.showPreviewOverview, isTrue);
@@ -289,30 +216,30 @@ void main() {
       expect(stored.pageSwitchAnimationEnabled, isFalse);
     });
 
-    test('round-trips preview overlay opacity', () async {
+    test('round-trips preview auto-hide', () async {
       SharedPreferences.setMockInitialValues({});
       final repo = const PreferencesRepository();
-      await repo.savePreviewOverlayOpacity(0.8);
-      final stored = await repo.loadViewPreferences();
-      expect(stored.previewOverlayOpacity, closeTo(0.8, 0.001));
+      await repo.savePreviewAutoHideControls(false);
+      expect(
+          (await repo.loadViewPreferences()).previewAutoHideControls, isFalse);
+      await repo.savePreviewAutoHideControls(true);
+      expect(
+          (await repo.loadViewPreferences()).previewAutoHideControls, isTrue);
     });
 
-    test('persists each preview opacity independently', () async {
-      SharedPreferences.setMockInitialValues({});
-      final repo = const PreferencesRepository();
-      await repo.savePreviewOverlayOpacity(0.5);
-      await repo.savePreviewToolbarOpacity(0.3);
-      await repo.savePreviewFilmstripOpacity(0.8);
-      var stored = await repo.loadViewPreferences();
-      expect(stored.previewOverlayOpacity, 0.5);
-      expect(stored.previewToolbarOpacity, 0.3);
-      expect(stored.previewFilmstripOpacity, 0.8);
-
-      await repo.savePreviewToolbarOpacity(0.9);
-      stored = await repo.loadViewPreferences();
-      expect(stored.previewOverlayOpacity, 0.5);
-      expect(stored.previewToolbarOpacity, 0.9);
-      expect(stored.previewFilmstripOpacity, 0.8);
+    test('drops the superseded preview opacity settings', () async {
+      SharedPreferences.setMockInitialValues({
+        'preview_overlay_opacity': 1.0,
+        'preview_toolbar_opacity': 0.3,
+        'preview_filmstrip_opacity': 0.8,
+        'preview_overlay_auto_transparency_enabled': false,
+        'show_preview_overview': false,
+      });
+      final stored = await const PreferencesRepository().loadViewPreferences();
+      expect(stored.previewAutoHideControls, isTrue);
+      expect(stored.showPreviewOverview, isFalse);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getKeys(), {'show_preview_overview'});
     });
 
     test('round-trips filmstrip height across unrelated setting changes',
@@ -323,8 +250,8 @@ void main() {
       final stored = await repo.loadViewPreferences();
       final settings = const ViewerSettings()
           .copyWith(previewFilmstripHeight: stored.previewFilmstripHeight)
-          .copyWith(previewToolbarOpacity: 0.7);
-      await repo.savePreviewToolbarOpacity(settings.previewToolbarOpacity);
+          .copyWith(previewAutoHideControls: false);
+      await repo.savePreviewAutoHideControls(settings.previewAutoHideControls);
       expect(settings.previewFilmstripHeight, 187.5);
       expect((await repo.loadViewPreferences()).previewFilmstripHeight, 187.5);
     });
@@ -343,40 +270,6 @@ void main() {
             await const PreferencesRepository().loadViewPreferences();
         expect(stored.previewFilmstripHeight, expected);
       }
-    });
-
-    test('migrates the shared opacity to each bar only once', () async {
-      SharedPreferences.setMockInitialValues({'preview_overlay_opacity': 0.65});
-      final repo = const PreferencesRepository();
-      var stored = await repo.loadViewPreferences();
-      expect(stored.previewToolbarOpacity, 0.65);
-      expect(stored.previewFilmstripOpacity, 0.65);
-
-      await repo.savePreviewOverlayOpacity(0.9);
-      stored = await repo.loadViewPreferences();
-      expect(stored.previewOverlayOpacity, 0.9);
-      expect(stored.previewToolbarOpacity, 0.65);
-      expect(stored.previewFilmstripOpacity, 0.65);
-    });
-
-    test('preserves a configured bar when migrating the other', () async {
-      SharedPreferences.setMockInitialValues({
-        'preview_overlay_opacity': 0.65,
-        'preview_toolbar_opacity': 0.3,
-      });
-      final stored = await const PreferencesRepository().loadViewPreferences();
-      expect(stored.previewToolbarOpacity, 0.3);
-      expect(stored.previewFilmstripOpacity, 0.65);
-    });
-
-    test('clamps each stored bar opacity to the slider range', () async {
-      SharedPreferences.setMockInitialValues({
-        'preview_toolbar_opacity': 0.0,
-        'preview_filmstrip_opacity': 2.0,
-      });
-      final stored = await const PreferencesRepository().loadViewPreferences();
-      expect(stored.previewToolbarOpacity, kMinPreviewOverlayOpacity);
-      expect(stored.previewFilmstripOpacity, kMaxPreviewOverlayOpacity);
     });
 
     test('round-trips the RAW view mode', () async {
@@ -400,17 +293,6 @@ void main() {
       SharedPreferences.setMockInitialValues({'raw_view_mode': 'fastPreview'});
       final stored = await const PreferencesRepository().loadViewPreferences();
       expect(stored.rawViewMode, isNull);
-    });
-
-    test('migrates legacy auto-transparency-disabled key on first load',
-        () async {
-      SharedPreferences.setMockInitialValues({
-        'preview_overlay_auto_transparency_enabled': false,
-      });
-      final stored = await const PreferencesRepository().loadViewPreferences();
-      expect(stored.previewOverlayOpacity, kMaxPreviewOverlayOpacity);
-      expect(stored.previewToolbarOpacity, kMaxPreviewOverlayOpacity);
-      expect(stored.previewFilmstripOpacity, kMaxPreviewOverlayOpacity);
     });
   });
 

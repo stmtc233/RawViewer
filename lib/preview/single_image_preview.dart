@@ -20,7 +20,7 @@ import '../viewer_image.dart';
 import '../worker_service.dart';
 import 'preview_geometry.dart';
 import 'scroll_gesture_coalescer.dart';
-import 'widgets/preview_hover_reveal.dart';
+import 'widgets/preview_chrome.dart';
 import 'widgets/live_photo_preview.dart';
 import 'widgets/hdr_image.dart';
 import 'widgets/preview_overview_map.dart';
@@ -60,13 +60,10 @@ class SingleImagePreview extends StatefulWidget {
   /// native HDR surface.
   final VoidCallback? onHdrDetected;
 
-  /// Whether this image has been confirmed as HDR by the native surface.
-  final bool hasHdr;
-
   /// HDR is display-only state owned by the preview route, so a user can turn
   /// it off for the current preview without changing a persisted preference.
+  /// The route also owns the toggle, which lives with the other image tools.
   final bool showHdr;
-  final VoidCallback? onHdrToggle;
 
   const SingleImagePreview({
     super.key,
@@ -92,9 +89,7 @@ class SingleImagePreview extends StatefulWidget {
     this.onEmbeddedJpegAvailability,
     this.onHistogramChanged,
     this.onHdrDetected,
-    this.hasHdr = false,
     this.showHdr = true,
-    this.onHdrToggle,
   });
 
   String get filePath => mediaGroup.primary.path;
@@ -810,8 +805,7 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
                     previewImageControlsHeight +
                     previewOverviewGap +
                     12,
-                child: PreviewHoverReveal(
-                  restingOpacity: widget.settings.previewOverlayOpacity,
+                child: PreviewChromeRegion(
                   child: PreviewOverviewMap(
                     image: RotatedBox(
                       quarterTurns: widget.rotationQuarterTurns,
@@ -822,29 +816,6 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
                   ),
                 ),
               ),
-            if (widget.isActive && widget.hasHdr)
-              Positioned(
-                top: 12,
-                right: 12,
-                child: PreviewHoverReveal(
-                  restingOpacity: widget.settings.previewOverlayOpacity,
-                  hitTestBehavior: HitTestBehavior.opaque,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: RawViewerColors.surface.withValues(alpha: 0.84),
-                      border: Border.all(color: RawViewerColors.border),
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(3),
-                      child: _HdrPreviewToggle(
-                        enabled: widget.showHdr,
-                        onPressed: widget.onHdrToggle,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
             if (widget.isActive && _bitmapFrameCount > 1)
               Positioned(
                 left: 16,
@@ -852,15 +823,10 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
                     MediaQuery.paddingOf(context).bottom +
                     previewImageControlsHeight +
                     12,
-                child: PreviewHoverReveal(
-                  restingOpacity: widget.settings.previewOverlayOpacity,
+                child: PreviewChromeRegion(
                   hitTestBehavior: HitTestBehavior.opaque,
                   child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: RawViewerColors.surface.withValues(alpha: 0.84),
-                      border: Border.all(color: RawViewerColors.border),
-                      borderRadius: BorderRadius.circular(5),
-                    ),
+                    decoration: previewFloatingPanelDecoration,
                     child: Padding(
                       padding: const EdgeInsets.all(3),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -938,7 +904,6 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
             active: widget.isActive && !fastScrolling,
             longPressPlaybackEnabled: widget.settings.longPressLivePhotoEnabled,
             quarterTurns: widget.rotationQuarterTurns,
-            overlayOpacity: widget.settings.previewOverlayOpacity,
             bottomInset: widget.overviewBottomInset +
                 MediaQuery.paddingOf(context).bottom +
                 previewImageControlsHeight,
@@ -1141,54 +1106,6 @@ class SingleImagePreviewState extends State<SingleImagePreview> {
       return Hero(tag: widget.filePath, child: image);
     }
     return image;
-  }
-}
-
-class _HdrPreviewToggle extends StatelessWidget {
-  final bool enabled;
-  final VoidCallback? onPressed;
-
-  const _HdrPreviewToggle({required this.enabled, this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    return Tooltip(
-      message: enabled
-          ? l10n.disableHdrPreviewTooltip
-          : l10n.enableHdrPreviewTooltip,
-      child: SizedBox(
-        height: desktopControlSize,
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(5),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(5),
-            onTap: onPressed,
-            hoverColor: RawViewerColors.raisedSurface,
-            splashColor: RawViewerColors.accentMuted,
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text(
-                  'HDR',
-                  style: TextStyle(
-                    color: RawViewerColors.mutedText,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    decoration: enabled
-                        ? TextDecoration.none
-                        : TextDecoration.lineThrough,
-                    decorationColor: RawViewerColors.mutedText,
-                    decorationThickness: 1.5,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 

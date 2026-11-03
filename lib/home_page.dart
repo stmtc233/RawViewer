@@ -169,9 +169,7 @@ class _HomePageState extends State<HomePage> {
         appLanguage: stored.appLanguage,
         pageSwitchAnimationEnabled: stored.pageSwitchAnimationEnabled,
         longPressLivePhotoEnabled: stored.longPressLivePhotoEnabled,
-        previewOverlayOpacity: stored.previewOverlayOpacity,
-        previewToolbarOpacity: stored.previewToolbarOpacity,
-        previewFilmstripOpacity: stored.previewFilmstripOpacity,
+        previewAutoHideControls: stored.previewAutoHideControls,
         previewFilmstripHeight: stored.previewFilmstripHeight,
         showPreviewFilmstrip: stored.showPreviewFilmstrip,
         showThumbnailRatings: stored.showThumbnailRatings,
@@ -292,14 +290,8 @@ class _HomePageState extends State<HomePage> {
   Future<void> _persistPageSwitchAnimationEnabled(bool enabled) =>
       const PreferencesRepository().savePageSwitchAnimationEnabled(enabled);
 
-  Future<void> _persistPreviewOverlayOpacity(double opacity) =>
-      const PreferencesRepository().savePreviewOverlayOpacity(opacity);
-
-  Future<void> _persistPreviewToolbarOpacity(double opacity) =>
-      const PreferencesRepository().savePreviewToolbarOpacity(opacity);
-
-  Future<void> _persistPreviewFilmstripOpacity(double opacity) =>
-      const PreferencesRepository().savePreviewFilmstripOpacity(opacity);
+  Future<void> _persistPreviewAutoHideControls(bool enabled) =>
+      const PreferencesRepository().savePreviewAutoHideControls(enabled);
 
   Future<void> _persistPreviewFilmstripHeight(double height) =>
       const PreferencesRepository().savePreviewFilmstripHeight(height);
@@ -342,12 +334,8 @@ class _HomePageState extends State<HomePage> {
         settings.pageSwitchAnimationEnabled;
     final longPressLivePhotoChanged = _settings.longPressLivePhotoEnabled !=
         settings.longPressLivePhotoEnabled;
-    final previewOverlayOpacityChanged =
-        _settings.previewOverlayOpacity != settings.previewOverlayOpacity;
-    final previewToolbarOpacityChanged =
-        _settings.previewToolbarOpacity != settings.previewToolbarOpacity;
-    final previewFilmstripOpacityChanged =
-        _settings.previewFilmstripOpacity != settings.previewFilmstripOpacity;
+    final previewAutoHideControlsChanged =
+        _settings.previewAutoHideControls != settings.previewAutoHideControls;
     final previewFilmstripHeightChanged =
         _settings.previewFilmstripHeight != settings.previewFilmstripHeight;
     final rawViewModeChanged = _settings.rawViewMode != settings.rawViewMode;
@@ -422,19 +410,9 @@ class _HomePageState extends State<HomePage> {
       unawaited(const PreferencesRepository()
           .saveLongPressLivePhotoEnabled(settings.longPressLivePhotoEnabled));
     }
-    if (previewOverlayOpacityChanged) {
+    if (previewAutoHideControlsChanged) {
       unawaited(
-        _persistPreviewOverlayOpacity(
-          settings.previewOverlayOpacity,
-        ),
-      );
-    }
-    if (previewToolbarOpacityChanged) {
-      unawaited(_persistPreviewToolbarOpacity(settings.previewToolbarOpacity));
-    }
-    if (previewFilmstripOpacityChanged) {
-      unawaited(
-          _persistPreviewFilmstripOpacity(settings.previewFilmstripOpacity));
+          _persistPreviewAutoHideControls(settings.previewAutoHideControls));
     }
     if (previewFilmstripHeightChanged) {
       unawaited(

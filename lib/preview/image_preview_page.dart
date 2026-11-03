@@ -34,6 +34,7 @@ import 'single_image_preview.dart';
 import 'widgets/preview_exif_sidebar.dart';
 import 'image_histogram.dart';
 import 'widgets/preview_filmstrip.dart';
+import 'widgets/preview_chrome.dart';
 import 'widgets/preview_hover_reveal.dart';
 
 /// Hit target of a preview navigation arrow. Deliberately much taller than the
@@ -174,9 +175,23 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   final ValueNotifier<bool> _isFastScrolling = ValueNotifier<bool>(false);
   late Future<MediaTimestampInfo> _currentTimestampFuture;
 
+  /// Whether the controls over the photo are showing. See
+  /// [PreviewChromeController].
+  late final PreviewChromeController _chrome;
+
+  /// Touches that went down on the photo and may still turn out to be a tap,
+  /// which toggles the chrome. Touch has no hover to reveal it.
+  final Map<int, ({Offset position, Duration timeStamp})> _chromeTaps = {};
+
   @override
   void initState() {
     super.initState();
+    _chrome = PreviewChromeController(
+      autoHide: widget.initialSettings.previewAutoHideControls,
+      // Keep the controls up while a menu or dialog is open over the preview:
+      // hiding the bar a menu is anchored to would strand the menu.
+      canHide: () => mounted && (ModalRoute.of(context)?.isCurrent ?? true),
+    );
     _mediaGroups = List<MediaGroup>.of(widget.mediaGroups);
     _ratingRepository = widget.ratingRepository ?? RatingRepository();
     _exifRepository = _ratingRepository.exifRepository;
@@ -264,6 +279,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     _trackpadPageDrag?.cancel();
     _trackpadVelocityTracker = null;
     _isFastScrolling.dispose();
+    _chrome.dispose();
     _pageController.dispose();
     _previewKeys.clear();
     super.dispose();
@@ -628,6 +644,45 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     );
   }
 
+  void _onRootPointerDown(PointerDownEvent event) {
+    final onChrome = _chrome.takeChromePointer(event.pointer);
+    switch (event.kind) {
+      case PointerDeviceKind.touch:
+      case PointerDeviceKind.stylus:
+      case PointerDeviceKind.invertedStylus:
+        if (onChrome) return;
+        if (_chromeTaps.isNotEmpty) {
+          // A second finger makes this a pinch or a pan, not a tap.
+          _chromeTaps.clear();
+          return;
+        }
+        _chromeTaps[event.pointer] =
+            (position: event.position, timeStamp: event.timeStamp);
+      default:
+        _chrome.reveal();
+    }
+  }
+
+  void _onRootPointerMove(PointerMoveEvent event) {
+    final tap = _chromeTaps[event.pointer];
+    if (tap != null &&
+        (event.position - tap.position).distance > previewChromeTapSlop) {
+      _chromeTaps.remove(event.pointer);
+    }
+  }
+
+  void _onRootPointerUp(PointerUpEvent event) {
+    final tap = _chromeTaps.remove(event.pointer);
+    if (tap != null &&
+        event.timeStamp - tap.timeStamp <= previewChromeTapTimeout) {
+      _chrome.toggle();
+    }
+  }
+
+  void _onRootPointerCancel(PointerCancelEvent event) {
+    _chromeTaps.remove(event.pointer);
+  }
+
   /// A bare chevron that switches to the previous or next image.
   ///
   /// There is no button chrome around it: only the glyph is painted, over
@@ -640,7 +695,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     required VoidCallback? onPressed,
   }) {
     final enabled = onPressed != null;
-    return PreviewHoverReveal(
+    return PreviewChromeRegion(
+        child: PreviewHoverReveal(
       restingOpacity: 0,
       hitTestBehavior: HitTestBehavior.opaque,
       child: MouseRegion(
@@ -674,20 +730,20 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
           ),
         ),
       ),
-    );
+    ));
   }
 
   Widget _buildDirectoryLoadPanel(AppLocalizations l10n) {
     final bottomPadding = MediaQuery.paddingOf(context).bottom;
-    return PreviewHoverReveal(
-      restingOpacity: widget.initialSettings.previewFilmstripOpacity,
+    return PreviewChromeRegion(
+      fades: false,
       child: Container(
         key: const ValueKey('preview-directory-load-panel'),
         padding: EdgeInsets.fromLTRB(12, 10, 12, bottomPadding + 10),
-        decoration: BoxDecoration(
-          color: RawViewerColors.surface.withValues(alpha: 0.96),
-          border: const Border(
-            top: BorderSide(color: RawViewerColors.border),
+        decoration: const BoxDecoration(
+          color: RawViewerColors.surface,
+          border: Border(
+            top: BorderSide(color: RawViewerColors.mutedBorder),
           ),
         ),
         child: Center(
@@ -1023,12 +1079,21 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
             : currentFilePath;
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final exifWidth = clampExifSidebarWidth(_exifSidebar.width, viewportWidth);
-    final exifInset =
-        _exifSidebar.visible && viewportWidth >= exifSidebarDockBreakpoint
-            ? exifWidth
-            : 0.0;
+    final isExifDocked =
+        _exifSidebar.visible && viewportWidth >= exifSidebarDockBreakpoint;
+    final exifInset = isExifDocked ? exifWidth : 0.0;
     final bottomSafePadding = MediaQuery.paddingOf(context).bottom;
     final topSafePadding = MediaQuery.paddingOf(context).top;
+    // A bar that hides itself floats over a full-window photo; one that never
+    // hides is docked above it, so it never covers the photo either.
+    final isToolbarFloating = _chrome.autoHide;
+    final toolbarInset = isToolbarFloating ? 0.0 : kImagePreviewToolbarHeight;
+    // A docked sidebar beside a floating bar reaches the top of the window;
+    // the bar then spans only the photo.
+    final exifTop = topSafePadding +
+        (isExifDocked && isToolbarFloating ? 0 : kImagePreviewToolbarHeight);
+    final toolbarRightInset =
+        isExifDocked && isToolbarFloating ? exifInset : 0.0;
     final previewFilmstripHeight = _clampedPreviewFilmstripHeight(context);
     final previewFilmstripTotalHeight =
         previewFilmstripHeight + bottomSafePadding;
@@ -1041,486 +1106,575 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     final pageDragDevices =
         Set<PointerDeviceKind>.from(ScrollConfiguration.of(context).dragDevices)
           ..remove(PointerDeviceKind.trackpad);
-    return Scaffold(
-      backgroundColor: RawViewerColors.previewBackground,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            right: exifInset,
-            // Paint beneath the translucent toolbar and filmstrip.
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (notification) {
-                if (notification.metrics is PageMetrics) {
-                  final metrics = notification.metrics as PageMetrics;
-                  if (metrics.page != null && metrics.page!.isFinite) {
-                    _preloadForScrollPosition(metrics.page!);
-                  }
+    final currentHasHdr = _hdrImagePaths.contains(currentFilePath);
+    final stack = Stack(
+      children: [
+        Positioned.fill(
+          right: exifInset,
+          // Zoomed images paint beneath the bars, out to the window edges.
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              if (notification.metrics is PageMetrics) {
+                final metrics = notification.metrics as PageMetrics;
+                if (metrics.page != null && metrics.page!.isFinite) {
+                  _preloadForScrollPosition(metrics.page!);
                 }
-                return false;
-              },
-              child: PageView.builder(
-                key: ObjectKey(_pageController),
-                controller: _pageController,
-                // Trackpad pages are moved from raw pan deltas so their position
-                // remains directly coupled to the user's fingers.
-                scrollBehavior: ScrollConfiguration.of(context).copyWith(
-                  dragDevices: pageDragDevices,
-                ),
-                physics: _isLocked
-                    ? const NeverScrollableScrollPhysics()
-                    : const FastPageScrollPhysics(),
-                dragStartBehavior: DragStartBehavior.down,
-                allowImplicitScrolling: true,
-                padEnds: true,
-                itemCount: _mediaGroups.length,
-                onPageChanged: _onPageChanged,
-                itemBuilder: (context, index) {
-                  final mediaGroup = _mediaGroups[index];
-                  final filePath = mediaGroup.primary.path;
-                  // Fit between the bars; the full-page viewport clips zoomed
-                  // images only at the window edges, beyond this padding.
-                  return Padding(
-                    padding: EdgeInsets.only(
-                      top: MediaQuery.paddingOf(context).top +
-                          kImagePreviewToolbarHeight,
-                      bottom: previewBottomInset,
-                    ),
-                    child: SingleImagePreview(
-                      key: _previewKeyFor(filePath),
-                      mediaGroup: mediaGroup,
-                      thumbnailResizeWidth: widget.thumbnailResizeWidth,
-                      previewThumbnailResizeWidth: _previewFilmstripDecodeWidth,
-                      imageStore: widget.imageStore,
-                      // Safe to forward the snapshot: the child is rebuilt from
-                      // this build method, so it is never staler than this page.
-                      settings: widget.initialSettings,
-                      rotationQuarterTurns:
-                          _rotationQuarterTurns[filePath] ?? 0,
-                      viewMode: _effectiveViewModeFor(mediaGroup),
-                      onEmbeddedJpegAvailability: (hasEmbeddedJpeg) =>
-                          _recordEmbeddedJpegAvailability(
-                              filePath, hasEmbeddedJpeg),
-                      onHistogramChanged: _exifSidebar.visible &&
-                              index == _currentIndex
-                          ? (histogram) {
-                              if (!mounted || !_exifSidebar.visible) return;
-                              final group = _mediaGroups[_currentIndex];
-                              if (group.primary.path != filePath ||
-                                  _effectiveViewModeFor(group) !=
-                                      currentViewMode) {
-                                return;
-                              }
-                              setState(() {
-                                _histogramSource = (filePath, currentViewMode);
-                                _histogram = histogram;
-                              });
+              }
+              return false;
+            },
+            child: PageView.builder(
+              key: ObjectKey(_pageController),
+              controller: _pageController,
+              // Trackpad pages are moved from raw pan deltas so their position
+              // remains directly coupled to the user's fingers.
+              scrollBehavior: ScrollConfiguration.of(context).copyWith(
+                dragDevices: pageDragDevices,
+              ),
+              physics: _isLocked
+                  ? const NeverScrollableScrollPhysics()
+                  : const FastPageScrollPhysics(),
+              dragStartBehavior: DragStartBehavior.down,
+              allowImplicitScrolling: true,
+              padEnds: true,
+              itemCount: _mediaGroups.length,
+              onPageChanged: _onPageChanged,
+              itemBuilder: (context, index) {
+                final mediaGroup = _mediaGroups[index];
+                final filePath = mediaGroup.primary.path;
+                // Fit between the bars; the full-page viewport clips zoomed
+                // images only at the window edges, beyond this padding.
+                return Padding(
+                  padding: EdgeInsets.only(
+                    top: topSafePadding + toolbarInset,
+                    bottom: previewBottomInset,
+                  ),
+                  child: SingleImagePreview(
+                    key: _previewKeyFor(filePath),
+                    mediaGroup: mediaGroup,
+                    thumbnailResizeWidth: widget.thumbnailResizeWidth,
+                    previewThumbnailResizeWidth: _previewFilmstripDecodeWidth,
+                    imageStore: widget.imageStore,
+                    // Safe to forward the snapshot: the child is rebuilt from
+                    // this build method, so it is never staler than this page.
+                    settings: widget.initialSettings,
+                    rotationQuarterTurns: _rotationQuarterTurns[filePath] ?? 0,
+                    viewMode: _effectiveViewModeFor(mediaGroup),
+                    onEmbeddedJpegAvailability: (hasEmbeddedJpeg) =>
+                        _recordEmbeddedJpegAvailability(
+                            filePath, hasEmbeddedJpeg),
+                    onHistogramChanged: _exifSidebar.visible &&
+                            index == _currentIndex
+                        ? (histogram) {
+                            if (!mounted || !_exifSidebar.visible) return;
+                            final group = _mediaGroups[_currentIndex];
+                            if (group.primary.path != filePath ||
+                                _effectiveViewModeFor(group) !=
+                                    currentViewMode) {
+                              return;
                             }
-                          : null,
-                      onHdrDetected: () => _recordHdrDetected(filePath),
-                      hasHdr: _hdrImagePaths.contains(filePath),
-                      showHdr: !_hdrDisabledPaths.contains(filePath),
-                      onHdrToggle: () => _toggleHdr(filePath),
-                      onResetRotationRequested: () =>
-                          _resetImageRotation(filePath),
-                      onSwitchRequest: _switchPage,
-                      scrollGesture: _scrollGesture,
-                      onTrackpadPanStart: _startTrackpadPageDrag,
-                      onTrackpadPanUpdate: _updateTrackpadPageDrag,
-                      onTrackpadPanEnd: _endTrackpadPageDrag,
-                      onTrackpadPanCancel: _cancelTrackpadPageDrag,
-                      isActive: index == _currentIndex,
-                      showPreviewOverview: _showPreviewOverview,
-                      overviewBottomInset: 0,
-                      isFastScrolling: _isFastScrolling,
-                      onScaleStateChanged: (isScaling) {
-                        if (_isLocked != isScaling) {
-                          setState(() {
-                            _isLocked = isScaling;
-                          });
-                        }
-                      },
-                    ),
-                  );
-                },
-              ),
+                            setState(() {
+                              _histogramSource = (filePath, currentViewMode);
+                              _histogram = histogram;
+                            });
+                          }
+                        : null,
+                    onHdrDetected: () => _recordHdrDetected(filePath),
+                    showHdr: !_hdrDisabledPaths.contains(filePath),
+                    onResetRotationRequested: () =>
+                        _resetImageRotation(filePath),
+                    onSwitchRequest: _switchPage,
+                    scrollGesture: _scrollGesture,
+                    onTrackpadPanStart: _startTrackpadPageDrag,
+                    onTrackpadPanUpdate: _updateTrackpadPageDrag,
+                    onTrackpadPanEnd: _endTrackpadPageDrag,
+                    onTrackpadPanCancel: _cancelTrackpadPageDrag,
+                    isActive: index == _currentIndex,
+                    showPreviewOverview: _showPreviewOverview,
+                    overviewBottomInset: 0,
+                    isFastScrolling: _isFastScrolling,
+                    onScaleStateChanged: (isScaling) {
+                      if (_isLocked != isScaling) {
+                        setState(() {
+                          _isLocked = isScaling;
+                        });
+                      }
+                    },
+                  ),
+                );
+              },
             ),
           ),
-          // Previous/next image arrows. They span the image viewport only, so
-          // hovering the toolbar, filmstrip, or EXIF sidebar never reveals
-          // them, and they stay out of the way of the controls at the corners.
-          if (_mediaGroups.length > 1) ...[
-            Positioned(
-              left: 0,
-              right: exifInset,
-              top: topSafePadding + kImagePreviewToolbarHeight,
-              bottom: previewBottomInset,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: _buildPreviewNavigationArrow(
-                  leading: true,
-                  tooltip: l10n.previousImageTooltip,
-                  onPressed: _currentIndex > 0 ? () => _switchPage(-1) : null,
-                ),
-              ),
-            ),
-            Positioned(
-              left: 0,
-              right: exifInset,
-              top: topSafePadding + kImagePreviewToolbarHeight,
-              bottom: previewBottomInset,
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: _buildPreviewNavigationArrow(
-                  leading: false,
-                  tooltip: l10n.nextImageTooltip,
-                  onPressed: _currentIndex + 1 < _mediaGroups.length
-                      ? () => _switchPage(1)
-                      : null,
-                ),
-              ),
-            ),
-          ],
+        ),
+        // Previous/next image arrows. They span the image viewport only, so
+        // hovering the toolbar, filmstrip, or EXIF sidebar never reveals
+        // them, and they stay out of the way of the controls at the corners.
+        if (_mediaGroups.length > 1) ...[
           Positioned(
-            right: 12 + exifInset,
-            bottom: controlsBottomInset,
-            child: PreviewHoverReveal(
-              restingOpacity: widget.initialSettings.previewOverlayOpacity,
-              hitTestBehavior: HitTestBehavior.opaque,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: RawViewerColors.surface.withValues(alpha: 0.84),
-                  border: Border.all(color: RawViewerColors.border),
-                  borderRadius: BorderRadius.circular(5),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(3),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      DesktopIconButton(
-                        icon: Icons.rotate_left,
-                        tooltip: l10n.rotateImageCounterclockwiseTooltip,
-                        onPressed: () => _rotateImage(currentFilePath, -1),
-                      ),
-                      const SizedBox(width: 2),
-                      DesktopIconButton(
-                        icon: Icons.rotate_right,
-                        tooltip: l10n.rotateImageTooltip,
-                        onPressed: () => _rotateImage(currentFilePath, 1),
-                      ),
-                      const SizedBox(width: 5),
-                      DesktopIconButton(
-                        icon: Icons.zoom_in,
-                        tooltip: l10n.zoomInImageTooltip,
-                        onPressed: () =>
-                            currentPreviewKey.currentState?.zoomIn(),
-                      ),
-                      const SizedBox(width: 2),
-                      DesktopIconButton(
-                        icon: Icons.zoom_out,
-                        tooltip: l10n.zoomOutImageTooltip,
-                        onPressed: () =>
-                            currentPreviewKey.currentState?.zoomOut(),
-                      ),
-                      const SizedBox(width: 2),
-                      DesktopIconButton(
-                        icon: Icons.filter_center_focus,
-                        tooltip: l10n.resetImageViewTooltip,
-                        onPressed: () =>
-                            currentPreviewKey.currentState?.resetView(),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          if (showNavigationPanel)
-            Positioned(
-              left: 0,
-              right: exifInset,
-              bottom: 0,
-              height: previewFilmstripTotalHeight +
-                  (_isDirectoryLoaded
-                      ? previewFilmstripResizeHandleAboveBar
-                      : 0),
-              child: _isDirectoryLoaded
-                  ? Stack(
-                      children: [
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          child: PreviewHoverReveal(
-                            restingOpacity:
-                                widget.initialSettings.previewFilmstripOpacity,
-                            child: PreviewFilmstrip(
-                              controls: _buildFilmstripControls(),
-                              ratingRepository: _ratingRepository,
-                              showRatings: _showThumbnailRatings,
-                              hideUnratedRatings: _hideUnratedRatings,
-                              mediaGroups: _mediaGroups,
-                              currentIndex: _currentIndex,
-                              imageStore: widget.imageStore,
-                              height: previewFilmstripHeight,
-                              decodeWidth: _previewFilmstripDecodeWidth,
-                              centerCurrentThumbnailTooltip:
-                                  l10n.centerCurrentPreviewThumbnailTooltip,
-                              onIndexSelected: _jumpToPage,
-                              onFastIndexSelected: _jumpToPageFast,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          height: previewFilmstripResizeHandleHeight,
-                          child: _buildPreviewFilmstripResizeHandle(),
-                        ),
-                      ],
-                    )
-                  : _buildDirectoryLoadPanel(l10n),
-            ),
-          if (_exifSidebar.visible)
-            Positioned(
-              top: MediaQuery.paddingOf(context).top +
-                  kImagePreviewToolbarHeight,
-              right: 0,
-              bottom: 0,
-              width: exifWidth,
-              child: PreviewExifSidebar(
-                filePath: exifFilePath,
-                repository: _exifRepository,
-                histogram:
-                    _histogramSource == (currentFilePath, currentViewMode)
-                        ? _histogram
-                        : const HistogramSnapshot.loading(),
-                expandedSections: _exifSidebar.expandedSections,
-                onExpandedSectionsChanged: (sections) => _updateExifSidebar(
-                  _exifSidebar.copyWith(expandedSections: sections),
-                ),
-                onClose: () =>
-                    _updateExifSidebar(_exifSidebar.copyWith(visible: false)),
-              ),
-            ),
-          if (_exifSidebar.visible)
-            Positioned(
-              top: MediaQuery.paddingOf(context).top +
-                  kImagePreviewToolbarHeight,
-              bottom: 0,
-              right: exifWidth - exifSidebarResizeHandleWidth,
-              width: exifSidebarResizeHandleWidth,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.resizeLeftRight,
-                child: Tooltip(
-                  message: l10n.exifResizeTooltip,
-                  child: GestureDetector(
-                    key: const ValueKey('preview-exif-resize-handle'),
-                    behavior: HitTestBehavior.opaque,
-                    onHorizontalDragUpdate: (details) =>
-                        _resizeExifSidebar(details.delta.dx),
-                    onHorizontalDragEnd: (_) => _commitExifSidebarWidth(),
-                    onHorizontalDragCancel: _commitExifSidebarWidth,
-                    child: const SizedBox.expand(),
-                  ),
-                ),
-              ),
-            ),
-          Positioned(
-            top: 0,
             left: 0,
-            right: 0,
-            child: PreviewHoverReveal(
-              restingOpacity: widget.initialSettings.previewToolbarOpacity,
-              child: FutureBuilder<MediaTimestampInfo>(
-                future: _currentTimestampFuture,
-                builder: (context, snapshot) {
-                  final timestampText = snapshot.hasData
-                      ? snapshot.data!
-                          .format(widget.initialSettings.timeDisplaySource)
-                      : '---- -- -- --:--:--';
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: RawViewerColors.surface.withValues(alpha: 0.84),
-                      border: const Border(
-                        bottom: BorderSide(color: RawViewerColors.border),
-                      ),
-                    ),
-                    child: SafeArea(
-                      bottom: false,
-                      child: SizedBox(
-                        height: kImagePreviewToolbarHeight,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          child: Row(
-                            children: [
-                              DesktopIconButton(
-                                icon: Icons.arrow_back,
-                                tooltip: MaterialLocalizations.of(context)
-                                    .backButtonTooltip,
-                                onPressed: widget.onClose,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      path.basename(currentFilePath),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: RawViewerColors.text,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    Text(
-                                      timestampText,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: RawViewerColors.mutedText,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              if (currentMediaGroup.isRaw) ...[
-                                DesktopPopupMenuButton<RawViewMode>(
-                                  tooltip: l10n.rawViewModeTooltip,
-                                  initialValue: currentViewMode,
-                                  onSelected: (mode) => _selectViewMode(
-                                    currentMediaGroup,
-                                    mode,
-                                  ),
-                                  child: DesktopPopupMenuLabelTrigger(
-                                    icon: _viewModeIcon(currentViewMode),
-                                    label: _viewModeLabel(
-                                      l10n,
-                                      currentViewMode,
-                                    ),
-                                  ),
-                                  // Every mode is always listed; the ones this
-                                  // file cannot show are greyed out rather than
-                                  // removed, so the menu never changes shape.
-                                  itemBuilder: (context) => [
-                                    for (final mode in RawViewMode.values)
-                                      desktopPopupMenuItem(
-                                        value: mode,
-                                        icon: _viewModeIcon(mode),
-                                        selected: currentViewMode == mode,
-                                        enabled: isRawViewModeAvailable(
-                                          mode,
-                                          hasEmbeddedJpeg: _hasEmbeddedJpegFor(
-                                            currentMediaGroup,
-                                          ),
-                                          hasPairedJpeg:
-                                              currentMediaGroup.hasPairedJpeg,
-                                        ),
-                                        label: _viewModeLabel(l10n, mode),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(width: 8),
-                              ],
-                              DesktopPopupMenuButton<PreviewDisplayControl>(
-                                tooltip: l10n.previewDisplayControlsTooltip,
-                                onSelected: (control) {
-                                  setState(() {
-                                    switch (control) {
-                                      case PreviewDisplayControl.filmstrip:
-                                        _showPreviewFilmstrip =
-                                            !_showPreviewFilmstrip;
-                                        widget
-                                            .onPreviewFilmstripVisibilityChanged
-                                            ?.call(_showPreviewFilmstrip);
-                                        break;
-                                      case PreviewDisplayControl.overview:
-                                        _showPreviewOverview =
-                                            !_showPreviewOverview;
-                                        widget
-                                            .onPreviewOverviewVisibilityChanged
-                                            ?.call(_showPreviewOverview);
-                                        break;
-                                    }
-                                  });
-                                },
-                                itemBuilder: (context) => [
-                                  desktopPopupMenuItem(
-                                    value: PreviewDisplayControl.filmstrip,
-                                    icon: Icons.view_carousel_outlined,
-                                    selected: _showPreviewFilmstrip,
-                                    label: l10n.previewFilmstripTitle,
-                                  ),
-                                  desktopPopupMenuItem(
-                                    value: PreviewDisplayControl.overview,
-                                    icon: Icons.map_outlined,
-                                    selected: _showPreviewOverview,
-                                    label: l10n.previewOverviewTitle,
-                                  ),
-                                ],
-                                child: const DesktopPopupMenuTrigger(
-                                  icon: Icons.tune,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              if (currentMediaGroup.isRaw) ...[
-                                DesktopPopupMenuButton<PreviewAction>(
-                                  tooltip: l10n.moreActionsTooltip,
-                                  enabled: !_isExportingEmbeddedJpeg,
-                                  onSelected: (action) {
-                                    switch (action) {
-                                      case PreviewAction.exportEmbeddedJpeg:
-                                        unawaited(
-                                          _exportEmbeddedJpeg(
-                                            currentMediaGroup.primary.path,
-                                          ),
-                                        );
-                                        break;
-                                    }
-                                  },
-                                  child: DesktopPopupMenuTrigger(
-                                    icon: _isExportingEmbeddedJpeg
-                                        ? Icons.downloading_outlined
-                                        : Icons.more_vert,
-                                  ),
-                                  itemBuilder: (context) => [
-                                    desktopPopupMenuItem(
-                                      value: PreviewAction.exportEmbeddedJpeg,
-                                      icon: Icons.download_outlined,
-                                      label: l10n.exportEmbeddedJpegMenuItem,
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(width: 8),
-                              ],
-                              DesktopIconButton(
-                                icon: Icons.info_outline,
-                                tooltip: _exifSidebar.visible
-                                    ? l10n.hideExifTooltip
-                                    : l10n.showExifTooltip,
-                                selected: _exifSidebar.visible,
-                                onPressed: () => _updateExifSidebar(
-                                  _exifSidebar.copyWith(
-                                      visible: !_exifSidebar.visible),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
+            right: exifInset,
+            top: topSafePadding + kImagePreviewToolbarHeight,
+            bottom: previewBottomInset,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _buildPreviewNavigationArrow(
+                leading: true,
+                tooltip: l10n.previousImageTooltip,
+                onPressed: _currentIndex > 0 ? () => _switchPage(-1) : null,
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: exifInset,
+            top: topSafePadding + kImagePreviewToolbarHeight,
+            bottom: previewBottomInset,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: _buildPreviewNavigationArrow(
+                leading: false,
+                tooltip: l10n.nextImageTooltip,
+                onPressed: _currentIndex + 1 < _mediaGroups.length
+                    ? () => _switchPage(1)
+                    : null,
               ),
             ),
           ),
         ],
+        Positioned(
+          right: 12 + exifInset,
+          bottom: controlsBottomInset,
+          child: PreviewChromeRegion(
+            hiddenOffset: const Offset(0, 0.25),
+            hitTestBehavior: HitTestBehavior.opaque,
+            child: DecoratedBox(
+              key: const ValueKey('preview-image-tools'),
+              decoration: previewFloatingPanelDecoration,
+              child: Padding(
+                padding: const EdgeInsets.all(3),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (currentHasHdr) ...[
+                      _HdrPreviewToggle(
+                        enabled: !_hdrDisabledPaths.contains(currentFilePath),
+                        onPressed: () => _toggleHdr(currentFilePath),
+                      ),
+                      const _ImageToolsDivider(),
+                    ],
+                    DesktopIconButton(
+                      icon: Icons.rotate_left,
+                      tooltip: l10n.rotateImageCounterclockwiseTooltip,
+                      onPressed: () => _rotateImage(currentFilePath, -1),
+                    ),
+                    const SizedBox(width: 2),
+                    DesktopIconButton(
+                      icon: Icons.rotate_right,
+                      tooltip: l10n.rotateImageTooltip,
+                      onPressed: () => _rotateImage(currentFilePath, 1),
+                    ),
+                    const _ImageToolsDivider(),
+                    DesktopIconButton(
+                      icon: Icons.zoom_in,
+                      tooltip: l10n.zoomInImageTooltip,
+                      onPressed: () => currentPreviewKey.currentState?.zoomIn(),
+                    ),
+                    const SizedBox(width: 2),
+                    DesktopIconButton(
+                      icon: Icons.zoom_out,
+                      tooltip: l10n.zoomOutImageTooltip,
+                      onPressed: () =>
+                          currentPreviewKey.currentState?.zoomOut(),
+                    ),
+                    const SizedBox(width: 2),
+                    DesktopIconButton(
+                      icon: Icons.filter_center_focus,
+                      tooltip: l10n.resetImageViewTooltip,
+                      onPressed: () =>
+                          currentPreviewKey.currentState?.resetView(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (showNavigationPanel)
+          Positioned(
+            left: 0,
+            right: exifInset,
+            bottom: 0,
+            height: previewFilmstripTotalHeight +
+                (_isDirectoryLoaded ? previewFilmstripResizeHandleAboveBar : 0),
+            child: _isDirectoryLoaded
+                ? Stack(
+                    children: [
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: PreviewChromeRegion(
+                          fades: false,
+                          child: PreviewFilmstrip(
+                            controls: _buildFilmstripControls(),
+                            ratingRepository: _ratingRepository,
+                            showRatings: _showThumbnailRatings,
+                            hideUnratedRatings: _hideUnratedRatings,
+                            mediaGroups: _mediaGroups,
+                            currentIndex: _currentIndex,
+                            imageStore: widget.imageStore,
+                            height: previewFilmstripHeight,
+                            decodeWidth: _previewFilmstripDecodeWidth,
+                            centerCurrentThumbnailTooltip:
+                                l10n.centerCurrentPreviewThumbnailTooltip,
+                            onIndexSelected: _jumpToPage,
+                            onFastIndexSelected: _jumpToPageFast,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: previewFilmstripResizeHandleHeight,
+                        child: _buildPreviewFilmstripResizeHandle(),
+                      ),
+                    ],
+                  )
+                : _buildDirectoryLoadPanel(l10n),
+          ),
+        if (_exifSidebar.visible)
+          Positioned(
+            top: exifTop,
+            right: 0,
+            bottom: 0,
+            width: exifWidth,
+            child: PreviewChromeRegion(
+                fades: false,
+                child: PreviewExifSidebar(
+                  filePath: exifFilePath,
+                  repository: _exifRepository,
+                  histogram:
+                      _histogramSource == (currentFilePath, currentViewMode)
+                          ? _histogram
+                          : const HistogramSnapshot.loading(),
+                  expandedSections: _exifSidebar.expandedSections,
+                  onExpandedSectionsChanged: (sections) => _updateExifSidebar(
+                    _exifSidebar.copyWith(expandedSections: sections),
+                  ),
+                  onClose: () =>
+                      _updateExifSidebar(_exifSidebar.copyWith(visible: false)),
+                )),
+          ),
+        if (_exifSidebar.visible)
+          Positioned(
+            top: exifTop,
+            bottom: 0,
+            right: exifWidth - exifSidebarResizeHandleWidth,
+            width: exifSidebarResizeHandleWidth,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.resizeLeftRight,
+              child: Tooltip(
+                message: l10n.exifResizeTooltip,
+                child: GestureDetector(
+                  key: const ValueKey('preview-exif-resize-handle'),
+                  behavior: HitTestBehavior.opaque,
+                  onHorizontalDragUpdate: (details) =>
+                      _resizeExifSidebar(details.delta.dx),
+                  onHorizontalDragEnd: (_) => _commitExifSidebarWidth(),
+                  onHorizontalDragCancel: _commitExifSidebarWidth,
+                  child: const SizedBox.expand(),
+                ),
+              ),
+            ),
+          ),
+        Positioned(
+          top: 0,
+          left: 0,
+          right: toolbarRightInset,
+          child: PreviewChromeRegion(
+            fades: isToolbarFloating,
+            hiddenOffset: const Offset(0, -0.3),
+            child: FutureBuilder<MediaTimestampInfo>(
+              future: _currentTimestampFuture,
+              builder: (context, snapshot) {
+                final timestampText = snapshot.hasData
+                    ? snapshot.data!
+                        .format(widget.initialSettings.timeDisplaySource)
+                    : '---- -- -- --:--:--';
+                return DecoratedBox(
+                  key: const ValueKey('preview-toolbar'),
+                  decoration: isToolbarFloating
+                      ? previewFloatingBarScrimDecoration
+                      : previewDockedBarDecoration,
+                  child: SafeArea(
+                    bottom: false,
+                    child: SizedBox(
+                      height: kImagePreviewToolbarHeight,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Row(
+                          children: [
+                            DesktopIconButton(
+                              icon: Icons.arrow_back,
+                              tooltip: MaterialLocalizations.of(context)
+                                  .backButtonTooltip,
+                              onPressed: widget.onClose,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    path.basename(currentFilePath),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: RawViewerColors.text,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      shadows: isToolbarFloating
+                                          ? previewFloatingTextShadows
+                                          : null,
+                                    ),
+                                  ),
+                                  Text(
+                                    timestampText,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: isToolbarFloating
+                                          ? const Color(0xFFC9D0D6)
+                                          : RawViewerColors.mutedText,
+                                      fontSize: 11,
+                                      shadows: isToolbarFloating
+                                          ? previewFloatingTextShadows
+                                          : null,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            if (currentMediaGroup.isRaw) ...[
+                              DesktopPopupMenuButton<RawViewMode>(
+                                tooltip: l10n.rawViewModeTooltip,
+                                initialValue: currentViewMode,
+                                onSelected: (mode) => _selectViewMode(
+                                  currentMediaGroup,
+                                  mode,
+                                ),
+                                child: DesktopPopupMenuLabelTrigger(
+                                  icon: _viewModeIcon(currentViewMode),
+                                  label: _viewModeLabel(
+                                    l10n,
+                                    currentViewMode,
+                                  ),
+                                ),
+                                // Every mode is always listed; the ones this
+                                // file cannot show are greyed out rather than
+                                // removed, so the menu never changes shape.
+                                itemBuilder: (context) => [
+                                  for (final mode in RawViewMode.values)
+                                    desktopPopupMenuItem(
+                                      value: mode,
+                                      icon: _viewModeIcon(mode),
+                                      selected: currentViewMode == mode,
+                                      enabled: isRawViewModeAvailable(
+                                        mode,
+                                        hasEmbeddedJpeg: _hasEmbeddedJpegFor(
+                                          currentMediaGroup,
+                                        ),
+                                        hasPairedJpeg:
+                                            currentMediaGroup.hasPairedJpeg,
+                                      ),
+                                      label: _viewModeLabel(l10n, mode),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                            DesktopPopupMenuButton<PreviewDisplayControl>(
+                              tooltip: l10n.previewDisplayControlsTooltip,
+                              onSelected: (control) {
+                                setState(() {
+                                  switch (control) {
+                                    case PreviewDisplayControl.filmstrip:
+                                      _showPreviewFilmstrip =
+                                          !_showPreviewFilmstrip;
+                                      widget.onPreviewFilmstripVisibilityChanged
+                                          ?.call(_showPreviewFilmstrip);
+                                      break;
+                                    case PreviewDisplayControl.overview:
+                                      _showPreviewOverview =
+                                          !_showPreviewOverview;
+                                      widget.onPreviewOverviewVisibilityChanged
+                                          ?.call(_showPreviewOverview);
+                                      break;
+                                  }
+                                });
+                              },
+                              itemBuilder: (context) => [
+                                desktopPopupMenuItem(
+                                  value: PreviewDisplayControl.filmstrip,
+                                  icon: Icons.view_carousel_outlined,
+                                  selected: _showPreviewFilmstrip,
+                                  label: l10n.previewFilmstripTitle,
+                                ),
+                                desktopPopupMenuItem(
+                                  value: PreviewDisplayControl.overview,
+                                  icon: Icons.map_outlined,
+                                  selected: _showPreviewOverview,
+                                  label: l10n.previewOverviewTitle,
+                                ),
+                              ],
+                              child: const DesktopPopupMenuTrigger(
+                                icon: Icons.tune,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            if (currentMediaGroup.isRaw) ...[
+                              DesktopPopupMenuButton<PreviewAction>(
+                                tooltip: l10n.moreActionsTooltip,
+                                enabled: !_isExportingEmbeddedJpeg,
+                                onSelected: (action) {
+                                  switch (action) {
+                                    case PreviewAction.exportEmbeddedJpeg:
+                                      unawaited(
+                                        _exportEmbeddedJpeg(
+                                          currentMediaGroup.primary.path,
+                                        ),
+                                      );
+                                      break;
+                                  }
+                                },
+                                child: DesktopPopupMenuTrigger(
+                                  icon: _isExportingEmbeddedJpeg
+                                      ? Icons.downloading_outlined
+                                      : Icons.more_vert,
+                                ),
+                                itemBuilder: (context) => [
+                                  desktopPopupMenuItem(
+                                    value: PreviewAction.exportEmbeddedJpeg,
+                                    icon: Icons.download_outlined,
+                                    label: l10n.exportEmbeddedJpegMenuItem,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                            DesktopIconButton(
+                              icon: Icons.info_outline,
+                              tooltip: _exifSidebar.visible
+                                  ? l10n.hideExifTooltip
+                                  : l10n.showExifTooltip,
+                              selected: _exifSidebar.visible,
+                              onPressed: () => _updateExifSidebar(
+                                _exifSidebar.copyWith(
+                                    visible: !_exifSidebar.visible),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+    return Scaffold(
+      backgroundColor: RawViewerColors.previewBackground,
+      body: PreviewChromeScope(
+        controller: _chrome,
+        child: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: _onRootPointerDown,
+          onPointerMove: _onRootPointerMove,
+          onPointerUp: _onRootPointerUp,
+          onPointerCancel: _onRootPointerCancel,
+          child: ListenableBuilder(
+            listenable: _chrome,
+            builder: (context, child) => MouseRegion(
+              opaque: false,
+              hitTestBehavior: HitTestBehavior.translucent,
+              // Moving the mouse brings the controls back; with them gone the
+              // cursor goes too, so nothing at all is left over the photo.
+              cursor:
+                  _chrome.visible ? MouseCursor.defer : SystemMouseCursors.none,
+              onHover: (_) => _chrome.reveal(),
+              child: child,
+            ),
+            child: stack,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Separates groups of buttons on the floating image tools.
+class _ImageToolsDivider extends StatelessWidget {
+  const _ImageToolsDivider();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 1,
+        height: 18,
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        color: const Color(0x33FFFFFF),
+      );
+}
+
+class _HdrPreviewToggle extends StatelessWidget {
+  final bool enabled;
+  final VoidCallback? onPressed;
+
+  const _HdrPreviewToggle({required this.enabled, this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Tooltip(
+      message: enabled
+          ? l10n.disableHdrPreviewTooltip
+          : l10n.enableHdrPreviewTooltip,
+      child: SizedBox(
+        height: desktopControlSize,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(5),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(5),
+            onTap: onPressed,
+            hoverColor: RawViewerColors.raisedSurface,
+            splashColor: RawViewerColors.accentMuted,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  'HDR',
+                  style: TextStyle(
+                    color: enabled
+                        ? RawViewerColors.text
+                        : RawViewerColors.mutedText,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    decoration: enabled
+                        ? TextDecoration.none
+                        : TextDecoration.lineThrough,
+                    decorationColor: RawViewerColors.mutedText,
+                    decorationThickness: 1.5,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

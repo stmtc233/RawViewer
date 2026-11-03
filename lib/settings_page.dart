@@ -55,11 +55,6 @@ enum TimeDisplaySource { capturedAt, modifiedAt }
 
 enum AppLanguage { system, zhHans, english }
 
-const double kDefaultPreviewOverlayOpacity = 0.42;
-const double kMinPreviewOverlayOpacity = 0.2;
-const double kMaxPreviewOverlayOpacity = 1.0;
-const int kPreviewOverlayOpacityDivisions = 80;
-
 extension AppLanguageLocale on AppLanguage {
   Locale? get locale {
     switch (this) {
@@ -229,10 +224,9 @@ class ViewerSettings {
   // navigation remain directly controlled by the PageView.
   final bool pageSwitchAnimationEnabled;
   final bool longPressLivePhotoEnabled;
-  // Resting opacities for tools/overview, the top bar, and the filmstrip.
-  final double previewOverlayOpacity;
-  final double previewToolbarOpacity;
-  final double previewFilmstripOpacity;
+  // On: the preview's controls float over a full-window image and hide while
+  // the pointer is still. Off: the top bar is docked and controls stay up.
+  final bool previewAutoHideControls;
   final double previewFilmstripHeight;
   final bool showPreviewFilmstrip;
   final bool showThumbnailRatings;
@@ -256,9 +250,7 @@ class ViewerSettings {
     this.gridSpacing = kDefaultGridSpacing,
     this.pageSwitchAnimationEnabled = true,
     this.longPressLivePhotoEnabled = false,
-    this.previewOverlayOpacity = kDefaultPreviewOverlayOpacity,
-    this.previewToolbarOpacity = kDefaultPreviewOverlayOpacity,
-    this.previewFilmstripOpacity = kDefaultPreviewOverlayOpacity,
+    this.previewAutoHideControls = true,
     this.previewFilmstripHeight = kPreviewFilmstripHeight,
     this.showPreviewFilmstrip = true,
     this.showThumbnailRatings = true,
@@ -283,9 +275,7 @@ class ViewerSettings {
     double? gridSpacing,
     bool? pageSwitchAnimationEnabled,
     bool? longPressLivePhotoEnabled,
-    double? previewOverlayOpacity,
-    double? previewToolbarOpacity,
-    double? previewFilmstripOpacity,
+    bool? previewAutoHideControls,
     double? previewFilmstripHeight,
     bool? showPreviewFilmstrip,
     bool? showThumbnailRatings,
@@ -312,12 +302,8 @@ class ViewerSettings {
           pageSwitchAnimationEnabled ?? this.pageSwitchAnimationEnabled,
       longPressLivePhotoEnabled:
           longPressLivePhotoEnabled ?? this.longPressLivePhotoEnabled,
-      previewOverlayOpacity:
-          previewOverlayOpacity ?? this.previewOverlayOpacity,
-      previewToolbarOpacity:
-          previewToolbarOpacity ?? this.previewToolbarOpacity,
-      previewFilmstripOpacity:
-          previewFilmstripOpacity ?? this.previewFilmstripOpacity,
+      previewAutoHideControls:
+          previewAutoHideControls ?? this.previewAutoHideControls,
       previewFilmstripHeight:
           previewFilmstripHeight ?? this.previewFilmstripHeight,
       showPreviewFilmstrip: showPreviewFilmstrip ?? this.showPreviewFilmstrip,
@@ -515,27 +501,6 @@ class _SettingsPageState extends State<SettingsPage>
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildOpacityRow({
-    required String key,
-    required String title,
-    String? subtitle,
-    required double value,
-    required ValueChanged<double> onChanged,
-  }) {
-    final l10n = AppLocalizations.of(context)!;
-    return _buildSliderRow(
-      key: key,
-      title: title,
-      subtitle: subtitle,
-      label: l10n.previewOverlayOpacityPercent((value * 100).round()),
-      value: value,
-      min: kMinPreviewOverlayOpacity,
-      max: kMaxPreviewOverlayOpacity,
-      divisions: kPreviewOverlayOpacityDivisions,
-      onChanged: onChanged,
     );
   }
 
@@ -942,29 +907,15 @@ class _SettingsPageState extends State<SettingsPage>
       DesktopSettingsSection(
         title: l10n.imagePreviewSectionTitle,
         children: _withDividers([
-          _buildOpacityRow(
-            key: 'preview-toolbar-opacity',
-            title: l10n.previewToolbarOpacityTitle,
-            value: _currentSettings.previewToolbarOpacity,
-            onChanged: (value) => _updateSettings(
-              _currentSettings.copyWith(previewToolbarOpacity: value),
-            ),
-          ),
-          _buildOpacityRow(
-            key: 'preview-filmstrip-opacity',
-            title: l10n.previewFilmstripOpacityTitle,
-            value: _currentSettings.previewFilmstripOpacity,
-            onChanged: (value) => _updateSettings(
-              _currentSettings.copyWith(previewFilmstripOpacity: value),
-            ),
-          ),
-          _buildOpacityRow(
-            key: 'preview-overlay-opacity',
-            title: l10n.previewOverlayOpacityTitle,
-            subtitle: l10n.previewOverlayOpacitySubtitle,
-            value: _currentSettings.previewOverlayOpacity,
-            onChanged: (value) => _updateSettings(
-              _currentSettings.copyWith(previewOverlayOpacity: value),
+          DesktopSettingsRow(
+            key: const ValueKey('preview-auto-hide-controls'),
+            title: l10n.previewAutoHideControlsTitle,
+            subtitle: l10n.previewAutoHideControlsSubtitle,
+            control: Switch(
+              value: _currentSettings.previewAutoHideControls,
+              onChanged: (value) => _updateSettings(
+                _currentSettings.copyWith(previewAutoHideControls: value),
+              ),
             ),
           ),
         ]),

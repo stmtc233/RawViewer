@@ -6,16 +6,14 @@ import 'package:video_player/video_player.dart';
 
 import '../../core/live_photo.dart';
 import '../../l10n/app_localizations.dart';
-import '../../ui/app_theme.dart';
 import '../../ui/desktop_controls.dart';
-import 'preview_hover_reveal.dart';
+import 'preview_chrome.dart';
 
 class LivePhotoPreview extends StatefulWidget {
   final String filePath;
   final bool active;
   final bool longPressPlaybackEnabled;
   final int quarterTurns;
-  final double overlayOpacity;
   final double bottomInset;
   final Widget child;
   final Future<LivePhotoSource?> Function(String) sourceLoader;
@@ -26,7 +24,6 @@ class LivePhotoPreview extends StatefulWidget {
     required this.active,
     this.longPressPlaybackEnabled = false,
     required this.quarterTurns,
-    this.overlayOpacity = 1,
     required this.bottomInset,
     required this.child,
     this.sourceLoader = findLivePhoto,
@@ -318,15 +315,10 @@ class _LivePhotoPreviewState extends State<LivePhotoPreview>
           Positioned(
             left: 16,
             bottom: widget.bottomInset + 12,
-            child: PreviewHoverReveal(
-              restingOpacity: widget.overlayOpacity,
+            child: PreviewChromeRegion(
               hitTestBehavior: HitTestBehavior.opaque,
               child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: RawViewerColors.surface.withValues(alpha: 0.84),
-                  border: Border.all(color: RawViewerColors.border),
-                  borderRadius: BorderRadius.circular(5),
-                ),
+                decoration: previewFloatingPanelDecoration,
                 child: Padding(
                   padding: const EdgeInsets.all(3),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [

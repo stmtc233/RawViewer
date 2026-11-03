@@ -641,35 +641,17 @@ abstract class AppLocalizations {
   /// **'Image Preview'**
   String get imagePreviewSectionTitle;
 
-  /// No description provided for @previewToolbarOpacityTitle.
+  /// No description provided for @previewAutoHideControlsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Top Bar Opacity'**
-  String get previewToolbarOpacityTitle;
+  /// **'Auto-hide Preview Controls'**
+  String get previewAutoHideControlsTitle;
 
-  /// No description provided for @previewFilmstripOpacityTitle.
+  /// No description provided for @previewAutoHideControlsSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Navigation Bar Opacity'**
-  String get previewFilmstripOpacityTitle;
-
-  /// No description provided for @previewOverlayOpacityTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Tool and Overview Opacity'**
-  String get previewOverlayOpacityTitle;
-
-  /// No description provided for @previewOverlayOpacitySubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Set the resting opacity of preview controls. Hovered controls always become fully visible; 100% disables transparency.'**
-  String get previewOverlayOpacitySubtitle;
-
-  /// No description provided for @previewOverlayOpacityPercent.
-  ///
-  /// In en, this message translates to:
-  /// **'{percent}%'**
-  String previewOverlayOpacityPercent(int percent);
+  /// **'Let the image use the whole window and hide the top bar and floating controls while the pointer is still. Off docks the top bar above the image and keeps every control visible.'**
+  String get previewAutoHideControlsSubtitle;
 
   /// No description provided for @languageSectionTitle.
   ///

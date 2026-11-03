@@ -43,7 +43,9 @@ lib/
     single_image_preview.dart      SingleImagePreview — zoomed single image
     widgets/
       preview_filmstrip.dart     PreviewFilmstrip, PreviewFilmstripThumbnail
-      preview_hover_reveal.dart  PreviewHoverReveal
+      preview_chrome.dart        PreviewChromeController, PreviewChromeScope,
+                                 PreviewChromeRegion — auto-hiding controls
+      preview_hover_reveal.dart  PreviewHoverReveal (navigation arrows only)
       preview_overview_map.dart  PreviewOverviewMap
 
   image_store.dart       ImageStore — decode cache keyed by path + layer + width
@@ -301,6 +303,32 @@ is always rendered in the menu — unavailable ones are disabled, never removed,
 so the menu does not change shape between files. `decodedRaw` is the fallback
 because it is the only mode available for every RAW file.
 
+### Preview chrome — `PreviewChromeController`
+
+Every control drawn over the photo (top bar, image tools, overview map, frame
+and Live Photo controls, side arrows) is a `PreviewChromeRegion` driven by one
+`PreviewChromeController` owned by `_ImagePreviewPageState`. They show and hide
+together; there is no per-control resting opacity.
+
+```
+mouse hover / click anywhere → reveal, restart the idle countdown
+pointer rests ~2.5 s         → hide everything, and the cursor
+pointer on a region          → region holds the chrome up
+menu or dialog open          → canHide() is false, chrome stays up
+touch tap on the photo       → toggle (a tap on a region does not count)
+```
+
+A hidden region is wrapped in `IgnorePointer`, so it cannot be clicked
+blind. Docked panels (the filmstrip, the EXIF sidebar, the directory panel) are
+regions with `fades: false`: they reserve their own space, never cover the
+photo, and only hold the chrome while the pointer is on them.
+
+`previewAutoHideControls` (default on) picks the layout. On, the top bar floats
+over a full-height photo on a gradient scrim. Off, the bar is docked above the
+photo and nothing hides. Each region's `MouseRegion` is opaque and defers to its
+child. A non-opaque region reports a miss even over its child, which lets a tap
+on a control also reach the photo beneath it.
+
 ## Development Workflow
 
 Choose validation by the behavior and dependencies affected, not by the number
@@ -435,7 +463,7 @@ across this boundary means lifting it into an `InheritedWidget` or a
 `ValueListenable`, not reading `initialSettings` again.
 
 The remaining reads of `initialSettings` (`pageSwitchAnimationEnabled`,
-`previewOverlayOpacity`, `timeDisplaySource`) are correct today only because the
+`previewAutoHideControls`, `timeDisplaySource`) are correct today only because the
 settings dialog is reachable from the gallery toolbar alone, so it cannot be
 open at the same time as the preview. Adding a settings entry point to the
 preview would break all three at once.

@@ -25,12 +25,12 @@ void main() {
     ));
     final settings = ViewerSettings(
             exifSidebar: (await repo.loadViewPreferences()).exifSidebar)
-        .copyWith(previewToolbarOpacity: 0.8);
+        .copyWith(previewAutoHideControls: false);
     expect(settings.exifSidebar.visible, isTrue);
     expect(settings.exifSidebar.width, 456);
     expect(settings.exifSidebar.expandedSections,
         {ExifSection.image, ExifSection.gps});
-    await repo.savePreviewToolbarOpacity(settings.previewToolbarOpacity);
+    await repo.savePreviewAutoHideControls(settings.previewAutoHideControls);
     await repo
         .saveExifSidebarSettings(settings.exifSidebar.copyWith(visible: false));
     final stored = (await repo.loadViewPreferences()).exifSidebar;

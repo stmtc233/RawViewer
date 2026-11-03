@@ -48,6 +48,15 @@ const double previewFilmstripVerticalChromeHeight = 30;
 const double previewFilmstripMinimumContentHeight = 160;
 const Duration previewOverlayFadeDuration = Duration(milliseconds: 140);
 
+/// How long the pointer must stay still before the preview chrome hides.
+const Duration previewChromeIdleHideDelay = Duration(milliseconds: 2500);
+const Duration previewChromeFadeDuration = Duration(milliseconds: 180);
+
+/// How far a touch may travel, and for how long it may last, and still count
+/// as a tap that toggles the preview chrome.
+const double previewChromeTapSlop = 18;
+const Duration previewChromeTapTimeout = Duration(milliseconds: 350);
+
 /// How long touch-revealed overlay controls stay fully opaque after the last
 /// finger lifts. Touch has no hover exit, so this replaces it.
 const Duration previewTouchRevealHoldDuration = Duration(seconds: 3);

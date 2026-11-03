@@ -94,9 +94,7 @@ class StoredViewPreferences {
   final AppLanguage appLanguage;
   final bool pageSwitchAnimationEnabled;
   final bool longPressLivePhotoEnabled;
-  final double previewOverlayOpacity;
-  final double previewToolbarOpacity;
-  final double previewFilmstripOpacity;
+  final bool previewAutoHideControls;
   final double previewFilmstripHeight;
   final bool showPreviewFilmstrip;
   final bool showThumbnailRatings;
@@ -120,9 +118,7 @@ class StoredViewPreferences {
     required this.appLanguage,
     required this.pageSwitchAnimationEnabled,
     this.longPressLivePhotoEnabled = false,
-    required this.previewOverlayOpacity,
-    required this.previewToolbarOpacity,
-    required this.previewFilmstripOpacity,
+    this.previewAutoHideControls = true,
     required this.previewFilmstripHeight,
     required this.showPreviewFilmstrip,
     this.showThumbnailRatings = true,
@@ -163,9 +159,7 @@ class PreferencesRepository {
       'page_switch_animation_enabled';
   static const String _longPressLivePhotoEnabled =
       'long_press_live_photo_enabled';
-  static const String _previewOverlayOpacity = 'preview_overlay_opacity';
-  static const String _previewToolbarOpacity = 'preview_toolbar_opacity';
-  static const String _previewFilmstripOpacity = 'preview_filmstrip_opacity';
+  static const String _previewAutoHideControls = 'preview_auto_hide_controls';
   static const String _previewFilmstripHeight = 'preview_filmstrip_height';
   static const String _showPreviewFilmstrip = 'show_preview_filmstrip';
   static const String _showThumbnailRatings = 'show_thumbnail_ratings';
@@ -196,10 +190,15 @@ class PreferencesRepository {
   static const String _mediaSortOrder = 'media_sort_order';
   static const String _recentOpenItems = 'recent_open_items';
 
-  /// Superseded by [_previewOverlayOpacity]. Read only, to migrate installs
-  /// that predate the continuous opacity slider.
-  static const String _legacyPreviewOverlayAutoTransparency =
-      'preview_overlay_auto_transparency_enabled';
+  /// Resting-opacity settings superseded by [_previewAutoHideControls]: the
+  /// preview's controls now hide completely instead of resting translucent
+  /// over the photo. Only ever removed, so stale values do not linger.
+  static const List<String> _legacyPreviewOpacityKeys = [
+    'preview_overlay_opacity',
+    'preview_toolbar_opacity',
+    'preview_filmstrip_opacity',
+    'preview_overlay_auto_transparency_enabled',
+  ];
 
   static const double _defaultWindowWidth = 1024.0;
   static const double _defaultWindowHeight = 768.0;
@@ -241,11 +240,9 @@ class PreferencesRepository {
 
   Future<StoredViewPreferences> loadViewPreferences() async {
     final prefs = await _prefs;
-    final overlayOpacity = resolvePreviewOverlayOpacity(
-      storedOpacity: prefs.getDouble(_previewOverlayOpacity),
-      legacyAutoTransparencyEnabled:
-          prefs.getBool(_legacyPreviewOverlayAutoTransparency),
-    );
+    for (final key in _legacyPreviewOpacityKeys) {
+      if (prefs.containsKey(key)) await prefs.remove(key);
+    }
     return StoredViewPreferences(
       crossAxisCount:
           prefs.getInt(_gridCrossAxisCount) ?? kDefaultGridCrossAxisCount,
@@ -273,17 +270,7 @@ class PreferencesRepository {
           prefs.getBool(_pageSwitchAnimationEnabled) ?? true,
       longPressLivePhotoEnabled:
           prefs.getBool(_longPressLivePhotoEnabled) ?? false,
-      previewOverlayOpacity: overlayOpacity,
-      previewToolbarOpacity: await _loadPreviewBarOpacity(
-        prefs,
-        _previewToolbarOpacity,
-        overlayOpacity,
-      ),
-      previewFilmstripOpacity: await _loadPreviewBarOpacity(
-        prefs,
-        _previewFilmstripOpacity,
-        overlayOpacity,
-      ),
+      previewAutoHideControls: prefs.getBool(_previewAutoHideControls) ?? true,
       previewFilmstripHeight: normalizePreviewFilmstripHeight(
         prefs.getDouble(_previewFilmstripHeight) ?? kPreviewFilmstripHeight,
       ),
@@ -313,39 +300,6 @@ class PreferencesRepository {
           MediaSortOrder.values.asNameMap()[prefs.getString(_mediaSortOrder)] ??
               defaultMediaSortOrder,
     );
-  }
-
-  Future<double> _loadPreviewBarOpacity(
-    SharedPreferences prefs,
-    String key,
-    double fallback,
-  ) async {
-    final stored = prefs.getDouble(key);
-    if (stored == null) {
-      // Migrate once so later tool-opacity changes cannot change either bar.
-      await prefs.setDouble(key, fallback);
-    }
-    return (stored ?? fallback)
-        .clamp(kMinPreviewOverlayOpacity, kMaxPreviewOverlayOpacity)
-        .toDouble();
-  }
-
-  /// Resolves the overlay opacity, migrating the superseded boolean setting.
-  ///
-  /// Before the opacity slider existed the setting was a single on/off flag.
-  /// Explicitly turning auto-transparency *off* meant "keep overlays fully
-  /// opaque", so that install migrates to the maximum rather than the default.
-  /// Every other legacy state (on, or never set) migrates to the default.
-  static double resolvePreviewOverlayOpacity({
-    required double? storedOpacity,
-    required bool? legacyAutoTransparencyEnabled,
-  }) {
-    return (storedOpacity ??
-            (legacyAutoTransparencyEnabled == false
-                ? kMaxPreviewOverlayOpacity
-                : kDefaultPreviewOverlayOpacity))
-        .clamp(kMinPreviewOverlayOpacity, kMaxPreviewOverlayOpacity)
-        .toDouble();
   }
 
   Future<void> saveCrossAxisCount(int count) async {
@@ -404,19 +358,9 @@ class PreferencesRepository {
     await prefs.setBool(_pageSwitchAnimationEnabled, enabled);
   }
 
-  Future<void> savePreviewOverlayOpacity(double opacity) async {
+  Future<void> savePreviewAutoHideControls(bool enabled) async {
     final prefs = await _prefs;
-    await prefs.setDouble(_previewOverlayOpacity, opacity);
-  }
-
-  Future<void> savePreviewToolbarOpacity(double opacity) async {
-    final prefs = await _prefs;
-    await prefs.setDouble(_previewToolbarOpacity, opacity);
-  }
-
-  Future<void> savePreviewFilmstripOpacity(double opacity) async {
-    final prefs = await _prefs;
-    await prefs.setDouble(_previewFilmstripOpacity, opacity);
+    await prefs.setBool(_previewAutoHideControls, enabled);
   }
 
   Future<void> saveRawViewMode(RawViewMode mode) async {

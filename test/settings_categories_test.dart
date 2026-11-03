@@ -138,7 +138,7 @@ void main() {
         'grid-corner-radius',
         'grid-spacing',
         'page-switch-animation',
-        'preview-toolbar-opacity',
+        'preview-auto-hide-controls',
       ]) {
         final target = find.byKey(ValueKey(key));
         await tester.scrollUntilVisible(

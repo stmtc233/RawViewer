@@ -12,7 +12,7 @@ import 'package:rawviewer/media_group.dart';
 import 'package:rawviewer/native_lib.dart';
 import 'package:rawviewer/preview/image_preview_page.dart';
 import 'package:rawviewer/preview/preview_geometry.dart';
-import 'package:rawviewer/preview/widgets/preview_filmstrip.dart';
+import 'package:rawviewer/preview/widgets/preview_chrome.dart';
 import 'package:rawviewer/preview/widgets/preview_hover_reveal.dart';
 import 'package:rawviewer/preview/widgets/preview_overview_map.dart';
 import 'package:rawviewer/settings_page.dart';
@@ -41,28 +41,46 @@ class _FixtureImageStore extends ImageStore {
       image.clone();
 }
 
+/// The opacity the preview chrome currently gives [control].
+double chromeOpacity(WidgetTester tester, Finder control) {
+  final region = find
+      .ancestor(of: control, matching: find.byType(PreviewChromeRegion))
+      .first;
+  if (!tester.widget<PreviewChromeRegion>(region).fades) return 1;
+  return tester
+      .widget<AnimatedOpacity>(find
+          .descendant(of: region, matching: find.byType(AnimatedOpacity))
+          .first)
+      .opacity;
+}
+
 void main() {
+  Future<ViewerImage> redImage(WidgetTester tester, Size size) async {
+    final recorder = ui.PictureRecorder();
+    Canvas(recorder).drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xFFFF0000),
+    );
+    final picture = recorder.endRecording();
+    final image = ViewerImage(
+      image: (await tester.runAsync(
+        () => picture.toImage(size.width.toInt(), size.height.toInt()),
+      ))!,
+    );
+    picture.dispose();
+    addTearDown(image.dispose);
+    return image;
+  }
+
   for (final size in [const Size(800, 600), const Size(360, 800)]) {
-    testWidgets('image fits between bars and zooms beneath them at $size',
+    testWidgets('image fills the window beneath the floating bar at $size',
         (tester) async {
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      final recorder = ui.PictureRecorder();
-      Canvas(recorder).drawRect(
-        Offset.zero & size,
-        Paint()..color = const Color(0xFFFF0000),
-      );
-      final picture = recorder.endRecording();
-      final image = ViewerImage(
-        image: (await tester.runAsync(
-          () => picture.toImage(size.width.toInt(), size.height.toInt()),
-        ))!,
-      );
-      picture.dispose();
-      addTearDown(image.dispose);
+      final image = await redImage(tester, size);
       final boundaryKey = GlobalKey();
       final safePadding = size.width < 400
           ? const EdgeInsets.only(top: 24, bottom: 20)
@@ -85,11 +103,7 @@ void main() {
               thumbnailResizeWidth: 256,
               imageStore: _FixtureImageStore(image),
               timestampRepository: TimestampRepository(),
-              initialSettings: const ViewerSettings(
-                previewOverlayOpacity: 0.5,
-                previewToolbarOpacity: 0.3,
-                previewFilmstripOpacity: 0.6,
-              ),
+              initialSettings: const ViewerSettings(),
               onClose: () {},
               onRawViewModeChanged: (_) {},
               onPreviewFilmstripHeightChanged: (_) {},
@@ -99,45 +113,35 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      double restingOpacityFor(Finder child) => tester
-          .widget<PreviewHoverReveal>(
-            find
-                .ancestor(of: child, matching: find.byType(PreviewHoverReveal))
-                .first,
-          )
-          .restingOpacity;
-      expect(restingOpacityFor(find.byIcon(Icons.arrow_back)), 0.3);
-      expect(restingOpacityFor(find.byType(PreviewFilmstrip)), 0.6);
-      expect(restingOpacityFor(find.byIcon(Icons.zoom_in)), 0.5);
+      final toolbar = find.byKey(const ValueKey('preview-toolbar'));
+      final filmstrip = find.byKey(const ValueKey('preview-filmstrip-panel'));
 
-      Future<void> expectImageBehindBars({required bool visible}) async {
+      /// Whether the red photo shows at [point] in the rendered page.
+      Future<bool> photoVisibleAt(Offset point) async {
         final boundary = boundaryKey.currentContext!.findRenderObject()!
             as RenderRepaintBoundary;
+        late bool visible;
         await tester.runAsync(() async {
           final screenshot = await boundary.toImage();
           try {
             final pixels = (await screenshot.toByteData())!;
-            // Sample empty bar background, away from buttons and thumbnails.
-            for (final y in [
-              safePadding.top.toInt() + 2,
-              size.height.toInt() - 8
-            ]) {
-              final offset = (y * screenshot.width + 2) * 4;
-              final redExcess =
-                  pixels.getUint8(offset) - pixels.getUint8(offset + 1);
-              expect(redExcess, visible ? greaterThan(80) : lessThan(20),
-                  reason: 'Image behind the bar at y=$y: visible=$visible');
-            }
-            final centerOffset = ((screenshot.height ~/ 2) * screenshot.width +
-                    screenshot.width ~/ 2) *
-                4;
-            expect(pixels.getUint8(centerOffset),
-                greaterThan(pixels.getUint8(centerOffset + 1) + 80));
+            final offset =
+                (point.dy.toInt() * screenshot.width + point.dx.toInt()) * 4;
+            visible =
+                pixels.getUint8(offset) - pixels.getUint8(offset + 1) > 80;
           } finally {
             screenshot.dispose();
           }
         });
+        return visible;
       }
+
+      // Just above the bottom of the bar, where the scrim has faded out.
+      final underBar = Offset(
+        size.width / 2,
+        safePadding.top + kImagePreviewToolbarHeight - 4,
+      );
+      final underFilmstrip = Offset(2, size.height - 8);
 
       Future<void> zoomIn() async {
         for (var i = 0; i < 6; i++) {
@@ -148,25 +152,24 @@ void main() {
 
       void expectFittedViewport() {
         final fittedRect = tester.getRect(find.byType(InteractiveViewer));
-        expect(fittedRect.top, safePadding.top + kImagePreviewToolbarHeight);
-        expect(
-            fittedRect.bottom,
-            tester
-                .getTopLeft(
-                  find.byKey(const ValueKey('preview-filmstrip-panel')),
-                )
-                .dy);
+        // The bar floats: the photo starts at the top of the safe area.
+        expect(fittedRect.top, safePadding.top);
+        // The filmstrip is docked: the photo stops above it.
+        expect(fittedRect.bottom, tester.getTopLeft(filmstrip).dy);
       }
 
-      await expectImageBehindBars(visible: false);
       expectFittedViewport();
+      expect(tester.getRect(toolbar).top, 0);
+      expect(await photoVisibleAt(underBar), isTrue);
+      expect(await photoVisibleAt(underFilmstrip), isFalse);
       final initialViewport = tester.getRect(find.byType(PageView));
       expect(initialViewport, Offset.zero & size);
+
       await zoomIn();
-      await expectImageBehindBars(visible: true);
+      // A docked filmstrip is opaque: zooming never shows the photo through it.
+      expect(await photoVisibleAt(underFilmstrip), isFalse);
       await tester.tap(find.byIcon(Icons.filter_center_focus));
       await tester.pumpAndSettle();
-      await expectImageBehindBars(visible: false);
 
       await tester.drag(
         find.byKey(const ValueKey('preview-filmstrip-resize-handle')),
@@ -175,16 +178,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.getRect(find.byType(PageView)), initialViewport);
       expectFittedViewport();
-      await expectImageBehindBars(visible: false);
 
       await zoomIn();
-      await expectImageBehindBars(visible: true);
       final overviewRect = tester.getRect(find.byType(PreviewOverviewMap));
-      expect(restingOpacityFor(find.byType(PreviewOverviewMap)), 0.5);
       final controlsRect = tester.getRect(find.byIcon(Icons.zoom_in));
-      final filmstripRect = tester.getRect(
-        find.byKey(const ValueKey('preview-filmstrip-panel')),
-      );
+      final filmstripRect = tester.getRect(filmstrip);
       expect(overviewRect.bottom, lessThan(controlsRect.top));
       expect(controlsRect.bottom, lessThan(filmstripRect.top));
 
@@ -195,8 +193,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text(l10n.previewFilmstripTitle));
       await tester.pumpAndSettle();
-      expect(
-          find.byKey(const ValueKey('preview-filmstrip-panel')), findsNothing);
+      expect(filmstrip, findsNothing);
       expect(tester.getRect(find.byType(PageView)), initialViewport);
       expect(
         tester.getRect(find.byType(PreviewOverviewMap)).bottom,
@@ -214,10 +211,19 @@ void main() {
       expect(sidebar, findsOneWidget);
       final sidebarRect = tester.getRect(sidebar);
       expect(sidebarRect.right, size.width);
-      expect(sidebarRect.top, safePadding.top + kImagePreviewToolbarHeight);
       expect(sidebarRect.bottom, size.height);
-      expect(tester.getRect(find.byType(PageView)).right,
-          size.width >= 720 ? sidebarRect.left : size.width);
+      if (size.width >= 720) {
+        // Docked beside the photo: the sidebar takes the full height and the
+        // floating bar spans only the photo.
+        expect(sidebarRect.top, safePadding.top);
+        expect(tester.getRect(toolbar).right, sidebarRect.left);
+        expect(tester.getRect(find.byType(PageView)).right, sidebarRect.left);
+      } else {
+        // Over the photo: below the bar, so the bar stays reachable.
+        expect(sidebarRect.top, safePadding.top + kImagePreviewToolbarHeight);
+        expect(tester.getRect(toolbar).right, size.width);
+        expect(tester.getRect(find.byType(PageView)).right, size.width);
+      }
       expect(tester.takeException(), isNull);
       await tester.tap(find.byIcon(Icons.close));
       await tester.pumpAndSettle();
@@ -226,6 +232,45 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
   }
+
+  testWidgets('with auto-hide off the bar is docked and never hides',
+      (tester) async {
+    const size = Size(800, 600);
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final image = await redImage(tester, size);
+
+    await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: ImagePreviewPage(
+        mediaGroups: const [
+          MediaGroup(
+            primary: MediaFile(path: '/fixture.arw', kind: MediaKind.raw),
+          ),
+        ],
+        initialIndex: 0,
+        thumbnailResizeWidth: 256,
+        imageStore: _FixtureImageStore(image),
+        timestampRepository: TimestampRepository(),
+        initialSettings: const ViewerSettings(previewAutoHideControls: false),
+        onClose: () {},
+        onRawViewModeChanged: (_) {},
+        onPreviewFilmstripHeightChanged: (_) {},
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final fittedRect = tester.getRect(find.byType(InteractiveViewer));
+    expect(fittedRect.top, kImagePreviewToolbarHeight);
+    await tester.pump(previewChromeIdleHideDelay * 3);
+    await tester.pumpAndSettle();
+    expect(chromeOpacity(tester, find.byIcon(Icons.arrow_back)), 1);
+    expect(chromeOpacity(tester, find.byIcon(Icons.zoom_in)), 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   const navigationGroups = [
     MediaGroup(
@@ -373,5 +418,140 @@ void main() {
     expect(opacity(), 1);
     await tester.pump(previewTouchRevealHoldDuration);
     expect(opacity(), 0.2);
+  });
+
+  group('auto-hiding chrome', () {
+    Future<void> pumpRawPreview(WidgetTester tester,
+        {VoidCallback? onClose}) async {
+      const size = Size(800, 600);
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final image = await redImage(tester, size);
+      await tester.pumpWidget(MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: ImagePreviewPage(
+          mediaGroups: const [
+            MediaGroup(
+              primary: MediaFile(path: '/fixture.arw', kind: MediaKind.raw),
+            ),
+          ],
+          initialIndex: 0,
+          thumbnailResizeWidth: 256,
+          imageStore: _FixtureImageStore(image),
+          timestampRepository: TimestampRepository(),
+          initialSettings: const ViewerSettings(),
+          onClose: onClose ?? () {},
+          onRawViewModeChanged: (_) {},
+          onPreviewFilmstripHeightChanged: (_) {},
+        ),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> idle(WidgetTester tester) async {
+      await tester.pump(previewChromeIdleHideDelay);
+      await tester.pumpAndSettle();
+    }
+
+    bool cursorHidden(WidgetTester tester) => find
+        .byWidgetPredicate((widget) =>
+            widget is MouseRegion && widget.cursor == SystemMouseCursors.none)
+        .evaluate()
+        .isNotEmpty;
+
+    testWidgets('hides every floating control together once the mouse rests',
+        (tester) async {
+      var closed = 0;
+      await pumpRawPreview(tester, onClose: () => closed++);
+      final back = find.byIcon(Icons.arrow_back);
+      final zoomIn = find.byIcon(Icons.zoom_in);
+      expect(chromeOpacity(tester, back), 1);
+      expect(chromeOpacity(tester, zoomIn), 1);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: const Offset(400, 300));
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(const Offset(410, 300));
+      await tester.pump();
+
+      await idle(tester);
+      expect(chromeOpacity(tester, back), 0);
+      expect(chromeOpacity(tester, zoomIn), 0);
+      expect(cursorHidden(tester), isTrue);
+      // The filmstrip is docked beside the photo, not over it: it stays.
+      expect(find.byKey(const ValueKey('preview-filmstrip-panel')),
+          findsOneWidget);
+
+      // A hidden control cannot be clicked.
+      final backCenter = tester.getCenter(back);
+      await tester.tapAt(backCenter, kind: PointerDeviceKind.touch);
+      await tester.pumpAndSettle();
+      expect(closed, 0);
+      // ...but that tap landed on the photo, which brings the chrome back.
+      expect(chromeOpacity(tester, back), 1);
+
+      await idle(tester);
+      expect(chromeOpacity(tester, back), 0);
+      await mouse.moveTo(const Offset(300, 300));
+      await tester.pumpAndSettle();
+      expect(chromeOpacity(tester, back), 1);
+      expect(chromeOpacity(tester, zoomIn), 1);
+      expect(cursorHidden(tester), isFalse);
+
+      await tester.tap(back);
+      expect(closed, 1);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('a control under the mouse keeps the chrome up',
+        (tester) async {
+      await pumpRawPreview(tester);
+      final zoomIn = find.byIcon(Icons.zoom_in);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: const Offset(400, 300));
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(zoomIn));
+      await tester.pump();
+
+      await idle(tester);
+      await idle(tester);
+      expect(chromeOpacity(tester, zoomIn), 1);
+      expect(chromeOpacity(tester, find.byIcon(Icons.arrow_back)), 1);
+
+      // Leaving the control starts the countdown again.
+      await mouse.moveTo(const Offset(400, 250));
+      await tester.pump();
+      await idle(tester);
+      expect(chromeOpacity(tester, zoomIn), 0);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('a touch tap on the photo toggles the chrome', (tester) async {
+      await pumpRawPreview(tester);
+      final back = find.byIcon(Icons.arrow_back);
+      const photo = Offset(400, 250);
+
+      await tester.tapAt(photo);
+      await tester.pumpAndSettle();
+      expect(chromeOpacity(tester, back), 0);
+
+      await tester.tapAt(photo);
+      await tester.pumpAndSettle();
+      expect(chromeOpacity(tester, back), 1);
+
+      // Tapping a control uses it without hiding the chrome.
+      await tester.tap(find.byIcon(Icons.zoom_in));
+      await tester.pumpAndSettle();
+      expect(chromeOpacity(tester, back), 1);
+
+      // A swipe is not a tap.
+      await tester.dragFrom(photo, const Offset(0, 80));
+      await tester.pumpAndSettle();
+      expect(chromeOpacity(tester, back), 1);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
   });
 }
